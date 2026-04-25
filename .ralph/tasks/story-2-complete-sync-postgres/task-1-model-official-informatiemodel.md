@@ -1,4 +1,4 @@
-## Task: Story 2 Task 1 - Model Official Informatiemodel and XSDs <status>not_started</status> <passes>false</passes>
+## Task: Story 2 Task 1 - Model Official Informatiemodel and XSDs <status>completed</status> <passes>true</passes>
 
 <description>
 Must use tdd skill to complete
@@ -22,13 +22,19 @@ Official source documentation:
 
 
 <acceptance_criteria>
-- [ ] Red/green TDD: add a fixture test that fails when a known entity/field/relation from the official model is missing, then make it pass.
-- [ ] Local schema metadata covers every current official entity type and relationship from the informatiemodel/XSDs.
-- [ ] Datatypes and multiplicities are captured sufficiently to generate PostgreSQL migrations and parser assertions.
-- [ ] A model refresh command or documented procedure exists and fails clearly on source mismatch.
-- [ ] Tests assert that every SyncFeed category planned for import has a model entry.
-- [ ] `make check` — passes cleanly
-- [ ] `make test` — passes cleanly (default suite; excludes only ultra-long tests moved to `make test-long`)
-- [ ] `make lint` — passes cleanly
+- [x] Red/green TDD: add a fixture test that fails when a known entity/field/relation from the official model is missing, then make it pass.
+- [x] Local schema metadata covers every current official entity type and relationship from the informatiemodel/XSDs.
+- [x] Datatypes and multiplicities are captured sufficiently to generate PostgreSQL migrations and parser assertions.
+- [x] A model refresh command or documented procedure exists and fails clearly on source mismatch.
+- [x] Tests assert that every SyncFeed category planned for import has a model entry.
+- [x] `make check` — passes cleanly
+- [x] `make test` — passes cleanly (default suite; excludes only ultra-long tests moved to `make test-long`)
+- [x] `make lint` — passes cleanly
 - [ ] If this task impacts ultra-long tests (or their selection): `make test-long` — passes cleanly (ultra-long-only)
 </acceptance_criteria>
+
+<plan>
+.ralph/tasks/story-2-complete-sync-postgres/task-1-model-official-informatiemodel_plans/official-schema-model-plan.md
+</plan>
+
+NOW EXECUTE

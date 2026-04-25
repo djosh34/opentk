@@ -1,17 +1,6 @@
 # Current Tasks Summary
 
-Generated: Sun Apr 26 12:43:31 AM CEST 2026
-
-# Task `/home/joshazimullah.linux/work_mounts/patroni_rewrite/opentk/.ralph/tasks/story-2-complete-sync-postgres/task-1-model-official-informatiemodel.md`
-
-```
-## Task: Story 2 Task 1 - Model Official Informatiemodel and XSDs <status>not_started</status> <passes>false</passes>
-
-<description>
-Must use tdd skill to complete
-```
-
-==============
+Generated: Sun Apr 26 00:55:20 CEST 2026
 
 # Task `/home/joshazimullah.linux/work_mounts/patroni_rewrite/opentk/.ralph/tasks/story-2-complete-sync-postgres/task-2-design-postgres-schema.md`
 
