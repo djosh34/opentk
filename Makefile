@@ -3,11 +3,11 @@
 check: lint
 
 lint:
-	cargo fmt --check
-	cargo clippy --workspace --all-targets -- -D warnings
+	CARGO_INCREMENTAL=0 cargo fmt --check
+	CARGO_INCREMENTAL=0 cargo clippy --workspace --all-targets -- -D warnings
 
 test:
-	./scripts/cargo-test-with-postgres.sh
+	CARGO_INCREMENTAL=0 ./scripts/cargo-test-with-postgres.sh
 
 test-long:
-	cargo test --workspace --ignored
+	CARGO_INCREMENTAL=0 cargo test --workspace --ignored

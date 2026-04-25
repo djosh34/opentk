@@ -1,4 +1,4 @@
-## Task: Story 2 Task 3 - Implement SyncFeed Client and Rate Limit Respect <status>not_started</status> <passes>false</passes>
+## Task: Story 2 Task 3 - Implement SyncFeed Client and Rate Limit Respect <status>done</status> <passes>true</passes>
 
 <description>
 Must use tdd skill to complete
@@ -14,14 +14,18 @@ In scope: `reqwest` client, timeouts, retry policy, adaptive limiter, response s
 
 
 <acceptance_criteria>
-- [ ] Red/green TDD: mock-server test fails on wrong `next`/`resume` handling, then passes.
-- [ ] Client follows category cursor pages until `resume`.
-- [ ] Client records and exposes request latency and status for limiter decisions.
-- [ ] Non-2xx, malformed cursor URL, missing cursor state, timeout, and invalid XML response are explicit errors.
-- [ ] Global concurrency is bounded and configurable.
-- [ ] Tests prove category workers can fetch in parallel while per-category cursor order is preserved.
-- [ ] `make check` — passes cleanly
-- [ ] `make test` — passes cleanly (default suite; excludes only ultra-long tests moved to `make test-long`)
-- [ ] `make lint` — passes cleanly
-- [ ] If this task impacts ultra-long tests (or their selection): `make test-long` — passes cleanly (ultra-long-only)
+- [x] Red/green TDD: mock-server test fails on wrong `next`/`resume` handling, then passes.
+- [x] Client follows category cursor pages until `resume`.
+- [x] Client records and exposes request latency and status for limiter decisions.
+- [x] Non-2xx, malformed cursor URL, missing cursor state, timeout, and invalid XML response are explicit errors.
+- [x] Global concurrency is bounded and configurable.
+- [x] Tests prove category workers can fetch in parallel while per-category cursor order is preserved.
+- [x] `make check` — passes cleanly
+- [x] `make test` — passes cleanly (default suite; excludes only ultra-long tests moved to `make test-long`)
+- [x] `make lint` — passes cleanly
+- [x] If this task impacts ultra-long tests (or their selection): not applicable; this task does not finish the story or change long/e2e selection.
 </acceptance_criteria>
+
+.ralph/tasks/story-2-complete-sync-postgres/task-3-implement-syncfeed-client-and-rate-limits_plans/syncfeed-client-plan.md
+
+NOW EXECUTE
