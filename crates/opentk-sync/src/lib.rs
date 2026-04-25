@@ -4,4 +4,5 @@
 //! decisions stay in `opentk-core`; database writes go through `opentk-db`.
 
 pub mod official_schema;
+pub mod payload;
 pub mod syncfeed;

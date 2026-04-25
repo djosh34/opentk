@@ -24,6 +24,7 @@ fn document_schema_exposes_metadata_scalar_and_relation_tables() {
             ("source_updated_at", SqlType::TimestampTz, false),
             ("atom_updated_at", SqlType::TimestampTz, false),
             ("document_nummer", SqlType::Text, true),
+            ("enclosure_url", SqlType::Text, true),
         ],
     );
 

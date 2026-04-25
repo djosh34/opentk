@@ -298,6 +298,13 @@ fn entity_table(entity: &'static EntityType) -> TableSpec {
             }),
         }
     }
+    if entity.base == "downloadEntiteitType" {
+        columns.push(ColumnSpec {
+            name: "enclosure_url".to_owned(),
+            sql_type: SqlType::Text,
+            nullable: true,
+        });
+    }
 
     for field in entity
         .fields
@@ -475,7 +482,7 @@ fn sql_type(xsd_type: &str) -> SqlType {
     match xsd_type {
         "idType" | "referentieLiteral" | "referentieType" => SqlType::Uuid,
         "xs:boolean" | "booleanType" => SqlType::Boolean,
-        "xs:int" => SqlType::Integer,
+        "xs:int" | "xs:unsignedInt" | "intType" => SqlType::Integer,
         "xs:long" => SqlType::BigInteger,
         "xs:dateTime" => SqlType::TimestampTz,
         "xs:date" => SqlType::Date,

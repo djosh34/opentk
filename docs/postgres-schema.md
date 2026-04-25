@@ -20,7 +20,7 @@ The schema maps official XSD types to PostgreSQL types:
 
 - `idType`, `referentieLiteral`, `referentieType`: `uuid`
 - `xs:boolean`, `booleanType`: `boolean`
-- `xs:int`: `integer`
+- `xs:int`, `xs:unsignedInt`, `intType`: `integer`
 - `xs:long`: `bigint`
 - `xs:dateTime`: `timestamptz`
 - `xs:date`: `date`
@@ -45,6 +45,20 @@ canonical source metadata columns:
 
 - `content_type`
 - `content_length`
+- `enclosure_url`
+
+## Sync Page Writes
+
+`opentk-db::sync_writer` writes one SyncFeed page per transaction. It upserts
+`sync_entity`, replaces the current typed entity row for non-deleted updates,
+inserts relation and repeated-scalar rows from the parsed payload, records
+download metadata, and advances `sync_category.latest_skiptoken` in the same
+commit.
+
+Delete markers are persisted in `sync_entity` and remove current typed rows,
+which cascades stale relation and repeated-scalar rows. Relation targets are
+registered in `sync_entity` before relation rows are inserted, so relation
+tables remain queryable by both source and target endpoint.
 
 ## Relation Tables
 

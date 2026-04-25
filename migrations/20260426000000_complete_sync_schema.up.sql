@@ -114,7 +114,7 @@ CREATE TABLE "activiteit_actor" (
     "actor_naam" text,
     "actor_fractie" text,
     "relatie" text,
-    "volgorde" text,
+    "volgorde" integer,
     "functie" text,
     "spreektijd" text,
     "sid_actor" text,
@@ -223,7 +223,7 @@ CREATE TABLE "besluit" (
     "besluit_tekst" text,
     "opmerking" text,
     "status" text,
-    "agendapunt_zaak_besluit_volgorde" text,
+    "agendapunt_zaak_besluit_volgorde" integer,
     PRIMARY KEY ("source_category", "source_id"),
     FOREIGN KEY ("source_category", "source_id") REFERENCES "sync_entity" ("source_category", "source_id") ON DELETE CASCADE
 );
@@ -285,7 +285,7 @@ CREATE TABLE "commissie_contactinformatie" (
     "atom_updated_at" timestamptz NOT NULL,
     "soort" text,
     "waarde" text,
-    "gewicht" text,
+    "gewicht" integer,
     PRIMARY KEY ("source_category", "source_id"),
     FOREIGN KEY ("source_category", "source_id") REFERENCES "sync_entity" ("source_category", "source_id") ON DELETE CASCADE
 );
@@ -311,7 +311,7 @@ CREATE TABLE "commissie_zetel" (
     "deleted" boolean NOT NULL,
     "source_updated_at" timestamptz NOT NULL,
     "atom_updated_at" timestamptz NOT NULL,
-    "gewicht" text,
+    "gewicht" integer,
     PRIMARY KEY ("source_category", "source_id"),
     FOREIGN KEY ("source_category", "source_id") REFERENCES "sync_entity" ("source_category", "source_id") ON DELETE CASCADE
 );
@@ -507,14 +507,15 @@ CREATE TABLE "document" (
     "atom_updated_at" timestamptz NOT NULL,
     "content_type" text,
     "content_length" integer,
+    "enclosure_url" text,
     "soort" text,
     "document_nummer" text,
     "titel" text,
     "onderwerp" text,
     "datum" timestamptz,
-    "volgnummer" text,
+    "volgnummer" integer,
     "vergaderjaar" text,
-    "kamer" text,
+    "kamer" integer,
     "citeertitel" text,
     "alias" text,
     "datum_registratie" timestamptz,
@@ -718,6 +719,7 @@ CREATE TABLE "fractie" (
     "atom_updated_at" timestamptz NOT NULL,
     "content_type" text,
     "content_length" integer,
+    "enclosure_url" text,
     "nummer" text,
     "afkorting" text,
     "naam_nl" text,
@@ -737,7 +739,7 @@ CREATE TABLE "fractie_zetel" (
     "deleted" boolean NOT NULL,
     "source_updated_at" timestamptz NOT NULL,
     "atom_updated_at" timestamptz NOT NULL,
-    "gewicht" text,
+    "gewicht" integer,
     PRIMARY KEY ("source_category", "source_id"),
     FOREIGN KEY ("source_category", "source_id") REFERENCES "sync_entity" ("source_category", "source_id") ON DELETE CASCADE
 );
@@ -836,7 +838,7 @@ CREATE TABLE "kamerstukdossier" (
     "titel" text,
     "citeertitel" text,
     "alias" text,
-    "nummer" text,
+    "nummer" integer,
     "toevoeging" text,
     "hoogste_volgnummer" integer,
     "afgesloten" boolean,
@@ -854,6 +856,7 @@ CREATE TABLE "persoon" (
     "atom_updated_at" timestamptz NOT NULL,
     "content_type" text,
     "content_length" integer,
+    "enclosure_url" text,
     "nummer" text,
     "titels" text,
     "initialen" text,
@@ -884,7 +887,7 @@ CREATE TABLE "persoon_contactinformatie" (
     "atom_updated_at" timestamptz NOT NULL,
     "soort" text,
     "waarde" text,
-    "gewicht" text,
+    "gewicht" integer,
     PRIMARY KEY ("source_category", "source_id"),
     FOREIGN KEY ("source_category", "source_id") REFERENCES "sync_entity" ("source_category", "source_id") ON DELETE CASCADE
 );
@@ -912,7 +915,7 @@ CREATE TABLE "persoon_geschenk" (
     "atom_updated_at" timestamptz NOT NULL,
     "omschrijving" text,
     "datum" text,
-    "gewicht" text,
+    "gewicht" integer,
     PRIMARY KEY ("source_category", "source_id"),
     FOREIGN KEY ("source_category", "source_id") REFERENCES "sync_entity" ("source_category", "source_id") ON DELETE CASCADE
 );
@@ -945,7 +948,7 @@ CREATE TABLE "persoon_loopbaan" (
     "plaats" text,
     "van" text,
     "tot_en_met" text,
-    "gewicht" text,
+    "gewicht" integer,
     PRIMARY KEY ("source_category", "source_id"),
     FOREIGN KEY ("source_category", "source_id") REFERENCES "sync_entity" ("source_category", "source_id") ON DELETE CASCADE
 );
@@ -975,7 +978,7 @@ CREATE TABLE "persoon_nevenfunctie" (
     "is_actief" boolean,
     "periode" text,
     "vergoeding" text,
-    "gewicht" text,
+    "gewicht" integer,
     PRIMARY KEY ("source_category", "source_id"),
     FOREIGN KEY ("source_category", "source_id") REFERENCES "sync_entity" ("source_category", "source_id") ON DELETE CASCADE
 );
@@ -1041,7 +1044,7 @@ CREATE TABLE "persoon_onderwijs" (
     "plaats" text,
     "van" text,
     "tot_en_met" text,
-    "gewicht" text,
+    "gewicht" integer,
     PRIMARY KEY ("source_category", "source_id"),
     FOREIGN KEY ("source_category", "source_id") REFERENCES "sync_entity" ("source_category", "source_id") ON DELETE CASCADE
 );
@@ -1072,7 +1075,7 @@ CREATE TABLE "persoon_reis" (
     "van" text,
     "tot_en_met" text,
     "betaald_door" text,
-    "gewicht" text,
+    "gewicht" integer,
     PRIMARY KEY ("source_category", "source_id"),
     FOREIGN KEY ("source_category", "source_id") REFERENCES "sync_entity" ("source_category", "source_id") ON DELETE CASCADE
 );
@@ -1312,7 +1315,7 @@ CREATE TABLE "vergadering" (
     "titel" text,
     "zaal" text,
     "vergaderjaar" text,
-    "vergadering_nummer" text,
+    "vergadering_nummer" integer,
     "datum" timestamptz,
     "aanvangstijd" timestamptz,
     "sluiting" timestamptz,
@@ -1330,6 +1333,7 @@ CREATE TABLE "verslag" (
     "atom_updated_at" timestamptz NOT NULL,
     "content_type" text,
     "content_length" integer,
+    "enclosure_url" text,
     "soort" text,
     "status" text,
     PRIMARY KEY ("source_category", "source_id"),
@@ -1368,7 +1372,7 @@ CREATE TABLE "zaak" (
     "grondslagvoorhang" text,
     "termijn" text,
     "vergaderjaar" text,
-    "volgnummer" text,
+    "volgnummer" integer,
     "status" text,
     "huidige_behandelstatus" text,
     "afgedaan" boolean,
@@ -1525,7 +1529,7 @@ CREATE TABLE "zaal" (
     "source_updated_at" timestamptz NOT NULL,
     "atom_updated_at" timestamptz NOT NULL,
     "naam" text,
-    "sys_code" text,
+    "sys_code" integer,
     PRIMARY KEY ("source_category", "source_id"),
     FOREIGN KEY ("source_category", "source_id") REFERENCES "sync_entity" ("source_category", "source_id") ON DELETE CASCADE
 );

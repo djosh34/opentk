@@ -1,0 +1,8 @@
+<document xmlns="http://www.tweedekamer.nl/xsd/tkData/v1-0"
+    id="11111111-1111-4111-8111-111111111112"
+    verwijderd="false"
+    bijgewerkt="2026-04-26T00:00:00Z">
+    <activiteit ref="33333333-3333-4333-8333-333333333331"/>
+    <activiteit ref="33333333-3333-4333-8333-333333333332"/>
+    <documentNummer>2026D00002</documentNummer>
+</document>

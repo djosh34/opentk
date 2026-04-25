@@ -54,3 +54,8 @@ retry delay, and successful responses reduce it.
 Tests use a local HTTP fixture server. This task intentionally avoids live
 `SyncFeed` calls; story-end validation is the right place for long-running or
 external API checks.
+
+Embedded entity payload parsing is documented in
+[`docs/syncfeed-parser.md`](syncfeed-parser.md). The Atom client owns page
+fetching and cursor validation; `opentk-sync::payload` owns strict parsing of
+the XML content inside each entry.

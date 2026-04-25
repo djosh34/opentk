@@ -6,8 +6,12 @@ license.workspace = true
 repository.workspace = true
 
 [dependencies]
+chrono.workspace = true
 opentk-core.workspace = true
+opentk-sync.workspace = true
 sqlx.workspace = true
+thiserror.workspace = true
+uuid.workspace = true
 
 [dev-dependencies]
 tokio.workspace = true

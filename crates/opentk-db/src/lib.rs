@@ -4,3 +4,4 @@
 //! code belong here. Source-neutral domain decisions stay in `opentk-core`.
 
 pub mod postgres_schema;
+pub mod sync_writer;

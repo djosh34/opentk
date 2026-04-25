@@ -6,12 +6,15 @@ license.workspace = true
 repository.workspace = true
 
 [dependencies]
+chrono.workspace = true
 opentk-core.workspace = true
+quick-xml.workspace = true
 reqwest.workspace = true
 roxmltree.workspace = true
 thiserror.workspace = true
 tokio.workspace = true
 tracing.workspace = true
+uuid.workspace = true
 
 [lints]
 workspace = true
