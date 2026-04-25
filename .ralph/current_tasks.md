@@ -1,17 +1,6 @@
 # Current Tasks Summary
 
-Generated: Sun Apr 26 12:30:46 AM CEST 2026
-
-# Task `/home/joshazimullah.linux/work_mounts/patroni_rewrite/opentk/.ralph/tasks/bugs/bug-current-task-points-to-missing-task-file.md`
-
-```
-## Bug: Current Task Points To Missing Task File <status>not_started</status> <passes>false</passes> <priority>high</priority>
-
-<description>
-`.ralph/current_task.txt` points to `.ralph/tasks/story-03-docs-api-contracts/task-08-docs-openapi-verify-api.md`, but that file and its parent task directory do not exist in the repository.
-```
-
-==============
+Generated: Sun Apr 26 12:38:44 AM CEST 2026
 
 # Task `/home/joshazimullah.linux/work_mounts/patroni_rewrite/opentk/.ralph/tasks/story-1-rust-project-setup/story-1-rust-project-setup.md`
 
@@ -21,17 +10,6 @@ Generated: Sun Apr 26 12:30:46 AM CEST 2026
 Goal: initialize the repository as a production Rust workspace for OpenTK with repeatable local commands, CI-ready checks, and a clean base for the PostgreSQL SyncFeed importer and later HTTP API work.
 
 Tasks:
-```
-
-==============
-
-# Task `/home/joshazimullah.linux/work_mounts/patroni_rewrite/opentk/.ralph/tasks/story-1-rust-project-setup/task-1-init-rust-workspace.md`
-
-```
-## Task: Story 1 Task 1 - Initialize Rust Workspace <status>not_started</status> <passes>false</passes>
-
-<description>
-Must use tdd skill to complete
 ```
 
 ==============

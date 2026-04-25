@@ -1,1 +1,0 @@
-.ralph/tasks/story-03-docs-api-contracts/task-08-docs-openapi-verify-api.md

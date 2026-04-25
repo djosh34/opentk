@@ -1,4 +1,4 @@
-## Task: Story 1 Task 1 - Initialize Rust Workspace <status>not_started</status> <passes>false</passes>
+## Task: Story 1 Task 1 - Initialize Rust Workspace <status>done</status> <passes>true</passes>
 
 <description>
 Must use tdd skill to complete
@@ -14,14 +14,20 @@ In scope: create `Cargo.toml` workspace, crates/modules for importer/core/databa
 
 
 <acceptance_criteria>
-- [ ] Red/green TDD: add at least one workspace smoke test proving the workspace builds and a core crate function is callable.
-- [ ] Workspace contains a clear crate/module layout for core domain types, SyncFeed ingestion, database access, and future HTTP API.
-- [ ] `cargo fmt --check` passes.
-- [ ] `cargo clippy --workspace --all-targets -- -D warnings` passes.
-- [ ] `cargo test --workspace` passes.
-- [ ] README or developer docs explain the workspace layout and required local tools.
-- [ ] `make check` — passes cleanly
-- [ ] `make test` — passes cleanly (default suite; excludes only ultra-long tests moved to `make test-long`)
-- [ ] `make lint` — passes cleanly
-- [ ] If this task impacts ultra-long tests (or their selection): `make test-long` — passes cleanly (ultra-long-only)
+- [x] Red/green TDD: add at least one workspace smoke test proving the workspace builds and a core crate function is callable.
+- [x] Workspace contains a clear crate/module layout for core domain types, SyncFeed ingestion, database access, and future HTTP API.
+- [x] `cargo fmt --check` passes.
+- [x] `cargo clippy --workspace --all-targets -- -D warnings` passes.
+- [x] `cargo test --workspace` passes.
+- [x] README or developer docs explain the workspace layout and required local tools.
+- [x] `make check` — passes cleanly
+- [x] `make test` — passes cleanly (default suite; excludes only ultra-long tests moved to `make test-long`)
+- [x] `make lint` — passes cleanly
+- [x] Not applicable: this task did not add or move ultra-long/e2e tests. `make test-long` was intentionally not run because this is not a story-ending task and the task does not explicitly require it.
 </acceptance_criteria>
+
+<plan>
+.ralph/tasks/story-1-rust-project-setup/task-1-init-rust-workspace_plans/init-rust-workspace-plan.md
+</plan>
+
+NOW EXECUTE

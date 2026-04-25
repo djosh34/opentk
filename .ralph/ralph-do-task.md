@@ -50,7 +50,7 @@ EOF_APPEND_PROGRESS_LOG
     - [ ] commit with: `task finished [task name]: [insert text]`
         - [ ] include summary of what was done in commit message (evidence for tests completing, challenges faced during
           implementation)
-        - [ ] Make sure to add all files, please do not forget commiting any file when completing a task, also the stuff in .ralph
+        - [ ] You must add all files. Make sure to properly gitignore where it makes sense. You MUST also add/commit all files (also in .ralph) even if you didn't create/update them
     - [ ] push commits with: `git push`
     - [ ] Write any learnings/surprises to AGENTS.md, only if it is really needed to help future engineers.
       -  Less in AGENTS.md is better than more
