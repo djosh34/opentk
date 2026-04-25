@@ -1,3 +1,4 @@
 .ralph/tasks/story-1-rust-project-setup/task-1-init-rust-workspace.md
 .ralph/tasks/story-1-rust-project-setup/task-2-developer-commands-and-ci.md
 .ralph/tasks/story-2-complete-sync-postgres/task-1-model-official-informatiemodel.md
+.ralph/tasks/story-2-complete-sync-postgres/task-2-design-postgres-schema.md

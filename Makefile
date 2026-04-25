@@ -7,7 +7,7 @@ lint:
 	cargo clippy --workspace --all-targets -- -D warnings
 
 test:
-	cargo test --workspace
+	./scripts/cargo-test-with-postgres.sh
 
 test-long:
 	cargo test --workspace --ignored

@@ -1,0 +1,644 @@
+use std::fmt::Write as _;
+use std::hash::{Hash, Hasher};
+
+use opentk_core::official_schema::{self, EntityType, Field, FieldKind, Occurs};
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct SchemaSpec {
+    pub tables: Vec<TableSpec>,
+    pub indexes: Vec<IndexSpec>,
+}
+
+impl SchemaSpec {
+    #[must_use]
+    pub fn table_named(&self, name: &str) -> Option<&TableSpec> {
+        self.tables.iter().find(|table| table.name == name)
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct TableSpec {
+    pub name: String,
+    pub kind: TableKind,
+    pub columns: Vec<ColumnSpec>,
+    pub primary_key: Vec<String>,
+    pub foreign_keys: Vec<ForeignKeySpec>,
+    pub unique_constraints: Vec<UniqueConstraintSpec>,
+}
+
+impl TableSpec {
+    #[must_use]
+    pub fn has_column(&self, name: &str) -> bool {
+        self.columns.iter().any(|column| column.name == name)
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+pub enum TableKind {
+    SyncMetadata,
+    EntityRegistry,
+    Entity {
+        category: &'static str,
+    },
+    Relation {
+        source_category: &'static str,
+        relation_name: &'static str,
+    },
+    RepeatedScalar {
+        category: &'static str,
+        field_name: &'static str,
+    },
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ColumnSpec {
+    pub name: String,
+    pub sql_type: SqlType,
+    pub nullable: bool,
+}
+
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+pub enum SqlType {
+    Uuid,
+    Text,
+    Boolean,
+    Integer,
+    BigInteger,
+    TimestampTz,
+    Date,
+    Jsonb,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ForeignKeySpec {
+    pub columns: Vec<String>,
+    pub referenced_table: String,
+    pub referenced_columns: Vec<String>,
+    pub on_delete: ForeignKeyAction,
+}
+
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+pub enum ForeignKeyAction {
+    Cascade,
+    Restrict,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct UniqueConstraintSpec {
+    pub columns: Vec<String>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct IndexSpec {
+    pub name: String,
+    pub table_name: String,
+    pub columns: Vec<String>,
+    pub unique: bool,
+    pub purpose: IndexPurpose,
+}
+
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+pub enum IndexPurpose {
+    PrimaryUuidLookup,
+    CategoryCursor,
+    EntityUpdatedAt,
+    DocumentNumber,
+    DateScan,
+    RelationSource,
+    RelationTarget,
+    AssetOwner,
+    ForeignKeyPath,
+}
+
+#[must_use]
+pub fn schema() -> SchemaSpec {
+    let mut tables = vec![
+        sync_category_table(),
+        ingest_error_table(),
+        sync_entity_table(),
+    ];
+    let mut indexes = vec![
+        index(
+            "sync_category",
+            &["source_category", "latest_skiptoken"],
+            false,
+            IndexPurpose::CategoryCursor,
+        ),
+        index(
+            "sync_entity",
+            &["source_id"],
+            false,
+            IndexPurpose::PrimaryUuidLookup,
+        ),
+        index(
+            "sync_entity",
+            &["source_category", "source_updated_at"],
+            false,
+            IndexPurpose::EntityUpdatedAt,
+        ),
+        index(
+            "sync_entity",
+            &["source_category", "deleted", "latest_skiptoken"],
+            false,
+            IndexPurpose::CategoryCursor,
+        ),
+    ];
+
+    for entity in official_schema::entity_types() {
+        let entity_table = entity_table(entity);
+        indexes.extend(entity_indexes(entity, &entity_table));
+        tables.push(entity_table);
+
+        for field in entity.fields {
+            match field.kind {
+                FieldKind::Attribute if is_repeated(field.max_occurs) => {
+                    let table = repeated_scalar_table(entity, field);
+                    indexes.push(index(
+                        &table.name,
+                        &["source_category", "source_id"],
+                        false,
+                        IndexPurpose::ForeignKeyPath,
+                    ));
+                    tables.push(table);
+                }
+                FieldKind::Relation => {
+                    let table = relation_table(entity, field);
+                    indexes.push(index(
+                        &table.name,
+                        &["source_category", "source_id", "relation_name"],
+                        false,
+                        IndexPurpose::RelationSource,
+                    ));
+                    indexes.push(index(
+                        &table.name,
+                        &["target_category", "target_id"],
+                        false,
+                        IndexPurpose::RelationTarget,
+                    ));
+                    indexes.push(index(
+                        &table.name,
+                        &["source_category", "source_id"],
+                        false,
+                        IndexPurpose::ForeignKeyPath,
+                    ));
+                    tables.push(table);
+                }
+                FieldKind::Attribute => {}
+            }
+        }
+    }
+
+    SchemaSpec { tables, indexes }
+}
+
+#[must_use]
+pub fn sql_name(official_name: &str) -> String {
+    let mut output = String::new();
+    let mut previous_was_lower_or_digit = false;
+
+    for character in official_name.chars() {
+        if character.is_ascii_alphanumeric() {
+            if character.is_ascii_uppercase() && previous_was_lower_or_digit {
+                output.push('_');
+            }
+            output.push(character.to_ascii_lowercase());
+            previous_was_lower_or_digit =
+                character.is_ascii_lowercase() || character.is_ascii_digit();
+        } else if !output.ends_with('_') {
+            output.push('_');
+            previous_was_lower_or_digit = false;
+        }
+    }
+
+    output.trim_matches('_').to_owned()
+}
+
+#[must_use]
+pub fn render_up_migration(schema: &SchemaSpec) -> String {
+    let mut sql = String::from("-- Generated from opentk-db::postgres_schema.\n");
+    sql.push_str("-- Do not hand-maintain official entity, field, or relation lists here.\n\n");
+
+    for table in &schema.tables {
+        render_create_table(&mut sql, table);
+        sql.push('\n');
+    }
+
+    for index_spec in &schema.indexes {
+        render_create_index(&mut sql, index_spec);
+    }
+
+    sql
+}
+
+#[must_use]
+pub fn render_down_migration(schema: &SchemaSpec) -> String {
+    let mut sql = String::from("-- Generated from opentk-db::postgres_schema.\n\n");
+    for table in schema.tables.iter().rev() {
+        writeln!(sql, "DROP TABLE IF EXISTS {} CASCADE;", ident(&table.name))
+            .expect("writing to String cannot fail");
+    }
+    sql
+}
+
+fn sync_category_table() -> TableSpec {
+    TableSpec {
+        name: "sync_category".to_owned(),
+        kind: TableKind::SyncMetadata,
+        columns: columns(&[
+            ("source_category", SqlType::Text, false),
+            ("latest_skiptoken", SqlType::BigInteger, false),
+            ("last_synced_at", SqlType::TimestampTz, true),
+        ]),
+        primary_key: names(&["source_category"]),
+        foreign_keys: Vec::new(),
+        unique_constraints: Vec::new(),
+    }
+}
+
+fn ingest_error_table() -> TableSpec {
+    TableSpec {
+        name: "ingest_error".to_owned(),
+        kind: TableKind::SyncMetadata,
+        columns: columns(&[
+            ("id", SqlType::BigInteger, false),
+            ("source_category", SqlType::Text, false),
+            ("source_id", SqlType::Uuid, true),
+            ("latest_skiptoken", SqlType::BigInteger, true),
+            ("message", SqlType::Text, false),
+            ("payload", SqlType::Jsonb, true),
+            ("created_at", SqlType::TimestampTz, false),
+        ]),
+        primary_key: names(&["id"]),
+        foreign_keys: Vec::new(),
+        unique_constraints: Vec::new(),
+    }
+}
+
+fn sync_entity_table() -> TableSpec {
+    TableSpec {
+        name: "sync_entity".to_owned(),
+        kind: TableKind::EntityRegistry,
+        columns: metadata_columns(),
+        primary_key: identity_columns(),
+        foreign_keys: Vec::new(),
+        unique_constraints: Vec::new(),
+    }
+}
+
+fn entity_table(entity: &'static EntityType) -> TableSpec {
+    let mut columns = metadata_columns();
+
+    for base_attribute in entity.base_attributes {
+        match base_attribute.name {
+            "id" | "verwijderd" | "bijgewerkt" => {}
+            _ => columns.push(ColumnSpec {
+                name: sql_name(base_attribute.name),
+                sql_type: sql_type(base_attribute.xsd_type),
+                nullable: !base_attribute.required,
+            }),
+        }
+    }
+
+    for field in entity
+        .fields
+        .iter()
+        .filter(|field| field.kind == FieldKind::Attribute && !is_repeated(field.max_occurs))
+    {
+        columns.push(ColumnSpec {
+            name: sql_name(field.name),
+            sql_type: sql_type(field.xsd_type),
+            nullable: field.min_occurs == 0 || field.nillable,
+        });
+    }
+
+    TableSpec {
+        name: sql_name(entity.category),
+        kind: TableKind::Entity {
+            category: entity.category,
+        },
+        columns,
+        primary_key: identity_columns(),
+        foreign_keys: vec![ForeignKeySpec {
+            columns: identity_columns(),
+            referenced_table: "sync_entity".to_owned(),
+            referenced_columns: identity_columns(),
+            on_delete: ForeignKeyAction::Cascade,
+        }],
+        unique_constraints: Vec::new(),
+    }
+}
+
+fn repeated_scalar_table(entity: &'static EntityType, field: &'static Field) -> TableSpec {
+    TableSpec {
+        name: format!("{}__{}", sql_name(entity.category), sql_name(field.name)),
+        kind: TableKind::RepeatedScalar {
+            category: entity.category,
+            field_name: field.name,
+        },
+        columns: columns(&[
+            ("source_category", SqlType::Text, false),
+            ("source_id", SqlType::Uuid, false),
+            ("ordinal", SqlType::Integer, false),
+            ("value", sql_type(field.xsd_type), field.nillable),
+        ]),
+        primary_key: names(&["source_category", "source_id", "ordinal"]),
+        foreign_keys: vec![ForeignKeySpec {
+            columns: identity_columns(),
+            referenced_table: sql_name(entity.category),
+            referenced_columns: identity_columns(),
+            on_delete: ForeignKeyAction::Cascade,
+        }],
+        unique_constraints: Vec::new(),
+    }
+}
+
+fn relation_table(entity: &'static EntityType, field: &'static Field) -> TableSpec {
+    let mut unique_constraints = Vec::new();
+    if field.max_occurs == Occurs::Exactly(1) {
+        unique_constraints.push(UniqueConstraintSpec {
+            columns: names(&["source_category", "source_id", "relation_name"]),
+        });
+    }
+
+    TableSpec {
+        name: format!("{}__{}", sql_name(entity.category), sql_name(field.name)),
+        kind: TableKind::Relation {
+            source_category: entity.category,
+            relation_name: field.name,
+        },
+        columns: columns(&[
+            ("source_category", SqlType::Text, false),
+            ("source_id", SqlType::Uuid, false),
+            ("relation_name", SqlType::Text, false),
+            ("target_category", SqlType::Text, false),
+            ("target_id", SqlType::Uuid, false),
+            ("ordinal", SqlType::Integer, false),
+            ("source_updated_at", SqlType::TimestampTz, false),
+        ]),
+        primary_key: names(&[
+            "source_category",
+            "source_id",
+            "relation_name",
+            "target_category",
+            "target_id",
+            "ordinal",
+        ]),
+        foreign_keys: vec![
+            ForeignKeySpec {
+                columns: identity_columns(),
+                referenced_table: sql_name(entity.category),
+                referenced_columns: identity_columns(),
+                on_delete: ForeignKeyAction::Cascade,
+            },
+            ForeignKeySpec {
+                columns: names(&["target_category", "target_id"]),
+                referenced_table: "sync_entity".to_owned(),
+                referenced_columns: identity_columns(),
+                on_delete: ForeignKeyAction::Restrict,
+            },
+        ],
+        unique_constraints,
+    }
+}
+
+fn entity_indexes(entity: &EntityType, table: &TableSpec) -> Vec<IndexSpec> {
+    let mut indexes = vec![
+        index(
+            &table.name,
+            &["source_id"],
+            false,
+            IndexPurpose::PrimaryUuidLookup,
+        ),
+        index(
+            &table.name,
+            &["source_category", "source_updated_at"],
+            false,
+            IndexPurpose::EntityUpdatedAt,
+        ),
+        index(
+            &table.name,
+            &["source_category", "source_id"],
+            false,
+            IndexPurpose::ForeignKeyPath,
+        ),
+    ];
+
+    if entity.category == "Document" {
+        indexes.push(index(
+            &table.name,
+            &["document_nummer"],
+            false,
+            IndexPurpose::DocumentNumber,
+        ));
+    }
+
+    if entity.base == "downloadEntiteitType" {
+        indexes.push(index(
+            &table.name,
+            &["source_category", "source_id", "content_type"],
+            false,
+            IndexPurpose::AssetOwner,
+        ));
+    }
+
+    let mut date_columns = Vec::new();
+    for column in &table.columns {
+        if matches!(column.sql_type, SqlType::Date | SqlType::TimestampTz) {
+            date_columns.push(column.name.as_str());
+        }
+    }
+    date_columns.sort_unstable();
+    for date_column in date_columns {
+        indexes.push(index(
+            &table.name,
+            &[date_column],
+            false,
+            IndexPurpose::DateScan,
+        ));
+    }
+
+    indexes
+}
+
+fn metadata_columns() -> Vec<ColumnSpec> {
+    columns(&[
+        ("source_category", SqlType::Text, false),
+        ("source_id", SqlType::Uuid, false),
+        ("latest_skiptoken", SqlType::BigInteger, false),
+        ("deleted", SqlType::Boolean, false),
+        ("source_updated_at", SqlType::TimestampTz, false),
+        ("atom_updated_at", SqlType::TimestampTz, false),
+    ])
+}
+
+fn sql_type(xsd_type: &str) -> SqlType {
+    match xsd_type {
+        "idType" | "referentieLiteral" | "referentieType" => SqlType::Uuid,
+        "xs:boolean" | "booleanType" => SqlType::Boolean,
+        "xs:int" => SqlType::Integer,
+        "xs:long" => SqlType::BigInteger,
+        "xs:dateTime" => SqlType::TimestampTz,
+        "xs:date" => SqlType::Date,
+        _ => SqlType::Text,
+    }
+}
+
+fn is_repeated(occurs: Occurs) -> bool {
+    !matches!(occurs, Occurs::Exactly(1))
+}
+
+fn columns(specs: &[(&str, SqlType, bool)]) -> Vec<ColumnSpec> {
+    specs
+        .iter()
+        .map(|(name, sql_type, nullable)| ColumnSpec {
+            name: (*name).to_owned(),
+            sql_type: *sql_type,
+            nullable: *nullable,
+        })
+        .collect()
+}
+
+fn names(names: &[&str]) -> Vec<String> {
+    names.iter().map(|name| (*name).to_owned()).collect()
+}
+
+fn identity_columns() -> Vec<String> {
+    names(&["source_category", "source_id"])
+}
+
+fn index(table_name: &str, columns: &[&str], unique: bool, purpose: IndexPurpose) -> IndexSpec {
+    let purpose_name = format!("{purpose:?}").to_ascii_lowercase();
+    let column_part = columns.join("_");
+    let raw_name = format!("idx_{table_name}_{purpose_name}_{column_part}");
+
+    IndexSpec {
+        name: shorten_identifier(&raw_name),
+        table_name: table_name.to_owned(),
+        columns: names(columns),
+        unique,
+        purpose,
+    }
+}
+
+fn render_create_table(sql: &mut String, table: &TableSpec) {
+    writeln!(sql, "CREATE TABLE {} (", ident(&table.name)).expect("writing to String cannot fail");
+    let mut clauses = Vec::new();
+
+    for column in &table.columns {
+        clauses.push(format!(
+            "    {} {}{}",
+            ident(&column.name),
+            column.sql_type.sql(),
+            if column.nullable { "" } else { " NOT NULL" }
+        ));
+    }
+
+    clauses.push(format!(
+        "    PRIMARY KEY ({})",
+        ident_list(&table.primary_key)
+    ));
+
+    for unique_constraint in &table.unique_constraints {
+        clauses.push(format!(
+            "    UNIQUE ({})",
+            ident_list(&unique_constraint.columns)
+        ));
+    }
+
+    for foreign_key in &table.foreign_keys {
+        let on_delete = match foreign_key.on_delete {
+            ForeignKeyAction::Cascade => "CASCADE",
+            ForeignKeyAction::Restrict => "RESTRICT",
+        };
+        clauses.push(format!(
+            "    FOREIGN KEY ({}) REFERENCES {} ({}) ON DELETE {}",
+            ident_list(&foreign_key.columns),
+            ident(&foreign_key.referenced_table),
+            ident_list(&foreign_key.referenced_columns),
+            on_delete
+        ));
+    }
+
+    writeln!(sql, "{}", clauses.join(",\n")).expect("writing to String cannot fail");
+    sql.push_str(");\n");
+}
+
+fn render_create_index(sql: &mut String, index_spec: &IndexSpec) {
+    let unique = if index_spec.unique { "UNIQUE " } else { "" };
+    writeln!(
+        sql,
+        "CREATE {unique}INDEX {} ON {} ({});",
+        ident(&index_spec.name),
+        ident(&index_spec.table_name),
+        ident_list(&index_spec.columns)
+    )
+    .expect("writing to String cannot fail");
+}
+
+impl SqlType {
+    fn sql(self) -> &'static str {
+        match self {
+            Self::Uuid => "uuid",
+            Self::Text => "text",
+            Self::Boolean => "boolean",
+            Self::Integer => "integer",
+            Self::BigInteger => "bigint",
+            Self::TimestampTz => "timestamptz",
+            Self::Date => "date",
+            Self::Jsonb => "jsonb",
+        }
+    }
+}
+
+fn ident(identifier: &str) -> String {
+    format!("\"{}\"", identifier.replace('"', "\"\""))
+}
+
+fn ident_list(identifiers: &[String]) -> String {
+    identifiers
+        .iter()
+        .map(|identifier| ident(identifier))
+        .collect::<Vec<_>>()
+        .join(", ")
+}
+
+fn shorten_identifier(identifier: &str) -> String {
+    const MAX_IDENTIFIER_LEN: usize = 63;
+
+    if identifier.len() <= MAX_IDENTIFIER_LEN {
+        return identifier.to_owned();
+    }
+
+    let hash = stable_hash(identifier);
+    let suffix = format!("_{hash:016x}");
+    let keep = MAX_IDENTIFIER_LEN - suffix.len();
+    format!("{}{}", &identifier[..keep], suffix)
+}
+
+fn stable_hash(value: &str) -> u64 {
+    let mut hasher = StableHasher::default();
+    value.hash(&mut hasher);
+    hasher.finish()
+}
+
+#[derive(Default)]
+struct StableHasher(u64);
+
+impl Hasher for StableHasher {
+    fn write(&mut self, bytes: &[u8]) {
+        let mut hash = if self.0 == 0 {
+            0xcbf2_9ce4_8422_2325
+        } else {
+            self.0
+        };
+        for byte in bytes {
+            hash ^= u64::from(*byte);
+            hash = hash.wrapping_mul(0x0000_0100_0000_01b3);
+        }
+        self.0 = hash;
+    }
+
+    fn finish(&self) -> u64 {
+        self.0
+    }
+}

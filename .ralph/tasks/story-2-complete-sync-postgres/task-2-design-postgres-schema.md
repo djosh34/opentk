@@ -1,4 +1,4 @@
-## Task: Story 2 Task 2 - Design Complete PostgreSQL Schema <status>not_started</status> <passes>false</passes>
+## Task: Story 2 Task 2 - Design Complete PostgreSQL Schema <status>done</status> <passes>true</passes>
 
 <description>
 Must use tdd skill to complete
@@ -14,15 +14,19 @@ In scope: migrations, indexes, constraints, source metadata columns, relationshi
 
 
 <acceptance_criteria>
-- [ ] Red/green TDD: add schema tests that fail when an official entity, field, relation, primary key, or required index is missing, then make them pass.
-- [ ] Every official entity type has a PostgreSQL table or generated table representation.
-- [ ] Every official relation is represented in queryable relational form with suitable indexes.
-- [ ] Source metadata is present for cursor/update handling: source category, source id, latest skiptoken, deleted marker, source updated time, Atom updated time.
-- [ ] Tables and indexes support direct HTTP query use after sync without schema alteration.
-- [ ] `sqlx migrate run` succeeds against a fresh PostgreSQL database.
-- [ ] `sqlx migrate revert` or documented migration reset flow is tested where applicable.
-- [ ] `make check` — passes cleanly
-- [ ] `make test` — passes cleanly (default suite; excludes only ultra-long tests moved to `make test-long`)
-- [ ] `make lint` — passes cleanly
-- [ ] If this task impacts ultra-long tests (or their selection): `make test-long` — passes cleanly (ultra-long-only)
+- [x] Red/green TDD: add schema tests that fail when an official entity, field, relation, primary key, or required index is missing, then make them pass.
+- [x] Every official entity type has a PostgreSQL table or generated table representation.
+- [x] Every official relation is represented in queryable relational form with suitable indexes.
+- [x] Source metadata is present for cursor/update handling: source category, source id, latest skiptoken, deleted marker, source updated time, Atom updated time.
+- [x] Tables and indexes support direct HTTP query use after sync without schema alteration.
+- [x] `sqlx migrate run` succeeds against a fresh PostgreSQL database.
+- [x] `sqlx migrate revert` or documented migration reset flow is tested where applicable.
+- [x] `make check` — passes cleanly
+- [x] `make test` — passes cleanly (default suite; excludes only ultra-long tests moved to `make test-long`)
+- [x] `make lint` — passes cleanly
+- [x] If this task impacts ultra-long tests (or their selection): not applicable; task did not alter long/e2e test selection and long lane was not run per task instruction.
 </acceptance_criteria>
+
+.ralph/tasks/story-2-complete-sync-postgres/task-2-design-postgres-schema_plans/complete-postgres-schema-plan.md
+
+NOW EXECUTE

@@ -5,5 +5,12 @@ edition.workspace = true
 license.workspace = true
 repository.workspace = true
 
+[dependencies]
+opentk-core.workspace = true
+sqlx.workspace = true
+
+[dev-dependencies]
+tokio.workspace = true
+
 [lints]
 workspace = true

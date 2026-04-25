@@ -2,3 +2,5 @@
 //!
 //! `SQLx` repositories, transaction orchestration, and migration-facing database
 //! code belong here. Source-neutral domain decisions stay in `opentk-core`.
+
+pub mod postgres_schema;

@@ -2,136 +2,140 @@
 
 ## Baseline
 
-The importer parses SyncFeed XML and writes directly into database tables in the same transaction that advances the category cursor.
+OpenTK stores Tweede Kamer `SyncFeed` data in PostgreSQL. The importer writes
+parsed feed entities into relational tables in the same transaction that
+advances cursor metadata.
 
-The baseline write path is:
+The write path is:
 
 ```text
 fetch feed page
 parse Atom envelope
 parse embedded entity XML
-write relational rows
-write relationship rows
+write sync metadata
+write typed entity row
+write relation rows
 write document asset metadata
 advance category cursor
 commit
 ```
 
-This makes the database the structured store for the system.
-
-## Why Direct Relational Storage
-
-Direct relational ingestion is the cleanest storage shape:
-
-- fields that the API filters/sorts/joins on become columns,
-- relations become rows in relation tables,
-- cursor state is transactional,
-- database inspection remains useful,
-- `sqlx` migrations describe the data model explicitly,
-- storage stays columnar, relational, and inspectable.
-
-The parser still needs a short-lived in-memory representation so code is clean:
-
-```text
-ParsedEntry
-  feed metadata
-  entity metadata
-  typed entity enum
-  references
-  enclosure metadata
-```
-
-That struct is an implementation detail used by the importer.
-
-## Direct Tables
-
-Tables are designed from API needs and SyncFeed semantics.
-
-Core tables:
-
-- category cursor and status,
-- ingest errors,
-- current entity metadata,
-- entity relations,
-- document asset metadata,
-- typed entity tables for the selected categories.
-
-Typed tables start with the categories needed by the API and expand when an endpoint needs more data.
-
-Every typed row should include source metadata:
-
-- source category,
-- source entity id,
-- latest skiptoken,
-- deleted flag,
-- source update timestamp,
-- Atom update timestamp.
-
-## Handling Schema Changes
-
-Schema changes are handled through explicit relational changes:
-
-1. Add a typed column when a scalar field has API value.
-2. Add a narrow side table for repeated or sparse fields.
-3. Add a relation row when the field is a reference.
-4. Add an ingest error when the parser sees a structure that requires a schema decision.
-
-For newly discovered fields that need temporary retention, use a relational spill table:
-
-```sql
-create table entity_extra_field (
-  category text,
-  entity_id text,
-  skiptoken integer,
-  field_path text,
-  ordinal integer,
-  value_text text,
-  ref_id text,
-  primary key (category, entity_id, skiptoken, field_path, ordinal)
-);
-```
-
-This is still structured data. It can be inspected, queried, and migrated into typed columns later.
-
-## Page Refetch
-
-Fetched pages are applied directly. A crash before commit simply causes the next run to fetch the same page again from the durable category cursor.
-
-The critical invariant:
+The critical invariant is:
 
 ```text
 cursor moves after relational writes commit
 ```
 
-Tracking tables:
+## Why Direct Relational Storage
 
-```sql
-create table sync_category (
-  category text primary key,
-  cursor_skiptoken integer,
-  state text,
-  caught_up_at text,
-  last_fetch_started_at text,
-  last_fetch_finished_at text,
-  last_entry_updated_at text
-);
+The official information model is represented directly in database structure:
 
-create table ingest_error (
-  id integer primary key,
-  category text,
-  skiptoken integer,
-  entity_id text,
-  happened_at text,
-  phase text,
-  message text
-);
+- every official entity type has a table,
+- official scalar fields are typed columns or generated repeated-scalar side
+  tables,
+- official references are relation tables with indexed source and target
+  endpoints,
+- cursor state is transactional,
+- source metadata is queryable without reparsing XML,
+- `sqlx` migrations define the database shape explicitly.
+
+JSONB is reserved for source-adjacent diagnostics whose shape is not part of
+the official model, such as ingest error payloads. Official scalar fields and
+relations are not stored as opaque JSON.
+
+## Source Of Truth
+
+Schema generation flows through one boundary:
+
+```text
+vendored official XSDs
+opentk-core::official_schema
+opentk-db::postgres_schema::SchemaSpec
+sqlx migrations
 ```
 
-## Database Shape
+`opentk-core` owns source-neutral official metadata. `opentk-db` owns
+PostgreSQL naming, type mapping, table shape, indexes, and migration rendering
+tests. The checked-in migration is verified against `SchemaSpec` so entity,
+field, relation, primary-key, foreign-key, and index coverage are not
+hand-maintained in separate lists.
 
-The database decision is centered on two viable shapes:
+## Core Tables
 
-- SQLite with explicit relational tables.
-- PostgreSQL with relational tables plus JSONB for source fields that are still settling.
+Shared tables:
 
-SQLite keeps the system compact and easy to run. PostgreSQL gives stronger semi-structured storage through JSONB and a better fit for a hosted API service.
+- `sync_category`: category-level cursor progress.
+- `sync_entity`: current registry row for each `(source_category, source_id)`.
+- `ingest_error`: structured ingest failures plus optional JSONB diagnostic
+  payload.
+
+Every official entity table has:
+
+- `source_category text not null`
+- `source_id uuid not null`
+- `latest_skiptoken bigint not null`
+- `deleted boolean not null`
+- `source_updated_at timestamptz not null`
+- `atom_updated_at timestamptz not null`
+
+The canonical identity is `(source_category, source_id)`. Each typed entity
+table uses that pair as its primary key and foreign-keys it to `sync_entity`.
+
+## Relations
+
+Each official relation field has a generated table named:
+
+```text
+<source_entity>__<relation_name>
+```
+
+Relation tables contain:
+
+- source identity: `source_category`, `source_id`,
+- relation identity: `relation_name`,
+- target endpoint: `target_category`, `target_id`,
+- relation order: `ordinal`,
+- update metadata: `source_updated_at`.
+
+Targets foreign-key to `sync_entity(source_category, source_id)`, making
+relation endpoints queryable before choosing a concrete typed target table.
+Single relations add a uniqueness constraint on
+`(source_category, source_id, relation_name)`.
+
+## Repeated Scalars
+
+Repeated official scalar fields use side tables named:
+
+```text
+<entity>__<field>
+```
+
+They use `(source_category, source_id, ordinal)` as the primary key and store
+the scalar in a typed `value` column.
+
+## Indexes
+
+The schema includes indexes for the access paths needed by sync and direct HTTP
+queries:
+
+- primary UUID lookups,
+- category cursor progress,
+- source update timestamp scans,
+- document number lookup,
+- official date and timestamp scans,
+- relation source endpoints,
+- relation target endpoints,
+- document asset owner lookups,
+- foreign-key paths.
+
+## Migration Tests
+
+`make test` starts a local throwaway PostgreSQL server under `target/` when no
+external `OPENTK_TEST_DATABASE_URL` is supplied, then runs the workspace test
+suite. The migration integration test itself requires
+`OPENTK_TEST_DATABASE_URL` or `DATABASE_URL`; running it directly without one
+fails instead of silently skipping database verification.
+
+The migration test creates an isolated temporary schema, runs the SQLx
+migration, inspects PostgreSQL catalog data for expected tables and indexes,
+then reverts migrations and verifies the tables are gone.
