@@ -10,6 +10,14 @@ The resulting model must cover all official entity types, including Activiteit, 
 
 In scope: fetch or vendor the official XSDs in a reproducible way, parse/extract entity definitions, attributes, scalar fields, relationship fields, multiplicity, datatypes, and category names; create tests that compare the local model to the official sources; document how to refresh the model when the official docs change. Out of scope: writing the sync runner itself.
 
+Official source documentation:
+
+- Informatiemodel: https://opendata.tweedekamer.nl/documentatie/informatiemodel
+- SyncFeed API: https://opendata.tweedekamer.nl/documentatie/syncfeed-api
+- XSD link from informatiemodel page: https://github.com/TweedeKamerDerStaten-Generaal/OpenDataPortaal
+
+
+
 </description>
 
 
