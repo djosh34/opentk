@@ -52,13 +52,25 @@ canonical source metadata columns:
 `opentk-db::sync_writer` writes one SyncFeed page per transaction. It upserts
 `sync_entity`, replaces the current typed entity row for non-deleted updates,
 inserts relation and repeated-scalar rows from the parsed payload, records
-download metadata, and advances `sync_category.latest_skiptoken` in the same
-commit.
+download metadata, and advances `sync_category.latest_skiptoken`, `next_url`,
+`state`, and `last_fetch_at` in the same commit.
 
 Delete markers are persisted in `sync_entity` and remove current typed rows,
 which cascades stale relation and repeated-scalar rows. Relation targets are
 registered in `sync_entity` before relation rows are inserted, so relation
 tables remain queryable by both source and target endpoint.
+
+`sync_category` is the durable runner progress table. A category row stores the
+latest committed skiptoken, next cursor URL, optional resume URL, state
+(`not_started`, `running`, `caught_up`, or `error`), last fetch time, and
+caught-up time. The runner resumes from `next_url`; it does not keep a second
+cursor truth outside PostgreSQL.
+
+`ingest_error` stores durable runner failures with an identity primary key,
+phase (`fetch`, `parse`, `write`, or `mark_caught_up`), category, optional
+skiptoken, optional entity id, message, optional payload, and creation time.
+Errors are inserted through `opentk-db::sync_state` and are reported by the
+status command.
 
 ## Relation Tables
 

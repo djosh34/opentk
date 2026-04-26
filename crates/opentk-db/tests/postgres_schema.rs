@@ -6,6 +6,32 @@ use opentk_db::postgres_schema::{self, ColumnSpec, IndexPurpose, SqlType, TableK
 #[test]
 fn document_schema_exposes_metadata_scalar_and_relation_tables() {
     let schema = postgres_schema::schema();
+    assert_columns(
+        table(&schema.tables, "sync_category"),
+        &[
+            ("source_category", SqlType::Text, false),
+            ("latest_skiptoken", SqlType::BigInteger, false),
+            ("last_synced_at", SqlType::TimestampTz, true),
+            ("next_url", SqlType::Text, true),
+            ("resume_url", SqlType::Text, true),
+            ("state", SqlType::Text, false),
+            ("last_fetch_at", SqlType::TimestampTz, true),
+            ("caught_up_at", SqlType::TimestampTz, true),
+        ],
+    );
+    assert_columns(
+        table(&schema.tables, "ingest_error"),
+        &[
+            ("id", SqlType::BigIdentity, false),
+            ("phase", SqlType::Text, false),
+            ("source_category", SqlType::Text, false),
+            ("source_id", SqlType::Uuid, true),
+            ("latest_skiptoken", SqlType::BigInteger, true),
+            ("message", SqlType::Text, false),
+            ("payload", SqlType::Jsonb, true),
+            ("created_at", SqlType::TimestampTz, false),
+        ],
+    );
 
     let document = table(&schema.tables, "document");
     assert_eq!(

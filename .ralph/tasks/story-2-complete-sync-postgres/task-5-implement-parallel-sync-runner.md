@@ -1,4 +1,8 @@
-## Task: Story 2 Task 5 - Implement Parallel Complete Sync Runner <status>not_started</status> <passes>false</passes>
+## Task: Story 2 Task 5 - Implement Parallel Complete Sync Runner <status>done</status> <passes>true</passes>
+
+<plan>
+.ralph/tasks/story-2-complete-sync-postgres/task-5-implement-parallel-sync-runner_plans/parallel-sync-runner-plan.md
+</plan>
 
 <description>
 Must use tdd skill to complete
@@ -14,15 +18,15 @@ In scope: CLI commands, worker orchestration, progress/status output, category s
 
 
 <acceptance_criteria>
-- [ ] Red/green TDD: integration test simulates a crash before cursor commit and proves the page is refetched and applied exactly once.
-- [ ] Integration test simulates a crash after commit and proves the next run starts from the advanced cursor.
-- [ ] Multiple categories sync concurrently with per-category order preserved.
-- [ ] Runner reaches `resume` and marks category caught up.
-- [ ] Runner can resume from stored cursor after process restart.
-- [ ] Progress/status command reports category cursor, state, lag, last fetch, and errors.
-- [ ] Error records are durable and include phase, category, skiptoken, entity id when available, and message.
-- [ ] `make check` — passes cleanly
-- [ ] `make test` — passes cleanly (default suite; excludes only ultra-long tests moved to `make test-long`)
-- [ ] `make lint` — passes cleanly
-- [ ] If this task impacts ultra-long tests (or their selection): `make test-long` — passes cleanly (ultra-long-only)
+- [x] Red/green TDD: integration test simulates a crash before cursor commit and proves the page is refetched and applied exactly once.
+- [x] Integration test simulates a crash after commit and proves the next run starts from the advanced cursor.
+- [x] Multiple categories sync concurrently with per-category order preserved.
+- [x] Runner reaches `resume` and marks category caught up.
+- [x] Runner can resume from stored cursor after process restart.
+- [x] Progress/status command reports category cursor, state, lag, last fetch, and errors.
+- [x] Error records are durable and include phase, category, skiptoken, entity id when available, and message.
+- [x] `make check` — passes cleanly
+- [x] `make test` — passes cleanly (default suite; excludes only ultra-long tests moved to `make test-long`)
+- [x] `make lint` — passes cleanly
+- [x] If this task impacts ultra-long tests (or their selection): `make test-long` — not impacted; not run per task instructions.
 </acceptance_criteria>

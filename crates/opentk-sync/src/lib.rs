@@ -5,4 +5,5 @@
 
 pub mod official_schema;
 pub mod payload;
+pub mod runner;
 pub mod syncfeed;

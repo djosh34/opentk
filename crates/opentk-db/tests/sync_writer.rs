@@ -19,6 +19,7 @@ async fn writes_document_page_with_scalar_relation_asset_and_cursor() -> Result<
         SyncPageWrite {
             category: "Document".to_owned(),
             latest_skiptoken: 42,
+            next_url: Some("https://example.test/SyncFeed/2.0/Feed?category=Document&skiptoken=42&content=internal".to_owned()),
             atom_updated_at: atom_updated_at(),
             entities: vec![document],
         },
@@ -128,6 +129,7 @@ async fn delete_marker_records_delete_and_removes_current_rows() -> Result<(), s
         SyncPageWrite {
             category: "Document".to_owned(),
             latest_skiptoken: 2,
+            next_url: None,
             atom_updated_at: atom_updated_at(),
             entities: vec![deleted],
         },
@@ -179,6 +181,7 @@ async fn page_write_rolls_back_when_later_entity_fails() -> Result<(), sqlx::Err
         SyncPageWrite {
             category: "Document".to_owned(),
             latest_skiptoken: 99,
+            next_url: None,
             atom_updated_at: atom_updated_at(),
             entities: vec![good, bad],
         },
@@ -217,6 +220,7 @@ async fn every_official_category_can_round_trip_a_minimal_current_entity() -> Re
             SyncPageWrite {
                 category: entity.category.to_owned(),
                 latest_skiptoken: i64::try_from(index + 1).expect("category index fits i64"),
+                next_url: None,
                 atom_updated_at: atom_updated_at(),
                 entities: vec![parsed],
             },
@@ -242,6 +246,7 @@ async fn write_document(pool: &PgPool, skiptoken: i64, xml: String) {
         SyncPageWrite {
             category: "Document".to_owned(),
             latest_skiptoken: skiptoken,
+            next_url: None,
             atom_updated_at: atom_updated_at(),
             entities: vec![document],
         },

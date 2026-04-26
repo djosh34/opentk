@@ -13,6 +13,7 @@ use crate::postgres_schema::{self, ColumnSpec, SqlType, TableKind, TableSpec};
 pub struct SyncPageWrite {
     pub category: String,
     pub latest_skiptoken: i64,
+    pub next_url: Option<String>,
     pub atom_updated_at: DateTime<Utc>,
     pub entities: Vec<ParsedEntity>,
 }
@@ -132,16 +133,27 @@ pub async fn write_sync_page(
 
     sqlx::query(
         r"
-        INSERT INTO sync_category (source_category, latest_skiptoken, last_synced_at)
-        VALUES ($1, $2, $3)
+        INSERT INTO sync_category (
+            source_category,
+            latest_skiptoken,
+            last_synced_at,
+            next_url,
+            state,
+            last_fetch_at
+        )
+        VALUES ($1, $2, $3, $4, 'running', $3)
         ON CONFLICT (source_category) DO UPDATE
         SET latest_skiptoken = EXCLUDED.latest_skiptoken,
-            last_synced_at = EXCLUDED.last_synced_at
+            last_synced_at = EXCLUDED.last_synced_at,
+            next_url = EXCLUDED.next_url,
+            state = EXCLUDED.state,
+            last_fetch_at = EXCLUDED.last_fetch_at
         ",
     )
     .bind(entity_type.category)
     .bind(page.latest_skiptoken)
     .bind(page.atom_updated_at)
+    .bind(&page.next_url)
     .execute(&mut *tx)
     .await?;
 
@@ -473,7 +485,7 @@ fn null_for(sql_type: SqlType) -> BindValue {
         SqlType::Text | SqlType::Jsonb => BindValue::Text(None),
         SqlType::Boolean => BindValue::Bool(None),
         SqlType::Integer => BindValue::I32(None),
-        SqlType::BigInteger => BindValue::I64(None),
+        SqlType::BigInteger | SqlType::BigIdentity => BindValue::I64(None),
         SqlType::TimestampTz => BindValue::DateTime(None),
         SqlType::Date => BindValue::Date(None),
     }

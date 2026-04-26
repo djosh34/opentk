@@ -172,6 +172,16 @@ impl SyncFeedClient {
         })
     }
 
+    #[must_use]
+    pub fn base_url(&self) -> &Url {
+        &self.config.base_url
+    }
+
+    #[must_use]
+    pub const fn content_mode(&self) -> SyncFeedContentMode {
+        self.config.content_mode
+    }
+
     /// Fetch and parse one `SyncFeed` page.
     ///
     /// # Errors

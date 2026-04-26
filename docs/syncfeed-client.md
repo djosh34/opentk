@@ -49,6 +49,26 @@ workers still respect the configured maximum. A small adaptive pacing delay is
 also shared: `429` observations increase delay up to the configured maximum
 retry delay, and successful responses reduce it.
 
+## Complete Sync Runner
+
+`opentk-sync::runner` is the ingestion orchestration boundary. It runs one
+sequential loop per category and executes those category loops concurrently.
+That preserves cursor order inside a category while allowing independent
+categories to overlap. The runner streams one page at a time: fetch, parse,
+write page plus cursor through the storage trait, then fetch the next cursor.
+
+Crash behavior follows the committed cursor:
+
+- before the storage write commits, no cursor advances, so restart refetches the
+  same page;
+- after the storage write commits, restart loads the advanced `next_url`;
+- after an empty page with `resume`, the category is marked `caught_up`.
+
+The PostgreSQL implementation lives in `opentk-db::sync_state`. It records
+durable errors with phase, category, skiptoken, entity id when known, and
+message. The `complete-sync status` command reports category state, cursor,
+lag, last fetch time, and last error from that store.
+
 ## Testing
 
 Tests use a local HTTP fixture server. This task intentionally avoids live
