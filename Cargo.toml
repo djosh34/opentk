@@ -3,6 +3,7 @@ members = [
     "crates/opentk-api",
     "crates/opentk-core",
     "crates/opentk-db",
+    "crates/opentk-search",
     "crates/opentk-search-eval",
     "crates/opentk-sync",
 ]
@@ -19,6 +20,7 @@ chrono = { version = "0.4.39", default-features = false, features = ["clock"] }
 clap = { version = "4.5.26", features = ["derive", "env"] }
 opentk-core = { path = "crates/opentk-core" }
 opentk-db = { path = "crates/opentk-db" }
+opentk-search = { path = "crates/opentk-search" }
 opentk-sync = { path = "crates/opentk-sync" }
 quick-xml = "0.37.2"
 pdf-extract = "0.10.0"

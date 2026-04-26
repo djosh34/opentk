@@ -1,4 +1,4 @@
-## Task: Story 5 Task 2 - Design Search Indexing Pipeline <status>not_started</status> <passes>false</passes>
+## Task: Story 5 Task 2 - Design Search Indexing Pipeline <status>completed</status> <passes>true</passes>
 
 <description>
 Must use tdd skill to complete
@@ -12,14 +12,20 @@ In scope: index schemas, source-to-index mappings, update cursor/state tables if
 
 
 <acceptance_criteria>
-- [ ] Red/green TDD: mapping tests fail when a document/entity fixture misses an expected indexed field, then pass.
-- [ ] Index schema covers documents, extracted text, stored HTML, and core entity metadata.
-- [ ] Update/delete propagation is designed and tested with fixtures.
-- [ ] Backfill and incremental indexing paths are specified.
-- [ ] Failure recovery and retry behavior are specified.
-- [ ] Storage cost estimate is updated from real investigation data.
-- [ ] `make check` — passes cleanly
-- [ ] `make test` — passes cleanly (default suite; excludes only ultra-long tests moved to `make test-long`)
-- [ ] `make lint` — passes cleanly
-- [ ] If this task impacts ultra-long tests (or their selection): `make test-long` — passes cleanly (ultra-long-only)
+- [x] Red/green TDD: mapping tests fail when a document/entity fixture misses an expected indexed field, then pass.
+- [x] Index schema covers documents, extracted text, stored HTML, and core entity metadata.
+- [x] Update/delete propagation is designed and tested with fixtures.
+- [x] Backfill and incremental indexing paths are specified.
+- [x] Failure recovery and retry behavior are specified.
+- [x] Storage cost estimate is updated from real investigation data.
+- [x] `make check` — passes cleanly
+- [x] `make test` — passes cleanly (default suite; excludes only ultra-long tests moved to `make test-long`)
+- [x] `make lint` — passes cleanly
+- [x] If this task impacts ultra-long tests (or their selection): not applicable; this task did not change long/e2e selection, and `make test-long` was intentionally not run.
 </acceptance_criteria>
+
+<plan>
+.ralph/tasks/story-5-search/task-2-design-search-indexing_plans/search-indexing-pipeline-plan.md
+</plan>
+
+NOW EXECUTE
