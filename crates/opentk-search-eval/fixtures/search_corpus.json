@@ -2,61 +2,71 @@
   {
     "id": "doc-2024-35567",
     "title": "Motie van het lid Jansen over transparantie in algoritmisch bestuur",
-    "source_category": "document",
-    "source_id": "2024D35567",
+    "summary": "Motie over publieke algoritmeregisters en uitlegbaarheid.",
+    "source_category": "Document",
+    "source_id": "11111111-1111-4111-8111-111111111111",
     "document_number": "35567-12",
     "date": "2024-03-12",
     "url": "https://www.tweedekamer.nl/kamerstukken/detail?id=2024D35567",
     "extracted_text": "De Kamer verzoekt de regering om transparantie in algoritmisch bestuur te versterken en jaarlijks te rapporteren over publieke algoritmeregisters.",
     "extracted_html": "<article><h1>Algoritmisch bestuur</h1><p>De motie noemt auditbaarheid, uitlegbaarheid en publieke algoritmeregisters.</p></article>",
-    "entity_metadata": ["Jansen", "GroenLinks-PvdA", "motie", "digitalisering", "algoritmeregister"]
+    "entity_metadata": ["Jansen", "GroenLinks-PvdA", "motie", "digitalisering", "algoritmeregister"],
+    "relation_labels": ["Jansen GroenLinks-PvdA indiener", "commissie Digitale Zaken"]
   },
   {
     "id": "doc-2024-29810",
     "title": "Verslag van een commissiedebat over de woningbouwopgave",
-    "source_category": "document",
-    "source_id": "2024D29810",
+    "summary": "Commissiedebat over woningbouw, huur en vergunningverlening.",
+    "source_category": "Document",
+    "source_id": "22222222-2222-4222-8222-222222222222",
     "document_number": "32847-1120",
     "date": "2024-02-05",
     "url": "https://www.tweedekamer.nl/kamerstukken/detail?id=2024D29810",
     "extracted_text": "In het commissiedebat bespreken leden de woningbouwopgave, betaalbare huur, stikstofruimte en versnelling van vergunningverlening.",
     "extracted_html": "<section><p>Minister De Vries reageert op vragen over regionale woondeals en tijdelijke woningen.</p></section>",
-    "entity_metadata": ["De Vries", "VVD", "commissiedebat", "wonen", "woondeals"]
+    "entity_metadata": ["De Vries", "VVD", "commissiedebat", "wonen", "woondeals"],
+    "relation_labels": ["commissie Binnenlandse Zaken", "minister De Vries beantwoorder"]
   },
   {
     "id": "doc-2024-18725",
     "title": "Brief van de minister over uitvoering klimaatfonds",
-    "source_category": "document",
-    "source_id": "2024D18725",
+    "summary": "Kamerbrief over klimaatfonds, warmtenetten en industrie.",
+    "source_category": "Document",
+    "source_id": "33333333-3333-4333-8333-333333333333",
     "document_number": "32813-1395",
     "date": "2024-01-18",
     "url": "https://www.tweedekamer.nl/kamerstukken/detail?id=2024D18725",
     "extracted_text": "De minister beschrijft de uitvoering van het klimaatfonds, investeringen in warmtenetten en verduurzaming van industrie.",
     "extracted_html": "<article><p>Bijlage: indicatieve CO2-reductie per maatregel en planning voor voorjaar 2024.</p></article>",
-    "entity_metadata": ["Peters", "D66", "kamerbrief", "klimaat", "klimaatfonds"]
+    "entity_metadata": ["Peters", "D66", "kamerbrief", "klimaat", "klimaatfonds"],
+    "relation_labels": ["commissie Klimaat en Groene Groei", "minister Klimaat"]
   },
   {
     "id": "person-fatima-kaya",
     "title": "Fatima Kaya",
-    "source_category": "person",
-    "source_id": "p-1042",
+    "summary": "Kamerlid met portefeuille digitalisering en onderwijs.",
+    "source_category": "Persoon",
+    "source_id": "44444444-4444-4444-8444-444444444444",
     "document_number": null,
     "date": null,
     "url": "https://www.tweedekamer.nl/kamerleden_en_commissies/alle_kamerleden/kaya-f",
     "extracted_text": "Kamerlid Fatima Kaya voert namens D66 het woord over digitalisering, onderwijs en constitutionele zaken.",
     "extracted_html": "<div><span>Fractie D66</span><span>Activiteiten: mondelinge vragen, moties, amendementen.</span></div>",
-    "entity_metadata": ["Fatima Kaya", "D66", "kamerlid", "digitalisering", "onderwijs"]
+    "entity_metadata": ["Fatima Kaya", "D66", "kamerlid", "digitalisering", "onderwijs"],
+    "relation_labels": ["fractie D66", "commissie Digitale Zaken lid"]
   },
   {
     "id": "dossier-energie-2030",
     "title": "Dossier Energie-infrastructuur 2030",
-    "source_category": "dossier",
-    "source_id": "d-2030",
+    "summary": "Dossier over energie-infrastructuur, netcongestie en technische briefings.",
+    "source_category": "Kamerstukdossier",
+    "source_id": "55555555-5555-4555-8555-555555555555",
     "document_number": null,
     "date": null,
     "url": "https://www.tweedekamer.nl/debat_en_vergadering/commissievergaderingen/details?id=d-2030",
     "extracted_text": "Het dossier bundelt stukken over netcongestie, energie-infrastructuur, vergunningen en regionale prioritering.",
     "extracted_html": "<main><p>Gerelateerde activiteit: technische briefing over netcongestie en hoogspanningsstations.</p></main>",
-    "entity_metadata": ["energie-infrastructuur", "netcongestie", "technische briefing", "commissie EZK"]
+    "entity_metadata": ["energie-infrastructuur", "netcongestie", "technische briefing", "commissie EZK"],
+    "relation_labels": ["commissie EZK dossierhouder", "technische briefing netcongestie"]
   }
 ]

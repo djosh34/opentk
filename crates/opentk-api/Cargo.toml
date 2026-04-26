@@ -21,6 +21,7 @@ uuid.workspace = true
 
 [dev-dependencies]
 chrono.workspace = true
+opentk-search-eval.workspace = true
 opentk-sync.workspace = true
 reqwest.workspace = true
 tower.workspace = true

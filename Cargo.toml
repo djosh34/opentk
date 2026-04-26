@@ -21,6 +21,7 @@ clap = { version = "4.5.26", features = ["derive", "env"] }
 opentk-core = { path = "crates/opentk-core" }
 opentk-db = { path = "crates/opentk-db" }
 opentk-search = { path = "crates/opentk-search" }
+opentk-search-eval = { path = "crates/opentk-search-eval" }
 opentk-sync = { path = "crates/opentk-sync" }
 quick-xml = "0.37.2"
 pdf-extract = "0.10.0"

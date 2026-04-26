@@ -2,14 +2,16 @@
   "changed_document": {
     "id": "doc-2024-29810",
     "title": "Verslag van een commissiedebat over betaalbare huur en woondeals",
-    "source_category": "document",
-    "source_id": "2024D29810",
+    "summary": "Geactualiseerd commissiedebat over betaalbare huur en woondeals.",
+    "source_category": "Document",
+    "source_id": "22222222-2222-4222-8222-222222222222",
     "document_number": "32847-1120",
     "date": "2024-02-06",
     "url": "https://www.tweedekamer.nl/kamerstukken/detail?id=2024D29810",
     "extracted_text": "Na actualisatie bespreekt het commissiedebat betaalbare huur, regionale woondeals, tijdelijke woningen en versnelling van bouwlocaties.",
     "extracted_html": "<section><p>Nieuw trefwoord voor updatecontrole: middenhuurversnelling.</p></section>",
-    "entity_metadata": ["De Vries", "VVD", "commissiedebat", "wonen", "woondeals", "middenhuurversnelling"]
+    "entity_metadata": ["De Vries", "VVD", "commissiedebat", "wonen", "woondeals", "middenhuurversnelling"],
+    "relation_labels": ["commissie Binnenlandse Zaken", "minister De Vries beantwoorder"]
   },
   "deleted_document_id": "doc-2024-18725",
   "changed_query": "middenhuurversnelling woondeals",

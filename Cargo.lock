@@ -1426,6 +1426,7 @@ dependencies = [
  "clap",
  "opentk-db",
  "opentk-search",
+ "opentk-search-eval",
  "opentk-sync",
  "reqwest",
  "serde",
@@ -1478,10 +1479,13 @@ dependencies = [
 name = "opentk-search-eval"
 version = "0.1.0"
 dependencies = [
+ "chrono",
  "clap",
+ "opentk-search",
  "serde",
  "serde_json",
  "thiserror",
+ "uuid",
 ]
 
 [[package]]

@@ -1,5 +1,6 @@
 use std::{
     future::Future,
+    path::Path,
     pin::Pin,
     sync::{Arc, Mutex},
 };
@@ -12,6 +13,7 @@ use opentk_search::{
     SearchEntityKind, SearchIndexError, SearchQueryClient, SearchRequest, SearchResponse,
     SearchResult, SearchSnippet,
 };
+use opentk_search_eval::{load_quality_benchmark, BenchmarkSearchClient};
 use serde_json::Value;
 use sqlx::postgres::PgPoolOptions;
 use tower::ServiceExt;
@@ -151,6 +153,37 @@ async fn search_endpoint_reports_backend_unavailable() -> Result<(), Box<dyn std
     Ok(())
 }
 
+#[tokio::test]
+async fn search_endpoint_matches_deep_quality_benchmark_queries(
+) -> Result<(), Box<dyn std::error::Error>> {
+    let benchmark = load_quality_benchmark(Path::new("../opentk-search-eval/fixtures"))?;
+    let search = Arc::new(BenchmarkSearchClient::new(&benchmark.input));
+
+    for (path, expected_top) in [
+        ("/search?q=35567-12", "doc-2024-35567"),
+        (
+            "/search?q=Fatma%20Kaija%20digitalisering",
+            "person-fatima-kaya",
+        ),
+        (
+            "/search?q=commissie%20EZK%20technische%20briefing%20netcongestie",
+            "dossier-energie-2030",
+        ),
+    ] {
+        let body = router_json_with_search_client(search.clone(), path, StatusCode::OK).await?;
+
+        assert_eq!(
+            body["items"][0]["key"],
+            expected_top_key(expected_top, &benchmark)
+        );
+        assert!(body["items"][0]["snippets"]
+            .as_array()
+            .is_some_and(|items| !items.is_empty()));
+    }
+
+    Ok(())
+}
+
 #[derive(Clone)]
 struct FakeSearchClient {
     response: FakeSearchResponse,
@@ -206,14 +239,35 @@ async fn router_json_with_search(
     path: &str,
     expected_status: StatusCode,
 ) -> Result<Value, Box<dyn std::error::Error>> {
+    router_json_with_search_client(Arc::new(search), path, expected_status).await
+}
+
+async fn router_json_with_search_client(
+    search: Arc<dyn SearchQueryClient + Send + Sync>,
+    path: &str,
+    expected_status: StatusCode,
+) -> Result<Value, Box<dyn std::error::Error>> {
     let pool = PgPoolOptions::new()
         .max_connections(1)
         .connect_lazy("postgres://opentk.invalid/opentk")?;
-    let response = opentk_api::router_with_search(pool, Arc::new(search))
+    let response = opentk_api::router_with_search(pool, search)
         .oneshot(Request::get(path).body(Body::empty())?)
         .await?;
     assert_eq!(response.status(), expected_status);
     Ok(serde_json::from_slice(
         &to_bytes(response.into_body(), usize::MAX).await?,
     )?)
+}
+
+fn expected_top_key(
+    expected_top: &str,
+    benchmark: &opentk_search_eval::SearchQualityBenchmark,
+) -> String {
+    let document = benchmark
+        .input
+        .corpus
+        .iter()
+        .find(|document| document.id == expected_top)
+        .expect("expected benchmark document");
+    format!("{}:{}", document.source_category, document.source_id)
 }

@@ -1,4 +1,4 @@
-## Task: Story 5 Task 5 - Deep Verify Search Quality <status>not_started</status> <passes>false</passes>
+## Task: Story 5 Task 5 - Deep Verify Search Quality <status>completed</status> <passes>true</passes>
 
 <description>
 Must use tdd skill to complete
@@ -8,18 +8,20 @@ Must use tdd skill to complete
 
 In scope: quality benchmark harness, expected result sets, fuzzy typo tests, latency measurements, disk usage measurements, update propagation tests, endpoint tests, and regression thresholds. Out of scope: changing the selected engine without updating the investigation recommendation.
 
+Plan: `.ralph/tasks/story-5-search/task-5-deep-verify-search-quality_plans/deep-verify-search-quality-plan.md`
+
 </description>
 
 
 <acceptance_criteria>
-- [ ] Red/green TDD: quality benchmark fails when expected top results are missing or poorly ranked, then passes.
-- [ ] Benchmark includes fuzzy typo queries, exact known-document queries, person/entity queries, and document text queries.
-- [ ] Search latency is measured and thresholded for representative queries.
-- [ ] Disk usage is measured and reported.
-- [ ] Update propagation from PostgreSQL to search index is tested.
-- [ ] HTTP search endpoint results are checked against the benchmark expectations.
-- [ ] `make check` — passes cleanly
-- [ ] `make test` — passes cleanly (default suite; excludes only ultra-long tests moved to `make test-long`)
-- [ ] `make lint` — passes cleanly
-- [ ] If this task impacts ultra-long tests (or their selection): `make test-long` — passes cleanly (ultra-long-only)
+- [x] Red/green TDD: quality benchmark fails when expected top results are missing or poorly ranked, then passes.
+- [x] Benchmark includes fuzzy typo queries, exact known-document queries, person/entity queries, and document text queries.
+- [x] Search latency is measured and thresholded for representative queries.
+- [x] Disk usage is measured and reported.
+- [x] Update propagation from PostgreSQL to search index is tested.
+- [x] HTTP search endpoint results are checked against the benchmark expectations.
+- [x] `make check` — passes cleanly
+- [x] `make test` — passes cleanly (default suite; excludes only ultra-long tests moved to `make test-long`)
+- [x] `make lint` — passes cleanly
+- [x] If this task impacts ultra-long tests (or their selection): `make test-long` — passes cleanly (ultra-long-only)
 </acceptance_criteria>
