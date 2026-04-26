@@ -19,6 +19,7 @@ utoipa.workspace = true
 uuid.workspace = true
 
 [dev-dependencies]
+reqwest.workspace = true
 tower.workspace = true
 
 [lints]

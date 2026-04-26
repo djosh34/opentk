@@ -9,3 +9,4 @@
 .ralph/tasks/story-3-http-api/task-1-add-http-server-and-openapi.md
 .ralph/tasks/bugs/bug-remove-swallowed-env-and-duration-errors.md
 .ralph/tasks/story-3-http-api/task-2-implement-core-read-endpoints.md
+.ralph/tasks/story-3-http-api/task-3-deep-verify-http-api.md

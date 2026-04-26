@@ -1,7 +1,7 @@
 //! HTTP API boundary for `OpenTK`.
 
 use axum::{
-    extract::{Path, Query, State},
+    extract::{rejection::QueryRejection, Path, Query, State},
     http::StatusCode,
     response::{IntoResponse, Response},
     routing::get,
@@ -21,8 +21,12 @@ use std::net::SocketAddr;
 use thiserror::Error;
 use tokio::net::TcpListener;
 use utoipa::{
+    openapi::Required,
     openapi::{
-        path::{HttpMethod, OperationBuilder, PathItem, Paths, PathsBuilder},
+        path::{
+            HttpMethod, OperationBuilder, Parameter, ParameterBuilder, ParameterIn, PathItem,
+            Paths, PathsBuilder,
+        },
         response::ResponseBuilder,
         schema::{Components, ComponentsBuilder},
         Content, Info, Ref,
@@ -359,6 +363,15 @@ fn read_paths(paths: PathsBuilder) -> PathsBuilder {
                         "Category changes page",
                         ChangePageResponse::name().as_ref(),
                     )
+                    .parameters(Some([
+                        path_parameter("category", "Official entity category"),
+                        query_parameter("after", "Exclusive skiptoken cursor"),
+                        query_parameter("limit", "Page size from 1 through 500"),
+                    ]))
+                    .response(
+                        "400",
+                        json_response("Invalid cursor or limit", ErrorResponse::name().as_ref()),
+                    )
                     .response(
                         "404",
                         json_response("Unknown category", ErrorResponse::name().as_ref()),
@@ -369,66 +382,107 @@ fn read_paths(paths: PathsBuilder) -> PathsBuilder {
 }
 
 fn detail_paths(paths: PathsBuilder) -> PathsBuilder {
+    relation_paths(typed_detail_paths(paths.path(
+        "/entities/{category}/{source_id}",
+        PathItem::new(HttpMethod::Get, generic_detail_operation()),
+    )))
+}
+
+fn typed_detail_paths(paths: PathsBuilder) -> PathsBuilder {
     paths
-        .path(
-            "/entities/{category}/{source_id}",
-            PathItem::new(
-                HttpMethod::Get,
-                get_operation(
-                    "entity_detail",
-                    "Entity detail",
-                    EntityDetailResponse::name().as_ref(),
-                )
-                .response(
-                    "404",
-                    json_response("Missing entity", ErrorResponse::name().as_ref()),
-                ),
-            ),
-        )
         .path(
             "/documents/{source_id}",
             PathItem::new(
                 HttpMethod::Get,
-                get_operation(
-                    "document_detail",
-                    "Document detail",
-                    EntityDetailResponse::name().as_ref(),
-                ),
+                typed_detail_operation("document_detail", "Document detail", "Document"),
             ),
         )
         .path(
             "/activities/{source_id}",
             PathItem::new(
                 HttpMethod::Get,
-                get_operation(
-                    "activity_detail",
-                    "Activity detail",
-                    EntityDetailResponse::name().as_ref(),
-                ),
+                typed_detail_operation("activity_detail", "Activity detail", "Activity"),
             ),
         )
         .path(
             "/persons/{source_id}",
             PathItem::new(
                 HttpMethod::Get,
-                get_operation(
-                    "person_detail",
-                    "Person detail",
-                    EntityDetailResponse::name().as_ref(),
-                ),
+                typed_detail_operation("person_detail", "Person detail", "Person"),
             ),
         )
-        .path(
-            "/relations/{category}/{source_id}",
-            PathItem::new(
-                HttpMethod::Get,
-                get_operation(
-                    "relations",
-                    "Entity relations",
-                    RelationLookupResponse::name().as_ref(),
-                ),
+}
+
+fn relation_paths(paths: PathsBuilder) -> PathsBuilder {
+    paths.path(
+        "/relations/{category}/{source_id}",
+        PathItem::new(HttpMethod::Get, relation_lookup_operation()),
+    )
+}
+
+fn generic_detail_operation() -> OperationBuilder {
+    detail_operation("entity_detail", "Entity detail")
+        .parameters(Some([
+            path_parameter("category", "Official entity category"),
+            path_parameter("source_id", "Entity source UUID"),
+            query_parameter("relations", "Relation expansion mode"),
+        ]))
+        .response(
+            "404",
+            json_response("Missing entity", ErrorResponse::name().as_ref()),
+        )
+}
+
+fn typed_detail_operation(
+    operation_id: &'static str,
+    description: &str,
+    category: &str,
+) -> OperationBuilder {
+    detail_operation(operation_id, description)
+        .parameters(Some([
+            path_parameter("source_id", &format!("{category} source UUID")),
+            query_parameter("relations", "Relation expansion mode"),
+        ]))
+        .response(
+            "404",
+            json_response(
+                &format!("Missing {}", category.to_lowercase()),
+                ErrorResponse::name().as_ref(),
             ),
         )
+}
+
+fn detail_operation(operation_id: &'static str, description: &str) -> OperationBuilder {
+    get_operation(
+        operation_id,
+        description,
+        EntityDetailResponse::name().as_ref(),
+    )
+    .response(
+        "400",
+        json_response("Invalid ID or parameter", ErrorResponse::name().as_ref()),
+    )
+}
+
+fn relation_lookup_operation() -> OperationBuilder {
+    get_operation(
+        "relations",
+        "Entity relations",
+        RelationLookupResponse::name().as_ref(),
+    )
+    .parameters(Some([
+        path_parameter("category", "Official entity category"),
+        path_parameter("source_id", "Entity source UUID"),
+        query_parameter("direction", "Relation lookup direction"),
+    ]))
+    .response(
+        "400",
+        json_response("Invalid ID or parameter", ErrorResponse::name().as_ref()),
+    )
+    .response(
+        "404",
+        json_response("Unknown category", ErrorResponse::name().as_ref()),
+    )
 }
 
 fn get_operation(
@@ -462,6 +516,24 @@ fn json_response(description: &str, schema_name: &str) -> ResponseBuilder {
         "application/json",
         Content::new(Some(Ref::from_schema_name(schema_name))),
     )
+}
+
+fn path_parameter(name: &str, description: &str) -> Parameter {
+    ParameterBuilder::new()
+        .name(name)
+        .parameter_in(ParameterIn::Path)
+        .required(Required::True)
+        .description(Some(description))
+        .build()
+}
+
+fn query_parameter(name: &str, description: &str) -> Parameter {
+    ParameterBuilder::new()
+        .name(name)
+        .parameter_in(ParameterIn::Query)
+        .required(Required::False)
+        .description(Some(description))
+        .build()
 }
 
 async fn health(State(state): State<ApiState>) -> Result<Json<HealthResponse>, ApiError> {
@@ -513,8 +585,9 @@ async fn sync_status(State(state): State<ApiState>) -> Result<Json<SyncStatusRes
 async fn changes(
     State(state): State<ApiState>,
     Path(category): Path<String>,
-    Query(query): Query<ChangesQuery>,
+    query: Result<Query<ChangesQuery>, QueryRejection>,
 ) -> Result<Json<ChangePageResponse>, ApiError> {
+    let Query(query) = query.map_err(|_| ApiError::InvalidRequest)?;
     let limit = i64::from(query.limit.unwrap_or(100));
     let page = read_model::list_changes(&state.pool, &category, query.after, limit).await?;
     Ok(Json(ChangePageResponse {
@@ -528,8 +601,9 @@ async fn changes(
 async fn entity_detail(
     State(state): State<ApiState>,
     Path((category, source_id)): Path<(String, String)>,
-    Query(query): Query<RelationsQuery>,
+    query: Result<Query<RelationsQuery>, QueryRejection>,
 ) -> Result<Json<EntityDetailResponse>, ApiError> {
+    let Query(query) = query.map_err(|_| ApiError::InvalidRequest)?;
     let source_id = parse_uuid(&source_id)?;
     let detail = read_model::get_entity_detail(&state.pool, &category, source_id).await?;
     let relations = expanded_relations(&state.pool, &category, source_id, query.relations).await?;
@@ -539,8 +613,9 @@ async fn entity_detail(
 async fn document_detail(
     State(state): State<ApiState>,
     Path(source_id): Path<String>,
-    Query(query): Query<RelationsQuery>,
+    query: Result<Query<RelationsQuery>, QueryRejection>,
 ) -> Result<Json<EntityDetailResponse>, ApiError> {
+    let Query(query) = query.map_err(|_| ApiError::InvalidRequest)?;
     let source_id = parse_uuid(&source_id)?;
     let detail = read_model::get_document_detail(&state.pool, source_id).await?;
     let relations = expanded_relations(&state.pool, "Document", source_id, query.relations).await?;
@@ -550,8 +625,9 @@ async fn document_detail(
 async fn activity_detail(
     State(state): State<ApiState>,
     Path(source_id): Path<String>,
-    Query(query): Query<RelationsQuery>,
+    query: Result<Query<RelationsQuery>, QueryRejection>,
 ) -> Result<Json<EntityDetailResponse>, ApiError> {
+    let Query(query) = query.map_err(|_| ApiError::InvalidRequest)?;
     let source_id = parse_uuid(&source_id)?;
     let detail = read_model::get_activity_detail(&state.pool, source_id).await?;
     let relations =
@@ -562,8 +638,9 @@ async fn activity_detail(
 async fn person_detail(
     State(state): State<ApiState>,
     Path(source_id): Path<String>,
-    Query(query): Query<RelationsQuery>,
+    query: Result<Query<RelationsQuery>, QueryRejection>,
 ) -> Result<Json<EntityDetailResponse>, ApiError> {
+    let Query(query) = query.map_err(|_| ApiError::InvalidRequest)?;
     let source_id = parse_uuid(&source_id)?;
     let detail = read_model::get_person_detail(&state.pool, source_id).await?;
     let relations = expanded_relations(&state.pool, "Persoon", source_id, query.relations).await?;
@@ -573,8 +650,9 @@ async fn person_detail(
 async fn relations(
     State(state): State<ApiState>,
     Path((category, source_id)): Path<(String, String)>,
-    Query(query): Query<RelationLookupQuery>,
+    query: Result<Query<RelationLookupQuery>, QueryRejection>,
 ) -> Result<Json<RelationLookupResponse>, ApiError> {
+    let Query(query) = query.map_err(|_| ApiError::InvalidRequest)?;
     let source_id = parse_uuid(&source_id)?;
     let direction = match query.direction {
         RelationLookupDirection::Outgoing => RelationDirection::Outgoing,
