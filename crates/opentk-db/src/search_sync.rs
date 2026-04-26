@@ -1,3 +1,5 @@
+use std::collections::BTreeMap;
+
 use chrono::{DateTime, Duration, Utc};
 use opentk_core::official_schema;
 use opentk_search::{
@@ -76,6 +78,24 @@ pub struct SearchIndexFailure {
     pub updated_at: DateTime<Utc>,
 }
 
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct SearchSyncRecordKey {
+    source_category: String,
+    source_id: Uuid,
+    latest_skiptoken: i64,
+}
+
+impl SearchSyncRecordKey {
+    #[must_use]
+    pub fn new(source_category: String, source_id: Uuid, latest_skiptoken: i64) -> Self {
+        Self {
+            source_category,
+            source_id,
+            latest_skiptoken,
+        }
+    }
+}
+
 #[derive(Debug, Error)]
 pub enum SearchSyncError {
     #[error("search sync batch_size must be greater than zero")]
@@ -135,6 +155,69 @@ where
     run_indexing(pool, client, config, SearchSyncMode::Incremental).await
 }
 
+/// Apply search operations for explicit source records without advancing durable cursors.
+///
+/// This is the targeted CDC path for records delivered by `LISTEN`/`NOTIFY`.
+/// Cursor-based indexing remains responsible for durable catch-up.
+///
+/// # Errors
+///
+/// Returns [`SearchSyncError`] for invalid configuration, unknown categories,
+/// missing source records, `PostgreSQL` failures, source-record mapping
+/// failures, or search engine failures.
+pub async fn index_records<C>(
+    pool: &PgPool,
+    client: &C,
+    config: &SearchSyncConfig,
+    records: &[SearchSyncRecordKey],
+) -> Result<SearchSyncReport, SearchSyncError>
+where
+    C: SearchIndexClient + Sync,
+{
+    validate_config(config)?;
+    let changes = targeted_changes(pool, records).await?;
+    if changes.is_empty() {
+        return Ok(SearchSyncReport {
+            mode: SearchSyncMode::Incremental,
+            indexed: 0,
+            deleted: 0,
+            failed: 0,
+            latest_cursors: list_cursors(pool).await?,
+        });
+    }
+
+    let operations = operations_for_changes(pool, &changes).await;
+    let operations = match operations {
+        Ok(operations) => operations,
+        Err(error) => {
+            record_batch_failure(pool, config, &changes, &error.to_string()).await?;
+            return Err(error);
+        }
+    };
+
+    if let Err(error) = client.apply_batch(&operations).await {
+        record_batch_failure(pool, config, &changes, &error.to_string()).await?;
+        return Err(error.into());
+    }
+
+    let indexed = operations
+        .iter()
+        .filter(|operation| matches!(operation, SearchIndexOperation::Upsert(_)))
+        .count() as u64;
+    let deleted = operations
+        .iter()
+        .filter(|operation| matches!(operation, SearchIndexOperation::Delete(_)))
+        .count() as u64;
+
+    Ok(SearchSyncReport {
+        mode: SearchSyncMode::Incremental,
+        indexed,
+        deleted,
+        failed: 0,
+        latest_cursors: list_cursors(pool).await?,
+    })
+}
+
 /// List durable indexing cursors.
 ///
 /// # Errors
@@ -166,6 +249,62 @@ pub async fn list_failures(pool: &PgPool) -> Result<Vec<SearchIndexFailure>, sql
     .fetch_all(pool)
     .await?;
     Ok(rows.iter().map(failure_from_row).collect())
+}
+
+async fn targeted_changes(
+    pool: &PgPool,
+    records: &[SearchSyncRecordKey],
+) -> Result<Vec<EntityChange>, SearchSyncError> {
+    let mut deduped = BTreeMap::new();
+    for record in records {
+        ensure_category(&record.source_category)?;
+        deduped
+            .entry((record.source_category.clone(), record.source_id))
+            .and_modify(|latest_skiptoken| {
+                if record.latest_skiptoken > *latest_skiptoken {
+                    *latest_skiptoken = record.latest_skiptoken;
+                }
+            })
+            .or_insert(record.latest_skiptoken);
+    }
+
+    let mut changes = Vec::with_capacity(deduped.len());
+    for ((source_category, source_id), _latest_skiptoken) in deduped {
+        changes.push(targeted_change(pool, &source_category, source_id).await?);
+    }
+    Ok(changes)
+}
+
+async fn targeted_change(
+    pool: &PgPool,
+    source_category: &str,
+    source_id: Uuid,
+) -> Result<EntityChange, SearchSyncError> {
+    let row = sqlx::query(
+        "SELECT source_category, source_id, latest_skiptoken, deleted, source_updated_at, atom_updated_at
+         FROM sync_entity
+         WHERE source_category = $1 AND source_id = $2",
+    )
+    .bind(source_category)
+    .bind(source_id)
+    .fetch_optional(pool)
+    .await?
+    .ok_or(ReadModelError::NotFound)?;
+
+    Ok(EntityChange {
+        category: row.get("source_category"),
+        source_id: row.get("source_id"),
+        latest_skiptoken: row.get("latest_skiptoken"),
+        deleted: row.get("deleted"),
+        source_updated_at: row
+            .get::<Option<DateTime<Utc>>, _>("source_updated_at")
+            .expect("sync_entity.source_updated_at is non-null")
+            .to_rfc3339(),
+        atom_updated_at: row
+            .get::<Option<DateTime<Utc>>, _>("atom_updated_at")
+            .expect("sync_entity.atom_updated_at is non-null")
+            .to_rfc3339(),
+    })
 }
 
 async fn run_indexing<C>(

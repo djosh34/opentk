@@ -312,6 +312,9 @@ pub fn render_up_migration(schema: &SchemaSpec) -> String {
         sql.push('\n');
     }
 
+    render_search_cdc_trigger(&mut sql);
+    sql.push('\n');
+
     for index_spec in &schema.indexes {
         render_create_index(&mut sql, index_spec);
     }
@@ -322,11 +325,32 @@ pub fn render_up_migration(schema: &SchemaSpec) -> String {
 #[must_use]
 pub fn render_down_migration(schema: &SchemaSpec) -> String {
     let mut sql = String::from("-- Generated from opentk-db::postgres_schema.\n\n");
+    sql.push_str("DROP FUNCTION IF EXISTS notify_sync_entity_change() CASCADE;\n");
     for table in schema.tables.iter().rev() {
         writeln!(sql, "DROP TABLE IF EXISTS {} CASCADE;", ident(&table.name))
             .expect("writing to String cannot fail");
     }
     sql
+}
+
+fn render_search_cdc_trigger(sql: &mut String) {
+    sql.push_str(concat!(
+        "CREATE OR REPLACE FUNCTION notify_sync_entity_change()\n",
+        "RETURNS TRIGGER AS $$\n",
+        "BEGIN\n",
+        "  PERFORM pg_notify('sync_entity_change', json_build_object(\n",
+        "    'source_category', NEW.source_category,\n",
+        "    'source_id', NEW.source_id,\n",
+        "    'latest_skiptoken', NEW.latest_skiptoken,\n",
+        "    'deleted', NEW.deleted\n",
+        "  )::text);\n",
+        "  RETURN NEW;\n",
+        "END;\n",
+        "$$ LANGUAGE plpgsql;\n\n",
+        "CREATE TRIGGER sync_entity_change_trigger\n",
+        "AFTER INSERT OR UPDATE ON sync_entity\n",
+        "FOR EACH ROW EXECUTE FUNCTION notify_sync_entity_change();\n",
+    ));
 }
 
 fn sync_category_table() -> TableSpec {

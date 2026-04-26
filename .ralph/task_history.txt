@@ -24,3 +24,4 @@
 .ralph/tasks/story-6-config-unification/task-2-refactor-binaries-to-config.md
 .ralph/tasks/story-6-config-unification/task-3-startup-validation.md
 .ralph/tasks/story-7-binary-rename-and-cdc/task-1-rename-to-opentk-sync.md
+.ralph/tasks/story-7-binary-rename-and-cdc/task-2-implement-listen-notify-cdc.md

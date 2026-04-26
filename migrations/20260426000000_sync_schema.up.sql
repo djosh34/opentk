@@ -1617,6 +1617,23 @@ CREATE TABLE "document_content" (
     FOREIGN KEY ("document_source_category", "document_source_id") REFERENCES "document" ("source_category", "source_id") ON DELETE CASCADE
 );
 
+CREATE OR REPLACE FUNCTION notify_sync_entity_change()
+RETURNS TRIGGER AS $$
+BEGIN
+  PERFORM pg_notify('sync_entity_change', json_build_object(
+    'source_category', NEW.source_category,
+    'source_id', NEW.source_id,
+    'latest_skiptoken', NEW.latest_skiptoken,
+    'deleted', NEW.deleted
+  )::text);
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER sync_entity_change_trigger
+AFTER INSERT OR UPDATE ON sync_entity
+FOR EACH ROW EXECUTE FUNCTION notify_sync_entity_change();
+
 CREATE INDEX "idx_sync_category_categorycursor_source_catego_bcf916ee93c48f0d" ON "sync_category" ("source_category", "latest_skiptoken");
 CREATE INDEX "idx_sync_entity_primaryuuidlookup_source_id" ON "sync_entity" ("source_id");
 CREATE INDEX "idx_sync_entity_entityupdatedat_source_categor_5a930c9e90dd7fb6" ON "sync_entity" ("source_category", "source_updated_at");

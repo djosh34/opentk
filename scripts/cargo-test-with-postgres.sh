@@ -12,6 +12,10 @@ PG_HOST="127.0.0.1"
 mkdir -p "${PG_DIR}"
 mkdir -p "${PG_SOCKET_DIR}"
 
+if [[ -d "${PG_DATA}" && ! -f "${PG_DATA}/PG_VERSION" ]]; then
+  mv "${PG_DATA}" "${PG_DATA}.invalid.$(date +%s)"
+fi
+
 if [[ ! -d "${PG_DATA}" ]]; then
   initdb -D "${PG_DATA}" -A trust -U postgres >/dev/null
 fi

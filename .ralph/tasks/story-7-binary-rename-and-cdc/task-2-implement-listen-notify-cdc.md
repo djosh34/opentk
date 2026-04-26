@@ -1,4 +1,4 @@
-## Task: Story 7 Task 2 - Implement LISTEN/NOTIFY CDC for Search Sync <status>not_started</status> <passes>false</passes>
+## Task: Story 7 Task 2 - Implement LISTEN/NOTIFY CDC for Search Sync <status>done</status> <passes>true</passes>
 
 <description>
 Must use tdd skill to complete
@@ -59,3 +59,9 @@ In scope: migration, trigger, PgListener, buffering/dedup, targeted incremental 
 - [ ] `make test` — passes cleanly (default suite)
 - [ ] `make lint` — passes cleanly
 </acceptance_criteria>
+
+<plan>
+.ralph/tasks/story-7-binary-rename-and-cdc/task-2-implement-listen-notify-cdc_plans/listen-notify-cdc-plan.md
+</plan>
+
+NOW EXECUTE

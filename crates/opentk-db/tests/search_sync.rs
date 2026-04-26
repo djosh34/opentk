@@ -4,6 +4,7 @@ use chrono::{DateTime, Utc};
 use opentk_db::{
     document_assets::{record_document_asset_fetches, record_document_content_extractions},
     search_sync::{full_reindex, incremental_index, list_failures, SearchSyncConfig},
+    search_sync::{index_records, SearchSyncError, SearchSyncRecordKey},
     sync_writer::{write_sync_page, SyncPageWrite},
 };
 use opentk_search::{SearchIndexClient, SearchIndexError, SearchIndexOperation, SearchIndexSchema};
@@ -216,6 +217,110 @@ async fn incremental_index_applies_created_and_deleted_records() -> Result<(), s
                     && document.document_number.as_deref() == Some("2026D00003"))
         }),
         "created document is indexed"
+    );
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn index_records_applies_only_targeted_records_without_advancing_cursor(
+) -> Result<(), sqlx::Error> {
+    let pool = migrated_pool("search_sync_targeted_records").await?;
+    let first_id = document_id();
+    let second_id = Uuid::parse_str("22222222-2222-4222-8222-222222222222").expect("valid uuid");
+    seed_document_with_content_for(&pool, first_id, 8, "2026D00008", "first", "<p>first</p>").await;
+    seed_document_with_content_for(&pool, second_id, 9, "2026D00009", "second", "<p>second</p>")
+        .await;
+    sqlx::query(
+        "INSERT INTO search_index_cursor (
+            index_name,
+            source_category,
+            latest_skiptoken,
+            state
+         )
+         VALUES ('opentk_entities', 'Document', 7, 'caught_up')",
+    )
+    .execute(&pool)
+    .await?;
+    let client = MemoryIndexClient::default();
+    let config = SearchSyncConfig {
+        index_name: "opentk_entities".to_owned(),
+        categories: vec!["Document".to_owned()],
+        batch_size: 10,
+        retry_limit: 3,
+    };
+
+    let report = index_records(
+        &pool,
+        &client,
+        &config,
+        &[SearchSyncRecordKey::new(
+            "Document".to_owned(),
+            second_id,
+            9,
+        )],
+    )
+    .await
+    .expect("targeted indexing succeeds");
+
+    assert_eq!(report.indexed, 1);
+    assert_eq!(report.deleted, 0);
+    let operations = client.operations();
+    assert_eq!(operations.len(), 1);
+    let SearchIndexOperation::Upsert(document) = &operations[0] else {
+        panic!("targeted document is upserted");
+    };
+    assert_eq!(document.source_id, second_id);
+    assert_eq!(document.document_number.as_deref(), Some("2026D00009"));
+
+    let cursor_skiptoken: i64 = sqlx::query_scalar(
+        "SELECT latest_skiptoken
+         FROM search_index_cursor
+         WHERE index_name = 'opentk_entities' AND source_category = 'Document'",
+    )
+    .fetch_one(&pool)
+    .await?;
+    assert_eq!(cursor_skiptoken, 7);
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn index_records_reuses_search_sync_validation_errors() -> Result<(), sqlx::Error> {
+    let pool = migrated_pool("search_sync_targeted_validation").await?;
+    let client = MemoryIndexClient::default();
+    let invalid_config = SearchSyncConfig {
+        index_name: "opentk_entities".to_owned(),
+        categories: vec!["Document".to_owned()],
+        batch_size: 0,
+        retry_limit: 3,
+    };
+
+    let error = index_records(&pool, &client, &invalid_config, &[])
+        .await
+        .expect_err("invalid config is rejected");
+    assert!(matches!(error, SearchSyncError::InvalidBatchSize));
+
+    let config = SearchSyncConfig {
+        index_name: "opentk_entities".to_owned(),
+        categories: vec!["Document".to_owned()],
+        batch_size: 10,
+        retry_limit: 3,
+    };
+    let error = index_records(
+        &pool,
+        &client,
+        &config,
+        &[SearchSyncRecordKey::new(
+            "NotARealCategory".to_owned(),
+            Uuid::new_v4(),
+            1,
+        )],
+    )
+    .await
+    .expect_err("unknown targeted category is rejected");
+    assert!(
+        matches!(error, SearchSyncError::UnknownCategory(category) if category == "NotARealCategory")
     );
 
     Ok(())

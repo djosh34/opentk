@@ -1,5 +1,6 @@
 -- Generated from opentk-db::postgres_schema.
 
+DROP FUNCTION IF EXISTS notify_sync_entity_change() CASCADE;
 DROP TABLE IF EXISTS "document_content" CASCADE;
 DROP TABLE IF EXISTS "document_asset" CASCADE;
 DROP TABLE IF EXISTS "zaal" CASCADE;

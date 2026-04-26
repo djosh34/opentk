@@ -1469,6 +1469,7 @@ dependencies = [
  "opentk-search",
  "opentk-sync",
  "reqwest",
+ "serde",
  "serde_json",
  "sha2",
  "sqlx",
