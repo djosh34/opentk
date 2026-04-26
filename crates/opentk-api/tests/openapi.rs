@@ -26,6 +26,26 @@ async fn openapi_document_is_served_from_router() -> Result<(), Box<dyn std::err
     assert!(body.get("openapi").and_then(Value::as_str).is_some());
     assert!(body.pointer("/paths/~1health").is_some());
     assert!(body.pointer("/paths/~1openapi.json").is_some());
+    assert!(body.pointer("/paths/~1search/get").is_some());
+    let search = &body["paths"]["/search"]["get"];
+    let parameters = search["parameters"].as_array().expect("parameters array");
+    for name in ["q", "limit", "offset", "category", "entity_kind"] {
+        assert!(
+            parameters
+                .iter()
+                .any(|parameter| parameter["name"].as_str() == Some(name)),
+            "missing {name} search parameter"
+        );
+    }
+    assert!(body
+        .pointer("/components/schemas/SearchResponseDto")
+        .is_some());
+    assert!(body
+        .pointer("/components/schemas/SearchResultDto")
+        .is_some());
+    assert!(body
+        .pointer("/components/schemas/SearchSnippetDto")
+        .is_some());
 
     Ok(())
 }

@@ -9,7 +9,7 @@ use std::{
 use chrono::{TimeZone, Utc};
 use opentk_search::{
     meilisearch_schema, MeilisearchClient, SearchEntityKind, SearchIndexClient,
-    SearchIndexDocument, SearchIndexOperation,
+    SearchIndexDocument, SearchIndexOperation, SearchQueryClient, SearchRequest,
 };
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
@@ -70,6 +70,62 @@ async fn meilisearch_client_resets_settings_upserts_deletes_and_polls_tasks() {
         .any(|request| request.starts_with("GET /tasks/")));
 }
 
+#[tokio::test]
+async fn meilisearch_client_searches_with_fuzzy_options_and_maps_results() {
+    let observed = Arc::new(Mutex::new(Vec::new()));
+    let listener = TcpListener::bind("127.0.0.1:0").await.expect("bind server");
+    let address = listener.local_addr().expect("server address");
+    let server_observed = Arc::clone(&observed);
+    let server = tokio::spawn(async move {
+        serve_meili_search_fixture(listener, server_observed).await;
+    });
+
+    let client = MeilisearchClient::new(
+        format!("http://{address}"),
+        Some("secret".to_owned()),
+        "opentk_entities".to_owned(),
+    );
+    let response = client
+        .search(SearchRequest {
+            query: "kamerbriev".to_owned(),
+            limit: 2,
+            offset: 1,
+            filter: None,
+        })
+        .await
+        .expect("search succeeds");
+
+    server.abort();
+    let _ = server.await;
+    let observed = observed.lock().expect("observed mutex");
+    let request = observed
+        .iter()
+        .find(|request| request.starts_with("POST /indexes/opentk_entities/search "))
+        .expect("search request observed");
+    assert!(request.contains("\"q\":\"kamerbriev\""));
+    assert!(request.contains("\"limit\":2"));
+    assert!(request.contains("\"offset\":1"));
+    assert!(request.contains("\"attributesToHighlight\""));
+    assert!(request.contains("\"attributesToCrop\""));
+    assert!(request.contains("\"showRankingScore\":true"));
+
+    assert_eq!(response.query, "kamerbriev");
+    assert_eq!(response.limit, 2);
+    assert_eq!(response.offset, 1);
+    assert_eq!(response.estimated_total_hits, Some(1));
+    assert_eq!(response.results.len(), 1);
+    let result = &response.results[0];
+    assert_eq!(result.title, "Fixture document");
+    assert_eq!(result.ranking_score, Some(0.98));
+    assert_eq!(result.snippets.len(), 1);
+    assert_eq!(result.snippets[0].field, "extracted_text");
+    assert_eq!(result.snippets[0].text, "plain snippet");
+    assert_eq!(
+        result.snippets[0].highlighted.as_deref(),
+        Some("plain <em>snippet</em>")
+    );
+}
+
 async fn serve_meili_fixture(
     listener: TcpListener,
     observed: Arc<Mutex<Vec<String>>>,
@@ -104,6 +160,45 @@ async fn serve_meili_fixture(
                 "202 Accepted"
             } else {
                 "200 OK"
+            };
+            let response = format!(
+                "HTTP/1.1 {status}\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+                body.len()
+            );
+            if let Err(error) = stream.write_all(response.as_bytes()).await {
+                assert_eq!(error.kind(), ErrorKind::BrokenPipe);
+            }
+        });
+    }
+}
+
+async fn serve_meili_search_fixture(listener: TcpListener, observed: Arc<Mutex<Vec<String>>>) {
+    loop {
+        let stream = listener.accept().await;
+        let Ok((mut stream, _)) = stream else {
+            return;
+        };
+        let observed = Arc::clone(&observed);
+        tokio::spawn(async move {
+            let mut buffer = vec![0_u8; 16 * 1024];
+            let read = match stream.read(&mut buffer).await {
+                Ok(0) | Err(_) => return,
+                Ok(read) => read,
+            };
+            let request = String::from_utf8_lossy(&buffer[..read]).to_string();
+            observed
+                .lock()
+                .expect("observed mutex")
+                .push(request.clone());
+            let first_line = request.lines().next().unwrap_or_default();
+            let (status, body) = if first_line.starts_with("POST /indexes/opentk_entities/search ")
+            {
+                (
+                    "200 OK",
+                    r#"{"hits":[{"key":"Document:11111111-1111-4111-8111-111111111111","source_category":"Document","source_id":"11111111-1111-4111-8111-111111111111","entity_kind":"Document","title":"Fixture document","summary":"Read endpoint","source_url":"https://example.test/document.pdf","date":"2026-04-26T00:00:00Z","document_number":"2026D00001","_formatted":{"extracted_text":"plain <em>snippet</em>"},"_rankingScore":0.98}],"estimatedTotalHits":1}"#,
+                )
+            } else {
+                ("404 Not Found", r#"{"message":"unexpected request"}"#)
             };
             let response = format!(
                 "HTTP/1.1 {status}\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",

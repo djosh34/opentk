@@ -1,5 +1,7 @@
 //! HTTP API boundary for `OpenTK`.
 
+mod search;
+
 use axum::{
     extract::{rejection::QueryRejection, Path, Query, State},
     http::StatusCode,
@@ -15,10 +17,11 @@ use opentk_db::{
     },
     DatabaseConfig, DatabaseError,
 };
+use opentk_search::{meilisearch_schema, MeilisearchClient, SearchIndexError, SearchQueryClient};
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 use sqlx::PgPool;
-use std::net::SocketAddr;
+use std::{net::SocketAddr, sync::Arc};
 use thiserror::Error;
 use tokio::net::TcpListener;
 use utoipa::{
@@ -40,6 +43,7 @@ const DEFAULT_MAX_DATABASE_CONNECTIONS: u32 = 5;
 #[derive(Clone)]
 struct ApiState {
     pool: PgPool,
+    search: Arc<dyn SearchQueryClient + Send + Sync>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -61,6 +65,8 @@ pub enum ApiError {
     DatabaseUnavailable(#[source] sqlx::Error),
     #[error("read model request failed")]
     ReadModel(#[from] ReadModelError),
+    #[error("search request failed")]
+    Search(#[from] SearchIndexError),
     #[error("invalid request")]
     InvalidRequest,
     #[error("failed to bind API listener at {address}")]
@@ -95,6 +101,13 @@ impl IntoResponse for ApiError {
                 ErrorResponse {
                     code: "document_content_not_found",
                     message: "document content not found",
+                },
+            ),
+            Self::Search(_) => (
+                StatusCode::SERVICE_UNAVAILABLE,
+                ErrorResponse {
+                    code: "search_unavailable",
+                    message: "search unavailable",
                 },
             ),
             Self::InvalidRequest | Self::ReadModel(ReadModelError::InvalidLimit) => (
@@ -327,9 +340,17 @@ pub async fn serve(config: ApiConfig) -> Result<(), ApiError> {
 }
 
 pub fn router(pool: PgPool) -> Router {
+    router_with_search(pool, default_search_client())
+}
+
+pub fn router_with_search(
+    pool: PgPool,
+    search_client: Arc<dyn SearchQueryClient + Send + Sync>,
+) -> Router {
     Router::new()
         .route("/health", get(health))
         .route("/openapi.json", get(openapi_json))
+        .route("/search", get(search::search))
         .route("/categories", get(categories))
         .route("/sync/status", get(sync_status))
         .route("/changes/{category}", get(changes))
@@ -339,7 +360,19 @@ pub fn router(pool: PgPool) -> Router {
         .route("/activities/{source_id}", get(activity_detail))
         .route("/persons/{source_id}", get(person_detail))
         .route("/relations/{category}/{source_id}", get(relations))
-        .with_state(ApiState { pool })
+        .with_state(ApiState {
+            pool,
+            search: search_client,
+        })
+}
+
+fn default_search_client() -> Arc<dyn SearchQueryClient + Send + Sync> {
+    Arc::new(MeilisearchClient::new(
+        std::env::var("OPENTK_SEARCH_URL").unwrap_or_else(|_| "http://127.0.0.1:7700".to_owned()),
+        std::env::var("OPENTK_SEARCH_API_KEY").ok(),
+        std::env::var("OPENTK_SEARCH_INDEX")
+            .unwrap_or_else(|_| meilisearch_schema().index_name.to_owned()),
+    ))
 }
 
 #[must_use]
@@ -350,7 +383,7 @@ pub fn openapi() -> utoipa::openapi::OpenApi {
 }
 
 fn api_paths() -> Paths {
-    read_paths(base_paths(PathsBuilder::new())).build()
+    read_paths(search_paths(base_paths(PathsBuilder::new()))).build()
 }
 
 fn base_paths(paths: PathsBuilder) -> PathsBuilder {
@@ -382,6 +415,35 @@ fn base_paths(paths: PathsBuilder) -> PathsBuilder {
                     ),
             ),
         )
+}
+
+fn search_paths(paths: PathsBuilder) -> PathsBuilder {
+    paths.path(
+        "/search",
+        PathItem::new(
+            HttpMethod::Get,
+            get_operation(
+                "search",
+                "Search results",
+                search::SearchResponseDto::name().as_ref(),
+            )
+            .parameters(Some([
+                required_query_parameter("q", "Search text"),
+                query_parameter("limit", "Page size from 1 through 100"),
+                query_parameter("offset", "Result offset"),
+                query_parameter("category", "Exact source category filter"),
+                query_parameter("entity_kind", "Exact entity kind filter"),
+            ]))
+            .response(
+                "400",
+                json_response("Invalid search request", ErrorResponse::name().as_ref()),
+            )
+            .response(
+                "503",
+                json_response("Search backend unavailable", ErrorResponse::name().as_ref()),
+            ),
+        ),
+    )
 }
 
 fn read_paths(paths: PathsBuilder) -> PathsBuilder {
@@ -591,6 +653,10 @@ fn api_components() -> Components {
         .schema_from::<DocumentContentBodyResponse>()
         .schema_from::<RelationLookupResponse>()
         .schema_from::<RelationResponse>()
+        .schema_from::<search::SearchResponseDto>()
+        .schema_from::<search::SearchResultDto>()
+        .schema_from::<search::SearchSnippetDto>()
+        .schema_from::<search::SearchEntityKindDto>()
         .build()
 }
 
@@ -615,6 +681,15 @@ fn query_parameter(name: &str, description: &str) -> Parameter {
         .name(name)
         .parameter_in(ParameterIn::Query)
         .required(Required::False)
+        .description(Some(description))
+        .build()
+}
+
+fn required_query_parameter(name: &str, description: &str) -> Parameter {
+    ParameterBuilder::new()
+        .name(name)
+        .parameter_in(ParameterIn::Query)
+        .required(Required::True)
         .description(Some(description))
         .build()
 }

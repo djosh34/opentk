@@ -1425,6 +1425,7 @@ dependencies = [
  "chrono",
  "clap",
  "opentk-db",
+ "opentk-search",
  "opentk-sync",
  "reqwest",
  "serde",

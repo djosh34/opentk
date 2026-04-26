@@ -1,4 +1,4 @@
-use std::collections::BTreeSet;
+use std::{collections::BTreeSet, future::Future, pin::Pin};
 
 use chrono::{DateTime, Utc};
 use reqwest::StatusCode;
@@ -51,6 +51,65 @@ pub trait SearchIndexClient {
         &self,
         operations: &[SearchIndexOperation],
     ) -> Result<(), SearchIndexError>;
+}
+
+pub trait SearchQueryClient {
+    /// Query indexed source records through a stable search boundary.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`SearchIndexError`] when the backing search engine rejects the
+    /// request or returns a response that cannot be mapped into stable search
+    /// result types.
+    fn search<'a>(
+        &'a self,
+        request: SearchRequest,
+    ) -> Pin<Box<dyn Future<Output = Result<SearchResponse, SearchIndexError>> + Send + 'a>>;
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SearchRequest {
+    pub query: String,
+    pub limit: u32,
+    pub offset: u32,
+    pub filter: Option<SearchFilter>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SearchFilter {
+    pub source_category: Option<String>,
+    pub entity_kind: Option<SearchEntityKind>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct SearchResponse {
+    pub query: String,
+    pub limit: u32,
+    pub offset: u32,
+    pub estimated_total_hits: Option<u32>,
+    pub results: Vec<SearchResult>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct SearchResult {
+    pub key: String,
+    pub source_category: String,
+    pub source_id: Uuid,
+    pub entity_kind: SearchEntityKind,
+    pub title: String,
+    pub summary: Option<String>,
+    pub source_url: Option<String>,
+    pub date: Option<String>,
+    pub document_number: Option<String>,
+    pub snippets: Vec<SearchSnippet>,
+    pub ranking_score: Option<f64>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SearchSnippet {
+    pub field: String,
+    pub text: String,
+    pub highlighted: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -131,7 +190,7 @@ pub struct SearchIndexSchema {
     pub ranking_rules: Vec<&'static str>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum SearchEntityKind {
     Document,
     Person,
@@ -376,7 +435,43 @@ impl SearchIndexClient for MeilisearchClient {
     }
 }
 
+impl SearchQueryClient for MeilisearchClient {
+    fn search<'a>(
+        &'a self,
+        request: SearchRequest,
+    ) -> Pin<Box<dyn Future<Output = Result<SearchResponse, SearchIndexError>> + Send + 'a>> {
+        Box::pin(async move { self.search_index(request).await })
+    }
+}
+
 impl MeilisearchClient {
+    async fn search_index(
+        &self,
+        request: SearchRequest,
+    ) -> Result<SearchResponse, SearchIndexError> {
+        let body = MeiliSearchRequest::from_search_request(&request)?;
+        let response = self
+            .request(
+                reqwest::Method::POST,
+                &format!("/indexes/{}/search", self.index_name),
+            )
+            .header(reqwest::header::CONTENT_TYPE, "application/json")
+            .body(serde_json::to_string(&body).map_err(json_error)?)
+            .send()
+            .await
+            .map_err(request_error)?;
+        let status = response.status();
+        let body = response.text().await.map_err(request_error)?;
+        if !status.is_success() {
+            return Err(SearchIndexError::Http {
+                status: Some(status.as_u16()),
+                message: body,
+            });
+        }
+        let response: MeiliSearchResponse = serde_json::from_str(&body).map_err(json_error)?;
+        Ok(response.into_search_response(request))
+    }
+
     fn request(&self, method: reqwest::Method, path: &str) -> reqwest::RequestBuilder {
         let url = format!("{}{}", self.base_url.trim_end_matches('/'), path);
         let mut request = self.http.request(method, url);
@@ -469,6 +564,146 @@ struct MeiliTaskStatus {
 #[derive(Debug, Deserialize)]
 struct MeiliTaskError {
     message: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct MeiliSearchRequest {
+    q: String,
+    limit: u32,
+    offset: u32,
+    attributes_to_highlight: Vec<&'static str>,
+    attributes_to_crop: Vec<&'static str>,
+    show_ranking_score: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    filter: Option<String>,
+}
+
+impl MeiliSearchRequest {
+    fn from_search_request(request: &SearchRequest) -> Result<Self, SearchIndexError> {
+        Ok(Self {
+            q: request.query.clone(),
+            limit: request.limit,
+            offset: request.offset,
+            attributes_to_highlight: api_result_shape().snippet_fields,
+            attributes_to_crop: vec![
+                "summary",
+                "metadata_text",
+                "extracted_text",
+                "extracted_html",
+            ],
+            show_ranking_score: true,
+            filter: request.filter.as_ref().map(meili_filter).transpose()?,
+        })
+    }
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct MeiliSearchResponse {
+    hits: Vec<MeiliSearchHit>,
+    estimated_total_hits: Option<u32>,
+}
+
+#[derive(Debug, Deserialize)]
+struct MeiliSearchHit {
+    key: String,
+    source_category: String,
+    source_id: Uuid,
+    entity_kind: SearchEntityKind,
+    title: String,
+    summary: Option<String>,
+    source_url: Option<String>,
+    date: Option<String>,
+    document_number: Option<String>,
+    #[serde(rename = "_formatted")]
+    formatted: Option<Map<String, Value>>,
+    #[serde(rename = "_rankingScore")]
+    ranking_score: Option<f64>,
+}
+
+impl MeiliSearchResponse {
+    fn into_search_response(self, request: SearchRequest) -> SearchResponse {
+        SearchResponse {
+            query: request.query,
+            limit: request.limit,
+            offset: request.offset,
+            estimated_total_hits: self.estimated_total_hits,
+            results: self.hits.into_iter().map(search_result_from_hit).collect(),
+        }
+    }
+}
+
+fn search_result_from_hit(hit: MeiliSearchHit) -> SearchResult {
+    let snippets = hit
+        .formatted
+        .as_ref()
+        .map(snippets_from_formatted)
+        .unwrap_or_default();
+    SearchResult {
+        key: hit.key,
+        source_category: hit.source_category,
+        source_id: hit.source_id,
+        entity_kind: hit.entity_kind,
+        title: hit.title,
+        summary: hit.summary,
+        source_url: hit.source_url,
+        date: hit.date,
+        document_number: hit.document_number,
+        snippets,
+        ranking_score: hit.ranking_score,
+    }
+}
+
+fn snippets_from_formatted(formatted: &Map<String, Value>) -> Vec<SearchSnippet> {
+    formatted
+        .iter()
+        .filter_map(|(field, highlighted)| {
+            let highlighted = formatted_text(highlighted)?;
+            Some(SearchSnippet {
+                field: field.clone(),
+                text: strip_highlight_tags(&highlighted),
+                highlighted: Some(highlighted),
+            })
+        })
+        .collect()
+}
+
+fn formatted_text(value: &Value) -> Option<String> {
+    match value {
+        Value::String(value) => present_string(Some(value)),
+        Value::Array(values) => {
+            let text = values
+                .iter()
+                .filter_map(Value::as_str)
+                .filter_map(|value| present_string(Some(value)))
+                .collect::<Vec<_>>()
+                .join(" ");
+            present_string(Some(&text))
+        }
+        Value::Null | Value::Bool(_) | Value::Number(_) | Value::Object(_) => None,
+    }
+}
+
+fn strip_highlight_tags(value: &str) -> String {
+    value.replace("<em>", "").replace("</em>", "")
+}
+
+fn meili_filter(filter: &SearchFilter) -> Result<String, SearchIndexError> {
+    let mut clauses = Vec::new();
+    if let Some(category) = &filter.source_category {
+        clauses.push(format!(
+            "source_category = {}",
+            serde_json::to_string(category).map_err(json_error)?
+        ));
+    }
+    if let Some(entity_kind) = &filter.entity_kind {
+        clauses.push(format!(
+            "entity_kind = {}",
+            serde_json::to_string(entity_kind).map_err(json_error)?
+        ));
+    }
+    Ok(clauses.join(" AND "))
 }
 
 fn request_error(error: reqwest::Error) -> SearchIndexError {

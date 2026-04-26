@@ -1,6 +1,6 @@
 # Done Tasks Summary
 
-Generated: Sun Apr 26 06:32:34 CEST 2026
+Generated: Sun Apr 26 06:48:55 AM CEST 2026
 
 # Task `/home/joshazimullah.linux/work_mounts/patroni_rewrite/opentk/.ralph/tasks/bugs/bug-remove-swallowed-env-and-duration-errors.md`
 
@@ -197,6 +197,18 @@ Must use tdd skill to complete
 
 <plan>
 .ralph/tasks/story-5-search/task-3-implement-search-sync_plans/search-sync-pipeline-plan.md
+</plan>
+```
+
+==============
+
+# Task `/home/joshazimullah.linux/work_mounts/patroni_rewrite/opentk/.ralph/tasks/story-5-search/task-4-expose-search-api.md`
+
+```
+## Task: Story 5 Task 4 - Expose Search API <status>done</status> <passes>true</passes>
+
+<plan>
+.ralph/tasks/story-5-search/task-4-expose-search-api_plans/search-api-plan.md
 </plan>
 ```
 
