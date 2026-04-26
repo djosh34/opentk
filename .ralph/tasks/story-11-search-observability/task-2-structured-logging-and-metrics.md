@@ -12,7 +12,7 @@ Requirements:
    - `search_sync.batch.complete` — indexed, deleted, failed, duration_ms
    - `search_sync.batch.error` — error details
    - `search_sync.notification.received` — category, source_id
-2. **JSON log format:** When `OPENTK_LOG_FORMAT=json` is set, use `tracing-subscriber` JSON layer. Default is `pretty`.
+2. **JSON log format:** When `log.format = "json"` is set in the TOML config file, use `tracing-subscriber` JSON layer. Default is `pretty`.
 3. **Metrics endpoint `GET /metrics`:**
    ```
    search_sync_batches_total 42
@@ -30,7 +30,7 @@ In scope: tracing events, JSON logs, metrics endpoint, docs. Out of scope: Prome
 
 <acceptance_criteria>
 - [ ] CDC daemon emits structured tracing events for every batch
-- [ ] `OPENTK_LOG_FORMAT=json` switches to JSON output
+- [ ] `log.format = "json"` in TOML config switches to JSON output
 - [ ] `GET /metrics` returns text-based counters
 - [ ] `docs/operations.md` documents observability endpoints
 - [ ] `make check` — passes cleanly

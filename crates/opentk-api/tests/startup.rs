@@ -16,7 +16,15 @@ async fn api_config_builds_router_connected_to_configured_database(
 
     let server = opentk_api::build_app(opentk_api::ApiConfig {
         bind_address,
-        database_url,
+        database: opentk_db::DatabaseConfig {
+            url: database_url,
+            max_connections: 5,
+        },
+        search: opentk_api::SearchBackendConfig {
+            url: "http://search.example.test:7700".to_owned(),
+            api_key: Some("startup-key".to_owned()),
+            index_name: "startup_index".to_owned(),
+        },
     })
     .await?;
 

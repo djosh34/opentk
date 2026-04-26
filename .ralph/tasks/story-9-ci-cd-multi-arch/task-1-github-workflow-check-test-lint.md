@@ -11,11 +11,13 @@ Requirements:
 - Fast lint job (`make check`) on PRs for quick feedback
 - Test job with PostgreSQL 16 service container
 - `make test-long` only on `main` pushes or `workflow_dispatch`
-- Cache cargo aggressively via `Swatinem/rust-cache@v2`
+- Use aggressive caching from the first implementation, but do not bake in a specific cache action or key strategy in this task text. The implementer must choose, measure, and prove the chosen approach works.
 - Matrix: stable Rust required, nightly allowed-to-fail
-- Set `OPENTK_TEST_DATABASE_URL` to service container
+- Provide test database configuration through the test harness/config-file mechanism, not application single-setting env vars
 
-In scope: CI workflow, caching, service container. Out of scope: release automation, Docker CI.
+Verification requirement: use the `github-api-auth-wrapper` skill (`/home/joshazimullah.linux/github-api-curl`) to inspect real workflow runs. Confirm from logs/timing that cache restore/save is happening and the workflow is quick. A normal cached check/test/lint run taking over 5 minutes is a task failure.
+
+In scope: CI workflow, caching, service container, measured cache verification. Out of scope: release automation, Docker CI.
 
 </description>
 
@@ -26,7 +28,8 @@ In scope: CI workflow, caching, service container. Out of scope: release automat
 - [ ] `make test` runs with PostgreSQL service
 - [ ] `make test-long` runs on main but not PRs
 - [ ] Cargo cached between runs
-- [ ] Workflow completes in under 10 minutes
+- [ ] `github-api-auth-wrapper` is used to verify real GitHub workflow cache behavior and timing
+- [ ] Cached check/test/lint workflow completes in under 5 minutes
 - [ ] `make check` — passes cleanly
 - [ ] `make test` — passes cleanly (default suite)
 - [ ] `make lint` — passes cleanly

@@ -17,7 +17,7 @@ Implementation:
    - Send shutdown signal to CDC listener
    - Gracefully stop the Axum server
    - Wait for CDC listener to finish current batch
-3. The CDC listener must never crash the API server. Any errors in the listener should be logged but the HTTP server stays up.
+3. The CDC listener must not crash the API server. Any errors in the listener must be logged, recorded in shared CDC state, exposed through `/health` and `/admin/search-sync/status`, and reflected by search endpoints returning a clear unavailable/degraded response. The HTTP server stays up for non-search routes.
 4. Add a lightweight admin endpoint `GET /admin/search-sync/status` that returns:
    ```json
    {
@@ -42,7 +42,7 @@ In scope: background task integration, graceful shutdown, admin endpoint, error 
 <acceptance_criteria>
 - [ ] `opentk-api` spawns CDC listener alongside HTTP server
 - [ ] SIGTERM gracefully shuts down both HTTP and CDC
-- [ ] CDC errors are logged but do not crash the API server
+- [ ] CDC errors are logged, recorded in status state, exposed via health/admin endpoints, and do not crash non-search API routes
 - [ ] `GET /admin/search-sync/status` returns current daemon state
 - [ ] `search-sync` binary is removed from Cargo.toml
 - [ ] `make check` — passes cleanly

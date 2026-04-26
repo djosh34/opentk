@@ -17,7 +17,7 @@ use opentk_db::{
     },
     DatabaseConfig, DatabaseError,
 };
-use opentk_search::{meilisearch_schema, MeilisearchClient, SearchIndexError, SearchQueryClient};
+use opentk_search::{MeilisearchClient, SearchIndexError, SearchQueryClient};
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 use sqlx::PgPool;
@@ -38,7 +38,8 @@ use utoipa::{
     ToSchema,
 };
 
-const DEFAULT_MAX_DATABASE_CONNECTIONS: u32 = 5;
+const DEFAULT_SEARCH_URL: &str = "http://meilisearch:7700";
+const DEFAULT_SEARCH_INDEX: &str = "opentk_entities";
 
 #[derive(Clone)]
 struct ApiState {
@@ -49,7 +50,15 @@ struct ApiState {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ApiConfig {
     pub bind_address: SocketAddr,
-    pub database_url: String,
+    pub database: DatabaseConfig,
+    pub search: SearchBackendConfig,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct SearchBackendConfig {
+    pub url: String,
+    pub api_key: Option<String>,
+    pub index_name: String,
 }
 
 pub struct ApiServer {
@@ -306,15 +315,16 @@ struct RelationResponse {
 /// Returns [`ApiError::Database`] when the configured `PostgreSQL` pool cannot be
 /// initialized.
 pub async fn build_app(config: ApiConfig) -> Result<ApiServer, ApiError> {
-    let pool = connect(&DatabaseConfig {
-        url: config.database_url,
-        max_connections: DEFAULT_MAX_DATABASE_CONNECTIONS,
-    })
-    .await?;
+    let pool = connect(&config.database).await?;
+    let search = Arc::new(MeilisearchClient::new(
+        config.search.url,
+        config.search.api_key,
+        config.search.index_name,
+    ));
 
     Ok(ApiServer {
         bind_address: config.bind_address,
-        router: router(pool),
+        router: router_with_search(pool, search),
     })
 }
 
@@ -340,7 +350,7 @@ pub async fn serve(config: ApiConfig) -> Result<(), ApiError> {
 }
 
 pub fn router(pool: PgPool) -> Router {
-    router_with_search(pool, default_search_client())
+    router_with_search(pool, default_search_client_without_env())
 }
 
 pub fn router_with_search(
@@ -366,12 +376,11 @@ pub fn router_with_search(
         })
 }
 
-fn default_search_client() -> Arc<dyn SearchQueryClient + Send + Sync> {
+fn default_search_client_without_env() -> Arc<dyn SearchQueryClient + Send + Sync> {
     Arc::new(MeilisearchClient::new(
-        std::env::var("OPENTK_SEARCH_URL").unwrap_or_else(|_| "http://127.0.0.1:7700".to_owned()),
-        std::env::var("OPENTK_SEARCH_API_KEY").ok(),
-        std::env::var("OPENTK_SEARCH_INDEX")
-            .unwrap_or_else(|_| meilisearch_schema().index_name.to_owned()),
+        DEFAULT_SEARCH_URL.to_owned(),
+        None,
+        DEFAULT_SEARCH_INDEX.to_owned(),
     ))
 }
 

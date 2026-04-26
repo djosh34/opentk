@@ -9,6 +9,7 @@ repository.workspace = true
 chrono.workspace = true
 clap.workspace = true
 opentk-core.workspace = true
+opentk-config.workspace = true
 opentk-search.workspace = true
 opentk-sync.workspace = true
 reqwest.workspace = true

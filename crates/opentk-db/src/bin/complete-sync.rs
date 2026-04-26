@@ -1,81 +1,38 @@
-use std::{env::VarError, num::NonZeroUsize, time::Duration};
+use std::{path::PathBuf, time::Duration};
 
 use clap::{Parser, Subcommand};
-use opentk_core::official_schema;
+use opentk_config::{Config, ConfigLoader};
 use opentk_db::{
+    connect,
     sync_state::PostgresSyncStore,
     sync_verification::{verify_sync_database, SyncVerificationConfig},
+    DatabaseConfig,
 };
 use opentk_sync::{
     runner::{CompleteSyncConfig, CompleteSyncRunner, SyncRunMode, SyncStore},
     syncfeed::{SyncFeedClient, SyncFeedClientConfig, SyncFeedContentMode},
 };
-use reqwest::Url;
-use sqlx::postgres::PgPoolOptions;
-use thiserror::Error;
-
-const DEFAULT_SYNCFEED_BASE_URL: &str = "https://gegevensmagazijn.tweedekamer.nl";
 
 #[derive(Debug, Parser)]
 #[command(name = "complete-sync")]
 #[command(about = "Run or inspect durable Tweede Kamer SyncFeed ingestion")]
 struct Cli {
+    #[arg(long, global = true)]
+    config: Option<PathBuf>,
     #[command(subcommand)]
     command: Command,
 }
 
 #[derive(Debug, Subcommand)]
 enum Command {
-    Run(RunArgs),
-    Poll(PollArgs),
-    Status(StatusArgs),
+    Run,
+    Poll,
+    Status,
     Verify(VerifyArgs),
-}
-
-#[derive(Debug, Error)]
-enum DatabaseUrlError {
-    #[error("provide --database-url, OPENTK_DATABASE_URL, or DATABASE_URL")]
-    Missing,
-    #[error("DATABASE_URL must contain valid Unicode")]
-    InvalidFallbackUnicode,
-}
-
-#[derive(Clone, Debug, Parser)]
-struct RunArgs {
-    #[arg(long, env = "OPENTK_DATABASE_URL")]
-    database_url: Option<String>,
-    #[arg(long, default_value = DEFAULT_SYNCFEED_BASE_URL)]
-    base_url: Url,
-    #[arg(long = "category")]
-    categories: Vec<String>,
-}
-
-#[derive(Clone, Debug, Parser)]
-struct PollArgs {
-    #[arg(long, env = "OPENTK_DATABASE_URL")]
-    database_url: Option<String>,
-    #[arg(long, default_value = DEFAULT_SYNCFEED_BASE_URL)]
-    base_url: Url,
-    #[arg(long = "category")]
-    categories: Vec<String>,
-    #[arg(long, default_value_t = 30)]
-    poll_interval_seconds: u64,
-}
-
-#[derive(Clone, Debug, Parser)]
-struct StatusArgs {
-    #[arg(long, env = "OPENTK_DATABASE_URL")]
-    database_url: Option<String>,
-    #[arg(long = "category")]
-    categories: Vec<String>,
 }
 
 #[derive(Clone, Debug, Parser)]
 struct VerifyArgs {
-    #[arg(long, env = "OPENTK_DATABASE_URL")]
-    database_url: Option<String>,
-    #[arg(long = "category")]
-    categories: Vec<String>,
     #[arg(long, default_value_t = 0)]
     required_relation_samples: usize,
 }
@@ -83,40 +40,35 @@ struct VerifyArgs {
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let cli = Cli::parse();
+    let loaded = match cli.config {
+        Some(path) => ConfigLoader::with_path(path).load()?,
+        None => ConfigLoader::new().load()?,
+    };
     match cli.command {
-        Command::Run(args) => {
-            run_once(args).await?;
+        Command::Run => {
+            run_once(&loaded.config).await?;
         }
-        Command::Poll(args) => {
+        Command::Poll => {
             let runner = build_runner(
-                database_url(args.database_url)?,
-                args.base_url,
-                categories_or_all(args.categories),
+                &loaded.config,
                 SyncRunMode::Continuous,
-                Duration::from_secs(args.poll_interval_seconds),
+                Duration::from_secs(loaded.config.sync.poll_interval_secs),
             )
             .await?;
             runner.run_forever().await?;
         }
-        Command::Status(args) => {
-            print_status(args).await?;
+        Command::Status => {
+            print_status(&loaded.config).await?;
         }
         Command::Verify(args) => {
-            print_verification(args).await?;
+            print_verification(&loaded.config, args).await?;
         }
     }
     Ok(())
 }
 
-async fn run_once(args: RunArgs) -> Result<(), Box<dyn std::error::Error>> {
-    let runner = build_runner(
-        database_url(args.database_url)?,
-        args.base_url,
-        categories_or_all(args.categories),
-        SyncRunMode::UntilCaughtUp,
-        Duration::from_secs(1),
-    )
-    .await?;
+async fn run_once(config: &Config) -> Result<(), Box<dyn std::error::Error>> {
+    let runner = build_runner(config, SyncRunMode::UntilCaughtUp, Duration::from_secs(1)).await?;
     let report = runner.run_once().await?;
     for category in report.categories {
         println!(
@@ -131,13 +83,10 @@ async fn run_once(args: RunArgs) -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-async fn print_status(args: StatusArgs) -> Result<(), Box<dyn std::error::Error>> {
-    let pool = PgPoolOptions::new()
-        .max_connections(5)
-        .connect(&database_url(args.database_url)?)
-        .await?;
+async fn print_status(config: &Config) -> Result<(), Box<dyn std::error::Error>> {
+    let pool = connect(&database_config(config)).await?;
     let store = PostgresSyncStore::new(pool);
-    for status in store.status(&categories_or_all(args.categories)).await? {
+    for status in store.status(&config.sync.categories).await? {
         let last_error = status.last_error.map_or_else(
             || "none".to_owned(),
             |error| {
@@ -170,15 +119,15 @@ async fn print_status(args: StatusArgs) -> Result<(), Box<dyn std::error::Error>
     Ok(())
 }
 
-async fn print_verification(args: VerifyArgs) -> Result<(), Box<dyn std::error::Error>> {
-    let pool = PgPoolOptions::new()
-        .max_connections(5)
-        .connect(&database_url(args.database_url)?)
-        .await?;
+async fn print_verification(
+    config: &Config,
+    args: VerifyArgs,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let pool = connect(&database_config(config)).await?;
     let report = verify_sync_database(
         &pool,
         SyncVerificationConfig {
-            categories: categories_or_all(args.categories),
+            categories: config.sync.categories.clone(),
             required_relation_samples: args.required_relation_samples,
         },
     )
@@ -226,56 +175,36 @@ async fn print_verification(args: VerifyArgs) -> Result<(), Box<dyn std::error::
 }
 
 async fn build_runner(
-    database_url: String,
-    base_url: Url,
-    categories: Vec<String>,
+    config: &Config,
     mode: SyncRunMode,
     poll_interval: Duration,
 ) -> Result<CompleteSyncRunner<PostgresSyncStore>, Box<dyn std::error::Error>> {
-    let pool = PgPoolOptions::new()
-        .max_connections(5)
-        .connect(&database_url)
-        .await?;
+    let pool = connect(&database_config(config)).await?;
     let client = SyncFeedClient::new(SyncFeedClientConfig {
-        base_url,
+        base_url: config.sync.base_url.clone(),
         content_mode: SyncFeedContentMode::Internal,
-        request_timeout: Duration::from_secs(30),
-        connect_timeout: Duration::from_secs(10),
-        max_retries: 3,
+        request_timeout: Duration::from_secs(config.sync.request_timeout_secs),
+        connect_timeout: Duration::from_secs(config.sync.connect_timeout_secs),
+        max_retries: config.sync.max_retries,
         initial_retry_delay: Duration::from_millis(500),
         max_retry_delay: Duration::from_secs(30),
-        max_concurrent_requests: NonZeroUsize::new(4).expect("non-zero"),
+        max_concurrent_requests: config.sync.max_concurrent_requests,
     })?;
     Ok(CompleteSyncRunner {
         client,
         store: PostgresSyncStore::new(pool),
         config: CompleteSyncConfig {
-            categories,
+            categories: config.sync.categories.clone(),
             mode,
             poll_interval,
         },
     })
 }
 
-fn database_url(argument: Option<String>) -> Result<String, DatabaseUrlError> {
-    if let Some(argument) = argument {
-        return Ok(argument);
-    }
-    match std::env::var("DATABASE_URL") {
-        Ok(database_url) => Ok(database_url),
-        Err(VarError::NotPresent) => Err(DatabaseUrlError::Missing),
-        Err(VarError::NotUnicode(_)) => Err(DatabaseUrlError::InvalidFallbackUnicode),
-    }
-}
-
-fn categories_or_all(categories: Vec<String>) -> Vec<String> {
-    if categories.is_empty() {
-        official_schema::entity_types()
-            .iter()
-            .map(|entity| entity.category.to_owned())
-            .collect()
-    } else {
-        categories
+fn database_config(config: &Config) -> DatabaseConfig {
+    DatabaseConfig {
+        url: config.database.url.clone(),
+        max_connections: config.database.max_connections,
     }
 }
 
@@ -285,77 +214,63 @@ fn display_optional_i64(value: Option<i64>) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::{categories_or_all, database_url, Cli, Command};
+    use super::{Cli, Command};
     use clap::Parser;
-    #[cfg(unix)]
-    use std::ffi::OsString;
-    #[cfg(unix)]
-    use std::os::unix::ffi::OsStringExt;
-    #[cfg(unix)]
-    use std::sync::Mutex;
-
-    #[cfg(unix)]
-    static ENV_LOCK: Mutex<()> = Mutex::new(());
 
     #[test]
-    fn run_command_accepts_explicit_category_selection() {
+    fn run_command_accepts_config_path_only() {
         let cli = Cli::try_parse_from([
             "complete-sync",
+            "--config",
+            "/etc/opentk/config.toml",
             "run",
-            "--database-url",
-            "postgres://postgres@example.test/opentk",
-            "--base-url",
-            "https://sync.example.test",
-            "--category",
-            "Document",
-            "--category",
-            "Zaak",
         ])
         .expect("run command parses");
 
-        let Command::Run(args) = cli.command else {
+        let Command::Run = cli.command else {
             panic!("expected run command");
         };
-        assert_eq!(args.categories, ["Document", "Zaak"]);
-        assert_eq!(args.base_url.as_str(), "https://sync.example.test/");
+        assert_eq!(
+            cli.config.as_deref(),
+            Some(std::path::Path::new("/etc/opentk/config.toml"))
+        );
     }
 
     #[test]
-    fn empty_category_selection_expands_to_official_categories() {
-        let categories = categories_or_all(Vec::new());
-
-        assert!(categories.contains(&"Document".to_owned()));
-        assert!(categories.contains(&"Zaak".to_owned()));
-        assert!(categories.len() > 2);
+    fn old_application_setting_flags_are_rejected() {
+        for args in [
+            [
+                "complete-sync",
+                "run",
+                "--database-url",
+                "postgres://example.test/db",
+            ],
+            [
+                "complete-sync",
+                "run",
+                "--base-url",
+                "https://sync.example.test",
+            ],
+            ["complete-sync", "run", "--category", "Document"],
+            ["complete-sync", "poll", "--poll-interval-seconds", "5"],
+        ] {
+            assert!(Cli::try_parse_from(args).is_err(), "{args:?} must fail");
+        }
     }
 
     #[test]
-    fn status_command_accepts_database_and_categories() {
-        let cli = Cli::try_parse_from([
-            "complete-sync",
-            "status",
-            "--database-url",
-            "postgres://postgres@example.test/opentk",
-            "--category",
-            "Document",
-        ])
-        .expect("status command parses");
-
-        let Command::Status(args) = cli.command else {
+    fn status_command_has_no_application_setting_args() {
+        let cli = Cli::try_parse_from(["complete-sync", "status"]).expect("status command parses");
+        let Command::Status = cli.command else {
             panic!("expected status command");
         };
-        assert_eq!(args.categories, ["Document"]);
     }
 
     #[test]
-    fn verify_command_accepts_categories_and_relation_sample_requirement() {
+    fn verify_command_accepts_only_relation_sample_requirement() {
         let cli = Cli::try_parse_from([
             "complete-sync",
             "verify",
-            "--database-url",
-            "postgres://postgres@example.test/opentk",
-            "--category",
-            "Document",
             "--required-relation-samples",
             "1",
         ])
@@ -364,26 +279,6 @@ mod tests {
         let Command::Verify(args) = cli.command else {
             panic!("expected verify command");
         };
-        assert_eq!(args.categories, ["Document"]);
         assert_eq!(args.required_relation_samples, 1);
-    }
-
-    #[cfg(unix)]
-    #[test]
-    fn database_url_reports_invalid_unicode_fallback_env() {
-        let _guard = ENV_LOCK.lock().expect("env lock is not poisoned");
-        let original = std::env::var_os("DATABASE_URL");
-        std::env::set_var("DATABASE_URL", OsString::from_vec(vec![0x66, 0x80, 0x6f]));
-
-        let error = database_url(None).expect_err("invalid unicode is an error");
-
-        match original {
-            Some(value) => std::env::set_var("DATABASE_URL", value),
-            None => std::env::remove_var("DATABASE_URL"),
-        }
-        let message = error.to_string();
-        assert!(message.contains("DATABASE_URL"));
-        assert!(message.contains("valid Unicode"));
-        assert!(!message.contains("provide --database-url"));
     }
 }
