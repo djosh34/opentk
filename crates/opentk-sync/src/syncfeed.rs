@@ -490,6 +490,7 @@ fn parse_page(
             content_mode,
             &cursor.category,
             &cursor.url,
+            &raw_xml,
             entry,
         )?);
     }
@@ -536,6 +537,7 @@ fn parse_entry(
     content_mode: SyncFeedContentMode,
     expected_category: &str,
     request_url: &Url,
+    raw_xml: &str,
     entry: Node<'_, '_>,
 ) -> Result<SyncFeedEntry, SyncFeedClientError> {
     let id = child_text(entry, "id").ok_or_else(|| SyncFeedClientError::InvalidXml {
@@ -551,7 +553,7 @@ fn parse_entry(
             request_url: request_url.to_string(),
         })?
         .to_owned();
-    if category != expected_category {
+    if !categories_match(&category, expected_category) {
         return Err(SyncFeedClientError::CategoryMismatch {
             expected: expected_category.to_owned(),
             actual: category,
@@ -579,8 +581,7 @@ fn parse_entry(
     let content_xml = entry
         .children()
         .find(|node| node.is_element() && node.tag_name().name() == "content")
-        .and_then(|node| node.text())
-        .map(str::to_owned);
+        .and_then(|node| content_payload_xml(raw_xml, node));
     let enclosure_url = link_href(entry, "enclosure")
         .map(|href| {
             request_url
@@ -601,6 +602,14 @@ fn parse_entry(
         content_xml,
         enclosure_url,
     })
+}
+
+fn content_payload_xml(raw_xml: &str, content: Node<'_, '_>) -> Option<String> {
+    content
+        .children()
+        .find(Node::is_element)
+        .map(|node| raw_xml[node.range()].to_owned())
+        .or_else(|| content.text().map(str::to_owned))
 }
 
 fn child_text(node: Node<'_, '_>, child_name: &str) -> Option<String> {
@@ -677,7 +686,7 @@ fn validate_cursor_url(
             category: category.to_owned(),
             request_url: url.to_string(),
         })?;
-    if actual_category != category {
+    if !categories_match(&actual_category, category) {
         return Err(SyncFeedClientError::CategoryMismatch {
             expected: category.to_owned(),
             actual: actual_category,
@@ -701,6 +710,10 @@ fn validate_cursor_url(
         }
     }
     Ok(())
+}
+
+fn categories_match(actual: &str, expected: &str) -> bool {
+    actual.eq_ignore_ascii_case(expected)
 }
 
 #[derive(Debug, Error)]

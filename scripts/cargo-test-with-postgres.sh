@@ -26,4 +26,4 @@ fi
 
 export OPENTK_TEST_DATABASE_URL="${OPENTK_TEST_DATABASE_URL:-postgres://postgres@${PG_HOST}:${PG_PORT}/postgres}"
 export CARGO_BUILD_JOBS="${CARGO_BUILD_JOBS:-1}"
-exec cargo test --workspace
+exec cargo test --workspace "$@"

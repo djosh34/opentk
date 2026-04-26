@@ -10,4 +10,4 @@ test:
 	CARGO_INCREMENTAL=0 ./scripts/cargo-test-with-postgres.sh
 
 test-long:
-	CARGO_INCREMENTAL=0 cargo test --workspace --ignored
+	CARGO_INCREMENTAL=0 ./scripts/cargo-test-with-postgres.sh -- --ignored

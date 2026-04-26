@@ -84,6 +84,56 @@ async fn fetch_page_uses_last_entry_next_as_next_request() {
 }
 
 #[tokio::test]
+async fn fetch_page_accepts_lowercase_category_echoes_from_live_syncfeed() {
+    let server = TestServer::start(Vec::new()).await;
+    let entry_next = format!(
+        "{}/SyncFeed/2.0/Feed?category=document&skiptoken=1&content=internal",
+        server.base_url
+    );
+    server
+        .replace_responses(vec![TestResponse::atom(
+            "/SyncFeed/2.0/Feed?category=Document&content=internal",
+            &format!(
+                r#"
+                <feed xmlns="http://www.w3.org/2005/Atom">
+                  <entry>
+                    <id>document-1</id>
+                    <category term="document" />
+                    <updated>2026-04-26T00:00:00Z</updated>
+                    <link rel="next" href="{}" />
+                    <content type="application/xml"><Document><Id>document-1</Id></Document></content>
+                  </entry>
+                </feed>
+                "#,
+                xml_url(&entry_next)
+            ),
+        )])
+        .await;
+
+    let base_url = Url::parse(&server.base_url).expect("mock server URL");
+    let client = SyncFeedClient::new(config(base_url.clone())).expect("valid client config");
+    let page = client
+        .fetch_page(SyncFeedCursor::first_page(
+            &base_url,
+            "Document",
+            SyncFeedContentMode::Internal,
+        ))
+        .await
+        .expect("page fetch succeeds");
+
+    assert_eq!(page.category, "Document");
+    assert_eq!(page.entries[0].category, "Document");
+    assert_eq!(
+        page.entries[0].content_xml.as_deref(),
+        Some("<Document><Id>document-1</Id></Document>")
+    );
+    assert_eq!(
+        page.next_request.expect("entry next cursor").url.as_str(),
+        entry_next
+    );
+}
+
+#[tokio::test]
 async fn category_fetch_follows_entry_next_until_resume() {
     let server = TestServer::start(Vec::new()).await;
     let first_next = format!(

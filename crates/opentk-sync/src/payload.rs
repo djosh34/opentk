@@ -1,6 +1,6 @@
 use std::{collections::HashMap, fmt};
 
-use chrono::{DateTime, NaiveDate, Utc};
+use chrono::{DateTime, NaiveDate, NaiveDateTime, Utc};
 use opentk_core::official_schema::{self, EntityType, Field, FieldKind, Occurs};
 use quick_xml::{
     events::{BytesStart, Event},
@@ -486,8 +486,11 @@ fn parse_datetime(
     field: &str,
     value: &str,
 ) -> Result<DateTime<Utc>, PayloadParseError> {
-    DateTime::parse_from_rfc3339(value)
-        .map(|datetime| datetime.with_timezone(&Utc))
+    if let Ok(datetime) = DateTime::parse_from_rfc3339(value) {
+        return Ok(datetime.with_timezone(&Utc));
+    }
+    NaiveDateTime::parse_from_str(value, "%Y-%m-%dT%H:%M:%S%.f")
+        .map(|datetime| datetime.and_utc())
         .map_err(|source| invalid_value(category, field, "xs:dateTime", value, source))
 }
 

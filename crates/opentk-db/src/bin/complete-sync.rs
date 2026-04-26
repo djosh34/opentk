@@ -2,7 +2,10 @@ use std::{num::NonZeroUsize, time::Duration};
 
 use clap::{Parser, Subcommand};
 use opentk_core::official_schema;
-use opentk_db::sync_state::PostgresSyncStore;
+use opentk_db::{
+    sync_state::PostgresSyncStore,
+    sync_verification::{verify_sync_database, SyncVerificationConfig},
+};
 use opentk_sync::{
     runner::{CompleteSyncConfig, CompleteSyncRunner, SyncRunMode, SyncStore},
     syncfeed::{SyncFeedClient, SyncFeedClientConfig, SyncFeedContentMode},
@@ -25,6 +28,7 @@ enum Command {
     Run(RunArgs),
     Poll(PollArgs),
     Status(StatusArgs),
+    Verify(VerifyArgs),
 }
 
 #[derive(Clone, Debug, Parser)]
@@ -57,32 +61,22 @@ struct StatusArgs {
     categories: Vec<String>,
 }
 
+#[derive(Clone, Debug, Parser)]
+struct VerifyArgs {
+    #[arg(long, env = "OPENTK_DATABASE_URL")]
+    database_url: Option<String>,
+    #[arg(long = "category")]
+    categories: Vec<String>,
+    #[arg(long, default_value_t = 0)]
+    required_relation_samples: usize,
+}
+
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let cli = Cli::parse();
     match cli.command {
         Command::Run(args) => {
-            let runner = build_runner(
-                database_url(args.database_url)?,
-                args.base_url,
-                categories_or_all(args.categories),
-                SyncRunMode::UntilCaughtUp,
-                Duration::from_secs(1),
-            )
-            .await?;
-            let report = runner.run_once().await?;
-            for category in report.categories {
-                println!(
-                    "{}\tcaught_up={}\tlatest_skiptoken={}\tpages_written={}\tentities_seen={}",
-                    category.category,
-                    category.caught_up,
-                    category
-                        .latest_skiptoken
-                        .map_or_else(|| "null".to_owned(), |skiptoken| skiptoken.to_string()),
-                    category.pages_written,
-                    category.entities_seen
-                );
-            }
+            run_once(args).await?;
         }
         Command::Poll(args) => {
             let runner = build_runner(
@@ -96,47 +90,124 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             runner.run_forever().await?;
         }
         Command::Status(args) => {
-            let pool = PgPoolOptions::new()
-                .max_connections(5)
-                .connect(&database_url(args.database_url)?)
-                .await?;
-            let store = PostgresSyncStore::new(pool);
-            for status in store.status(&categories_or_all(args.categories)).await? {
-                let last_error = status.last_error.map_or_else(
-                    || "none".to_owned(),
-                    |error| {
-                        format!(
-                            "{} skiptoken={} entity={} {}",
-                            error.phase.as_str(),
-                            error.skiptoken.map_or_else(
-                                || "null".to_owned(),
-                                |skiptoken| skiptoken.to_string()
-                            ),
-                            error.entity_id.map_or_else(
-                                || "null".to_owned(),
-                                |entity_id| entity_id.to_string()
-                            ),
-                            error.message
-                        )
-                    },
-                );
-                println!(
-                    "{}\tstate={}\tlatest_skiptoken={}\tlag_seconds={}\tlast_fetch_at={}\tlast_error={}",
-                    status.category,
-                    status.state.as_str(),
-                    status
-                        .latest_skiptoken
-                        .map_or_else(|| "null".to_owned(), |skiptoken| skiptoken.to_string()),
-                    status
-                        .lag
-                        .map_or_else(|| "null".to_owned(), |lag| lag.as_secs().to_string()),
-                    status
-                        .last_fetch_at
-                        .map_or_else(|| "null".to_owned(), |last_fetch_at| last_fetch_at.to_rfc3339()),
-                    last_error
-                );
-            }
+            print_status(args).await?;
         }
+        Command::Verify(args) => {
+            print_verification(args).await?;
+        }
+    }
+    Ok(())
+}
+
+async fn run_once(args: RunArgs) -> Result<(), Box<dyn std::error::Error>> {
+    let runner = build_runner(
+        database_url(args.database_url)?,
+        args.base_url,
+        categories_or_all(args.categories),
+        SyncRunMode::UntilCaughtUp,
+        Duration::from_secs(1),
+    )
+    .await?;
+    let report = runner.run_once().await?;
+    for category in report.categories {
+        println!(
+            "{}\tcaught_up={}\tlatest_skiptoken={}\tpages_written={}\tentities_seen={}",
+            category.category,
+            category.caught_up,
+            display_optional_i64(category.latest_skiptoken),
+            category.pages_written,
+            category.entities_seen
+        );
+    }
+    Ok(())
+}
+
+async fn print_status(args: StatusArgs) -> Result<(), Box<dyn std::error::Error>> {
+    let pool = PgPoolOptions::new()
+        .max_connections(5)
+        .connect(&database_url(args.database_url)?)
+        .await?;
+    let store = PostgresSyncStore::new(pool);
+    for status in store.status(&categories_or_all(args.categories)).await? {
+        let last_error = status.last_error.map_or_else(
+            || "none".to_owned(),
+            |error| {
+                format!(
+                    "{} skiptoken={} entity={} {}",
+                    error.phase.as_str(),
+                    display_optional_i64(error.skiptoken),
+                    error
+                        .entity_id
+                        .map_or_else(|| "null".to_owned(), |entity_id| entity_id.to_string()),
+                    error.message
+                )
+            },
+        );
+        println!(
+            "{}\tstate={}\tlatest_skiptoken={}\tlag_seconds={}\tlast_fetch_at={}\tlast_error={}",
+            status.category,
+            status.state.as_str(),
+            display_optional_i64(status.latest_skiptoken),
+            status
+                .lag
+                .map_or_else(|| "null".to_owned(), |lag| lag.as_secs().to_string()),
+            status.last_fetch_at.map_or_else(
+                || "null".to_owned(),
+                |last_fetch_at| last_fetch_at.to_rfc3339()
+            ),
+            last_error
+        );
+    }
+    Ok(())
+}
+
+async fn print_verification(args: VerifyArgs) -> Result<(), Box<dyn std::error::Error>> {
+    let pool = PgPoolOptions::new()
+        .max_connections(5)
+        .connect(&database_url(args.database_url)?)
+        .await?;
+    let report = verify_sync_database(
+        &pool,
+        SyncVerificationConfig {
+            categories: categories_or_all(args.categories),
+            required_relation_samples: args.required_relation_samples,
+        },
+    )
+    .await?;
+    println!(
+        "categories={}\trelations={}\tdirect_queries={}\ttable_bytes={}\tindex_bytes={}\thtml_asset_bytes={}\tbinary_asset_metadata_rows={}",
+        report.categories.len(),
+        report.relation_tables.len(),
+        report.direct_queries.len(),
+        report.storage.table_bytes,
+        report.storage.index_bytes,
+        report.storage.html_asset_bytes,
+        report.storage.binary_asset_metadata_rows
+    );
+    for category in report.categories {
+        println!(
+            "category={}\ttable={}\tcurrent_rows={}\tregistry_rows={}\tstate={}\tlatest_skiptoken={}",
+            category.category,
+            category.table_name,
+            category.current_rows,
+            category.registry_rows,
+            category.state.as_str(),
+            display_optional_i64(category.latest_skiptoken)
+        );
+    }
+    for relation in report.relation_tables {
+        println!(
+            "relation={}.{}\ttable={}\trows={}\tqueryable_from_source={}\tqueryable_from_target={}",
+            relation.source_category,
+            relation.relation_name,
+            relation.table_name,
+            relation.rows,
+            relation.queryable_from_source,
+            relation.queryable_from_target
+        );
+    }
+    for query in report.direct_queries {
+        println!("direct_query={}\trows={}", query.name, query.rows);
     }
     Ok(())
 }
@@ -188,6 +259,10 @@ fn categories_or_all(categories: Vec<String>) -> Vec<String> {
     } else {
         categories
     }
+}
+
+fn display_optional_i64(value: Option<i64>) -> String {
+    value.map_or_else(|| "null".to_owned(), |value| value.to_string())
 }
 
 #[cfg(test)]
@@ -243,5 +318,26 @@ mod tests {
             panic!("expected status command");
         };
         assert_eq!(args.categories, ["Document"]);
+    }
+
+    #[test]
+    fn verify_command_accepts_categories_and_relation_sample_requirement() {
+        let cli = Cli::try_parse_from([
+            "complete-sync",
+            "verify",
+            "--database-url",
+            "postgres://postgres@example.test/opentk",
+            "--category",
+            "Document",
+            "--required-relation-samples",
+            "1",
+        ])
+        .expect("verify command parses");
+
+        let Command::Verify(args) = cli.command else {
+            panic!("expected verify command");
+        };
+        assert_eq!(args.categories, ["Document"]);
+        assert_eq!(args.required_relation_samples, 1);
     }
 }

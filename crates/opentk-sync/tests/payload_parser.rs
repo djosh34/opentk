@@ -110,6 +110,24 @@ fn delete_marker_carries_metadata_and_rejects_current_body_content() {
 }
 
 #[test]
+fn live_syncfeed_naive_fractional_datetimes_parse_as_utc() {
+    let deleted = parse_entity_xml(
+        "Document",
+        r#"<document xmlns:tk="http://www.tweedekamer.nl/xsd/tkData/v1-0"
+            xmlns="http://www.tweedekamer.nl/xsd/tkData/v1-0"
+            id="11111111-1111-4111-8111-111111111111"
+            tk:verwijderd="true"
+            tk:bijgewerkt="2019-06-28T23:59:41.5570000"/>"#,
+    )
+    .expect("live delete marker parses");
+
+    assert_eq!(
+        deleted.source_updated_at.to_rfc3339(),
+        "2019-06-28T23:59:41.557+00:00"
+    );
+}
+
+#[test]
 fn scalar_datatypes_are_validated_and_typed() {
     let activiteit = parse_entity_xml(
         "Activiteit",

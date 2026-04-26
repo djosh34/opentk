@@ -5,3 +5,4 @@
 .ralph/tasks/story-2-complete-sync-postgres/task-3-implement-syncfeed-client-and-rate-limits.md
 .ralph/tasks/story-2-complete-sync-postgres/task-4-implement-complete-parser-and-writers.md
 .ralph/tasks/story-2-complete-sync-postgres/task-5-implement-parallel-sync-runner.md
+.ralph/tasks/story-2-complete-sync-postgres/task-6-deep-verify-complete-sync.md

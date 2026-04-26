@@ -5,4 +5,5 @@
 
 pub mod postgres_schema;
 pub mod sync_state;
+pub mod sync_verification;
 pub mod sync_writer;
