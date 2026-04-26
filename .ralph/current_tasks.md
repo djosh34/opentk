@@ -1,17 +1,6 @@
 # Current Tasks Summary
 
-Generated: Sun Apr 26 02:54:44 AM CEST 2026
-
-# Task `/home/joshazimullah.linux/work_mounts/patroni_rewrite/opentk/.ralph/tasks/bugs/bug-remove-swallowed-env-and-duration-errors.md`
-
-```
-## Bug: Remove Swallowed Env And Duration Errors <status>not_started</status> <passes>false</passes> <priority>high</priority>
-
-<description>
-Final boundary review for Story 3 Task 1 detected pre-existing swallowed errors outside the new API path:
-```
-
-==============
+Generated: Sun Apr 26 03:05:33 CEST 2026
 
 # Task `/home/joshazimullah.linux/work_mounts/patroni_rewrite/opentk/.ralph/tasks/story-3-http-api/task-2-implement-core-read-endpoints.md`
 

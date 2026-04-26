@@ -106,6 +106,42 @@ async fn postgres_store_marks_caught_up_from_resume_cursor() -> Result<(), sqlx:
     Ok(())
 }
 
+#[tokio::test]
+async fn postgres_store_rejects_future_last_fetch_lag() -> Result<(), sqlx::Error> {
+    let pool = migrated_pool("sync_state_future_lag").await?;
+    let store = PostgresSyncStore::new(pool.clone());
+    let future_fetch_at = Utc::now() + chrono::Duration::days(1);
+
+    sqlx::query(
+        r"
+        INSERT INTO sync_category (
+            source_category,
+            latest_skiptoken,
+            next_url,
+            state,
+            last_fetch_at
+        )
+        VALUES ($1, $2, $3, $4, $5)
+        ",
+    )
+    .bind("Document")
+    .bind(7_i64)
+    .bind("https://example.test/SyncFeed/2.0/Feed?category=Document&skiptoken=7")
+    .bind(CategorySyncState::Running.as_str())
+    .bind(future_fetch_at)
+    .execute(&pool)
+    .await?;
+
+    let error = store
+        .status(&["Document".to_owned()])
+        .await
+        .expect_err("future last_fetch_at makes lag invalid");
+
+    assert!(error.message.contains("last_fetch_at"));
+    assert!(error.message.contains("future"));
+    Ok(())
+}
+
 async fn migrated_pool(test_name: &str) -> Result<PgPool, sqlx::Error> {
     let database_url = std::env::var("OPENTK_TEST_DATABASE_URL")
         .or_else(|_| std::env::var("DATABASE_URL"))

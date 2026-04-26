@@ -1,4 +1,4 @@
-use std::{num::NonZeroUsize, time::Duration};
+use std::{env::VarError, num::NonZeroUsize, time::Duration};
 
 use clap::{Parser, Subcommand};
 use opentk_core::official_schema;
@@ -12,6 +12,7 @@ use opentk_sync::{
 };
 use reqwest::Url;
 use sqlx::postgres::PgPoolOptions;
+use thiserror::Error;
 
 const DEFAULT_SYNCFEED_BASE_URL: &str = "https://gegevensmagazijn.tweedekamer.nl";
 
@@ -29,6 +30,14 @@ enum Command {
     Poll(PollArgs),
     Status(StatusArgs),
     Verify(VerifyArgs),
+}
+
+#[derive(Debug, Error)]
+enum DatabaseUrlError {
+    #[error("provide --database-url, OPENTK_DATABASE_URL, or DATABASE_URL")]
+    Missing,
+    #[error("DATABASE_URL must contain valid Unicode")]
+    InvalidFallbackUnicode,
 }
 
 #[derive(Clone, Debug, Parser)]
@@ -244,10 +253,15 @@ async fn build_runner(
     })
 }
 
-fn database_url(argument: Option<String>) -> Result<String, Box<dyn std::error::Error>> {
-    argument
-        .or_else(|| std::env::var("DATABASE_URL").ok())
-        .ok_or_else(|| "provide --database-url, OPENTK_DATABASE_URL, or DATABASE_URL".into())
+fn database_url(argument: Option<String>) -> Result<String, DatabaseUrlError> {
+    if let Some(argument) = argument {
+        return Ok(argument);
+    }
+    match std::env::var("DATABASE_URL") {
+        Ok(database_url) => Ok(database_url),
+        Err(VarError::NotPresent) => Err(DatabaseUrlError::Missing),
+        Err(VarError::NotUnicode(_)) => Err(DatabaseUrlError::InvalidFallbackUnicode),
+    }
 }
 
 fn categories_or_all(categories: Vec<String>) -> Vec<String> {
@@ -267,8 +281,17 @@ fn display_optional_i64(value: Option<i64>) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::{categories_or_all, Cli, Command};
+    use super::{categories_or_all, database_url, Cli, Command};
     use clap::Parser;
+    #[cfg(unix)]
+    use std::ffi::OsString;
+    #[cfg(unix)]
+    use std::os::unix::ffi::OsStringExt;
+    #[cfg(unix)]
+    use std::sync::Mutex;
+
+    #[cfg(unix)]
+    static ENV_LOCK: Mutex<()> = Mutex::new(());
 
     #[test]
     fn run_command_accepts_explicit_category_selection() {
@@ -339,5 +362,24 @@ mod tests {
         };
         assert_eq!(args.categories, ["Document"]);
         assert_eq!(args.required_relation_samples, 1);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn database_url_reports_invalid_unicode_fallback_env() {
+        let _guard = ENV_LOCK.lock().expect("env lock is not poisoned");
+        let original = std::env::var_os("DATABASE_URL");
+        std::env::set_var("DATABASE_URL", OsString::from_vec(vec![0x66, 0x80, 0x6f]));
+
+        let error = database_url(None).expect_err("invalid unicode is an error");
+
+        match original {
+            Some(value) => std::env::set_var("DATABASE_URL", value),
+            None => std::env::remove_var("DATABASE_URL"),
+        }
+        let message = error.to_string();
+        assert!(message.contains("DATABASE_URL"));
+        assert!(message.contains("valid Unicode"));
+        assert!(!message.contains("provide --database-url"));
     }
 }

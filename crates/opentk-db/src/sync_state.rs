@@ -197,6 +197,10 @@ impl SyncStore for PostgresSyncStore {
                 } else {
                     (None, CategorySyncState::NotStarted, None)
                 };
+                let lag = match last_fetch_at {
+                    Some(last_fetch_at) => Some(lag_since(last_fetch_at)?),
+                    None => None,
+                };
                 statuses.push(CategoryStatus {
                     category: category.clone(),
                     latest_skiptoken,
@@ -205,7 +209,7 @@ impl SyncStore for PostgresSyncStore {
                     } else {
                         state
                     },
-                    lag: last_fetch_at.and_then(lag_since),
+                    lag,
                     last_fetch_at,
                     last_error: error,
                 });
@@ -253,8 +257,14 @@ async fn load_last_error(
     }))
 }
 
-fn lag_since(last_fetch_at: DateTime<Utc>) -> Option<Duration> {
-    (Utc::now() - last_fetch_at).to_std().ok()
+fn lag_since(last_fetch_at: DateTime<Utc>) -> Result<Duration, SyncStoreError> {
+    (Utc::now() - last_fetch_at)
+        .to_std()
+        .map_err(|_| SyncStoreError {
+            message: format!(
+                "sync last_fetch_at {last_fetch_at} is in the future; lag cannot be negative"
+            ),
+        })
 }
 
 fn store_error(error: &impl ToString) -> SyncStoreError {
