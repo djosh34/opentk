@@ -3,7 +3,6 @@
 <description>
 Must use tdd skill to complete
 
-
 **Goal:** Create a centralized configuration system that unifies how all binaries receive their settings. Currently each binary has its own ad-hoc clap argument definitions with inconsistent env var names and fallback chains.
 
 The current mess:
