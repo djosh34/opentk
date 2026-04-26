@@ -71,7 +71,7 @@ plain text for HTML inputs, and treats PDF/DOCX extraction as a fixture-gated
 fallback with explicit failure reports for parser errors or exact-output
 mismatches.
 
-## Complete Sync Runner
+## opentk-sync Runner
 
 `opentk-sync::runner` is the ingestion orchestration boundary. It runs one
 sequential loop per category and executes those category loops concurrently.

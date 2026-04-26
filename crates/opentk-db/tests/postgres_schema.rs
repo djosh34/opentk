@@ -459,8 +459,8 @@ fn document_content_schema_constrains_status_values_and_body_consistency() {
 #[test]
 fn checked_in_migrations_match_schema_spec() {
     let schema = postgres_schema::schema();
-    let up_sql = include_str!("../../../migrations/20260426000000_complete_sync_schema.up.sql");
-    let down_sql = include_str!("../../../migrations/20260426000000_complete_sync_schema.down.sql");
+    let up_sql = include_str!("../../../migrations/20260426000000_sync_schema.up.sql");
+    let down_sql = include_str!("../../../migrations/20260426000000_sync_schema.down.sql");
 
     assert_eq!(up_sql, postgres_schema::render_up_migration(&schema));
     assert_eq!(down_sql, postgres_schema::render_down_migration(&schema));

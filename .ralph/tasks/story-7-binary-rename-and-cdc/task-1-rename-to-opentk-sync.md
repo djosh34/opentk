@@ -1,4 +1,4 @@
-## Task: Story 7 Task 1 - Rename complete-sync Binary to opentk-sync <status>not_started</status> <passes>false</passes>
+## Task: Story 7 Task 1 - Rename complete-sync Binary to opentk-sync <status>done</status> <passes>true</passes>
 
 <description>
 Must use tdd skill to complete
@@ -28,11 +28,17 @@ In scope: rename binary, update all references, update tests. Out of scope: func
 
 
 <acceptance_criteria>
-- [ ] `cargo run -p opentk-db --bin opentk-sync -- --help` works
-- [ ] Old `complete-sync` binary name no longer exists
-- [ ] README and docs updated
-- [ ] All tests pass
-- [ ] `make check` — passes cleanly
-- [ ] `make test` — passes cleanly (default suite)
-- [ ] `make lint` — passes cleanly
+- [x] `cargo run -p opentk-db --bin opentk-sync -- --help` works
+- [x] Old `complete-sync` binary name no longer exists
+- [x] README and docs updated
+- [x] All tests pass
+- [x] `make check` — passes cleanly
+- [x] `make test` — passes cleanly (default suite)
+- [x] `make lint` — passes cleanly
 </acceptance_criteria>
+
+<plan>
+.ralph/tasks/story-7-binary-rename-and-cdc/task-1-rename-to-opentk-sync_plans/rename-binary-plan.md
+</plan>
+
+NOW EXECUTE

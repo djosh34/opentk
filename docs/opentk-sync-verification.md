@@ -1,4 +1,4 @@
-# Complete Sync Verification
+# opentk-sync Verification
 
 `opentk-db::sync_verification` is the PostgreSQL readiness boundary for a
 complete SyncFeed import. It verifies the database through generated schema

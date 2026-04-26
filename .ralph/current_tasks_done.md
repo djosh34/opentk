@@ -1,6 +1,6 @@
 # Done Tasks Summary
 
-Generated: Sun Apr 26 06:03:17 PM CEST 2026
+Generated: Sun Apr 26 18:18:34 CEST 2026
 
 # Task `/home/joshazimullah.linux/work_mounts/patroni_rewrite/opentk/.ralph/tasks/bugs/bug-remove-swallowed-env-and-duration-errors.md`
 
@@ -253,6 +253,17 @@ Must use tdd skill to complete
 
 ```
 ## Task: Story 6 Task 3 - Add Startup Dependency Validation <status>done</status> <passes>true</passes>
+
+<description>
+Must use tdd skill to complete
+```
+
+==============
+
+# Task `/home/joshazimullah.linux/work_mounts/patroni_rewrite/opentk/.ralph/tasks/story-7-binary-rename-and-cdc/task-1-rename-to-opentk-sync.md`
+
+```
+## Task: Story 7 Task 1 - Rename complete-sync Binary to opentk-sync <status>done</status> <passes>true</passes>
 
 <description>
 Must use tdd skill to complete
