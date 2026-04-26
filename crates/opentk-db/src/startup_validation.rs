@@ -84,6 +84,8 @@ impl fmt::Display for DependencyKind {
 
 #[derive(Clone, Debug, Error, Eq, PartialEq)]
 pub enum DependencyValidationError {
+    #[error("Database URL cannot be safely redacted: {message}")]
+    DatabaseUrlRedactionFailed { message: String },
     #[error("Database at {target} is unreachable: {message}")]
     DatabaseUnreachable { target: String, message: String },
     #[error("Meilisearch at {target} is unreachable: {message}")]
@@ -102,6 +104,22 @@ pub enum DependencyValidationError {
         status: StatusCode,
         message: String,
     },
+}
+
+#[derive(Clone, Debug, Error, Eq, PartialEq)]
+pub enum DatabaseUrlRedactionError {
+    #[error("invalid URL: {message}")]
+    InvalidUrl { message: String },
+    #[error("password redaction failed")]
+    PasswordRedactionFailed,
+}
+
+impl From<DatabaseUrlRedactionError> for DependencyValidationError {
+    fn from(error: DatabaseUrlRedactionError) -> Self {
+        Self::DatabaseUrlRedactionFailed {
+            message: error.to_string(),
+        }
+    }
 }
 
 /// Validate dependencies needed by `opentk-api`.
@@ -191,7 +209,7 @@ pub async fn validate_database(
 pub async fn validate_database_config(
     config: &DatabaseConfig,
 ) -> Result<DependencyCheckStatus, DependencyValidationError> {
-    let target = redacted_database_url(&config.url);
+    let target = redact_database_url(&config.url)?;
     let check = async {
         let pool = PgPoolOptions::new()
             .max_connections(1)
@@ -332,12 +350,19 @@ fn map_search_error(target: String, source: SearchIndexError) -> DependencyValid
     }
 }
 
-fn redacted_database_url(input: &str) -> String {
-    let Ok(mut url) = Url::parse(input) else {
-        return input.to_owned();
-    };
+/// Redact credentials from a database URL before it is used in diagnostics.
+///
+/// # Errors
+///
+/// Returns [`DatabaseUrlRedactionError`] when the URL is invalid or password
+/// mutation fails.
+pub fn redact_database_url(input: &str) -> Result<String, DatabaseUrlRedactionError> {
+    let mut url = Url::parse(input).map_err(|source| DatabaseUrlRedactionError::InvalidUrl {
+        message: source.to_string(),
+    })?;
     if url.password().is_some() {
-        let _ = url.set_password(Some("***"));
+        url.set_password(Some("***"))
+            .map_err(|()| DatabaseUrlRedactionError::PasswordRedactionFailed)?;
     }
-    url.to_string()
+    Ok(url.to_string())
 }

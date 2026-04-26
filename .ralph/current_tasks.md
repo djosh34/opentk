@@ -1,18 +1,6 @@
 # Current Tasks Summary
 
-Generated: Sun Apr 26 20:29:58 CEST 2026
-
-# Task `/home/joshazimullah.linux/work_mounts/patroni_rewrite/opentk/.ralph/tasks/bugs/database-url-redaction-ignores-set-password-error.md`
-
-```
-## Bug: Database URL redaction ignores set_password error <status>not_started</status> <passes>false</passes> <priority>medium</priority>
-
-<description>
-During the boundary review for the SyncFeed startup validation body-read fix,
-inspection found `crates/opentk-db/src/startup_validation.rs` ignoring the
-```
-
-==============
+Generated: Sun Apr 26 20:51:15 CEST 2026
 
 # Task `/home/joshazimullah.linux/work_mounts/patroni_rewrite/opentk/.ralph/tasks/story-10-full-sync-backup/task-1-run-one-time-clean-full-sync-report.md`
 

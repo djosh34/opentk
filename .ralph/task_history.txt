@@ -29,3 +29,4 @@
 .ralph/tasks/bugs/full-sync-fails-on-deleted-persoon-nevenfunctie-body.md
 .ralph/tasks/bugs/full-sync-deadlocks-writing-persoon-nevenfunctie.md
 .ralph/tasks/bugs/startup-validation-swallowing-response-body-errors.md
+.ralph/tasks/bugs/database-url-redaction-ignores-set-password-error.md

@@ -1,4 +1,4 @@
-## Bug: Database URL redaction ignores set_password error <status>not_started</status> <passes>false</passes> <priority>medium</priority>
+## Bug: Database URL redaction ignores set_password error <status>not_started</status> <passes>true</passes> <priority>medium</priority>
 
 <description>
 During the boundary review for the SyncFeed startup validation body-read fix,
@@ -17,11 +17,15 @@ Then verify if bug still holds. If yes, create new Red test, and continue with R
 </mandatory_red_green_tdd>
 
 <acceptance_criteria>
-- [ ] I created a Red unit and/or integration test that captures the bug
-- [ ] I made the test green by fixing
-- [ ] I manually verified the bug, and created a new Red test if not working still
-- [ ] `make check` - passes cleanly
-- [ ] `make test` - passes cleanly (default suite; excludes only ultra-long tests moved to `make test-long`)
-- [ ] `make lint` - passes cleanly
-- [ ] If this bug impacts ultra-long tests (or their selection): `make test-long` - passes cleanly (ultra-long-only)
+- [x] I created a Red unit and/or integration test that captures the bug
+- [x] I made the test green by fixing
+- [x] I manually verified the bug, and created a new Red test if not working still
+- [x] `make check` - passes cleanly
+- [x] `make test` - passes cleanly (default suite; excludes only ultra-long tests moved to `make test-long`)
+- [x] `make lint` - passes cleanly
+- [x] Not applicable: this bug does not impact ultra-long tests or their selection, so `make test-long` was not run
 </acceptance_criteria>
+
+<plan>
+.ralph/tasks/bugs/database-url-redaction-ignores-set-password-error_plans/redaction-helper-error-boundary.md
+</plan>

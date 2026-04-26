@@ -1,6 +1,6 @@
 # Done Tasks Summary
 
-Generated: Sun Apr 26 20:29:58 CEST 2026
+Generated: Sun Apr 26 20:51:15 CEST 2026
 
 # Task `/home/joshazimullah.linux/work_mounts/patroni_rewrite/opentk/.ralph/tasks/bugs/bug-remove-swallowed-env-and-duration-errors.md`
 
@@ -9,6 +9,18 @@ Generated: Sun Apr 26 20:29:58 CEST 2026
 
 <description>
 Final boundary review for Story 3 Task 1 detected pre-existing swallowed errors outside the new API path:
+```
+
+==============
+
+# Task `/home/joshazimullah.linux/work_mounts/patroni_rewrite/opentk/.ralph/tasks/bugs/database-url-redaction-ignores-set-password-error.md`
+
+```
+## Bug: Database URL redaction ignores set_password error <status>not_started</status> <passes>true</passes> <priority>medium</priority>
+
+<description>
+During the boundary review for the SyncFeed startup validation body-read fix,
+inspection found `crates/opentk-db/src/startup_validation.rs` ignoring the
 ```
 
 ==============

@@ -9,8 +9,8 @@ use std::{
 
 use opentk_config::Config;
 use opentk_db::startup_validation::{
-    validate_api_dependencies, validate_search_sync_dependencies, validate_sync_dependencies,
-    DependencyCheckStatus, DependencyKind, SearchRequirement,
+    redact_database_url, validate_api_dependencies, validate_search_sync_dependencies,
+    validate_sync_dependencies, DependencyCheckStatus, DependencyKind, SearchRequirement,
 };
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
@@ -38,6 +38,14 @@ async fn database_validation_runs_select_one_against_reachable_database(
             ..
         })
     ));
+    Ok(())
+}
+
+#[test]
+fn database_url_redaction_masks_password() -> Result<(), Box<dyn std::error::Error>> {
+    let redacted = redact_database_url("postgres://postgres:secret@127.0.0.1:1/opentk")?;
+
+    assert_eq!(redacted, "postgres://postgres:***@127.0.0.1:1/opentk");
     Ok(())
 }
 
