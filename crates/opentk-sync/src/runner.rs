@@ -11,6 +11,8 @@ use crate::{
     syncfeed::{SyncFeedClient, SyncFeedClientError, SyncFeedCursor},
 };
 
+const TRANSIENT_FETCH_RECOVERY_ATTEMPTS: u32 = 3;
+
 pub type SyncStoreFuture<'a, T> =
     Pin<Box<dyn Future<Output = Result<T, SyncStoreError>> + Send + 'a>>;
 
@@ -309,7 +311,9 @@ async fn run_category<S: SyncStore>(
 
     loop {
         let current_skiptoken = skiptoken_from_url(&cursor.url);
-        let page = match client.fetch_page(cursor.clone()).await {
+        let page = match fetch_page_with_transient_recovery(&client, cursor.clone(), poll_interval)
+            .await
+        {
             Ok(page) => page,
             Err(source) => {
                 record_error(
@@ -350,6 +354,31 @@ async fn run_category<S: SyncStore>(
         report.latest_skiptoken = Some(latest_skiptoken);
         cursor = next;
     }
+}
+
+async fn fetch_page_with_transient_recovery(
+    client: &SyncFeedClient,
+    cursor: SyncFeedCursor,
+    recovery_delay: Duration,
+) -> Result<crate::syncfeed::SyncFeedPage, SyncFeedClientError> {
+    let mut attempt = 1;
+    loop {
+        match client.fetch_page(cursor.clone()).await {
+            Ok(page) => return Ok(page),
+            Err(source)
+                if is_transient_fetch_error(&source)
+                    && attempt < TRANSIENT_FETCH_RECOVERY_ATTEMPTS =>
+            {
+                attempt += 1;
+                sleep(recovery_delay).await;
+            }
+            Err(source) => return Err(source),
+        }
+    }
+}
+
+fn is_transient_fetch_error(source: &SyncFeedClientError) -> bool {
+    matches!(source, SyncFeedClientError::Timeout { .. })
 }
 
 fn start_cursor(

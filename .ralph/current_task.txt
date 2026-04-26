@@ -1,1 +1,1 @@
-.ralph/tasks/story-10-full-sync-backup/task-1-run-one-time-clean-full-sync-report.md
+.ralph/tasks/bugs/bug-full-sync-toezegging-initial-feed-timeout.md

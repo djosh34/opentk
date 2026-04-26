@@ -61,6 +61,10 @@ You must make ONE test, and then make ONE test green at the time.
 Then verify if bug still holds. If yes, create new Red test, and continue with Red-Green TDD until it does work.
 </mandatory_red_green_tdd>
 
+<plan>
+.ralph/tasks/bugs/bug-full-sync-toezegging-initial-feed-timeout_plans/transient-syncfeed-timeout-plan.md
+</plan>
+
 <acceptance_criteria>
 - [ ] I created a Red unit and/or integration test that captures the bug
 - [ ] I made the test green by fixing

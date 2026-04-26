@@ -173,6 +173,44 @@ async fn empty_resume_page_marks_category_caught_up() {
 }
 
 #[tokio::test]
+async fn transient_initial_fetch_timeout_retries_same_cursor_without_durable_error() {
+    let server = TestServer::start(Vec::new()).await;
+    let resume = server.cursor("Toezegging", 11);
+    let initial = "/SyncFeed/2.0/Feed?category=Toezegging&content=internal";
+    server
+        .replace_responses(vec![
+            resume_page(&resume)
+                .for_target(initial)
+                .with_delay(Duration::from_millis(80)),
+            resume_page(&resume).for_target(initial),
+        ])
+        .await;
+    let store = MemoryStore::default();
+    let mut client_config = syncfeed_client_config(&server);
+    client_config.request_timeout = Duration::from_millis(10);
+    client_config.max_retries = 0;
+    let runner = runner_with_client_config(
+        client_config,
+        store.clone(),
+        ["Toezegging"],
+        Duration::from_millis(1),
+    );
+
+    let report = runner.run_once().await.expect("sync recovers");
+
+    assert!(report.categories[0].caught_up);
+    let cursor = store.cursor("Toezegging").await.expect("stored cursor");
+    assert!(cursor.caught_up);
+    assert_eq!(cursor.latest_skiptoken, 11);
+    assert_eq!(cursor.next_url.as_str(), resume);
+    assert!(store.errors().await.is_empty());
+    assert_eq!(
+        server.requests().await,
+        vec![initial.to_owned(), initial.to_owned()]
+    );
+}
+
+#[tokio::test]
 async fn fetch_and_parse_errors_are_recorded_durably() {
     let server = TestServer::start(Vec::new()).await;
     server
@@ -214,9 +252,35 @@ fn runner<const N: usize>(
     store: MemoryStore,
     categories: [&str; N],
 ) -> CompleteSyncRunner<MemoryStore> {
-    let base_url = Url::parse(&server.base_url).expect("mock server URL");
-    let client = SyncFeedClient::new(SyncFeedClientConfig {
-        base_url,
+    runner_with_client_config(
+        syncfeed_client_config(server),
+        store,
+        categories,
+        Duration::from_millis(1),
+    )
+}
+
+fn runner_with_client_config<const N: usize>(
+    client_config: SyncFeedClientConfig,
+    store: MemoryStore,
+    categories: [&str; N],
+    poll_interval: Duration,
+) -> CompleteSyncRunner<MemoryStore> {
+    let client = SyncFeedClient::new(client_config).expect("valid client config");
+    CompleteSyncRunner {
+        client,
+        store,
+        config: CompleteSyncConfig {
+            categories: categories.into_iter().map(str::to_owned).collect(),
+            mode: SyncRunMode::UntilCaughtUp,
+            poll_interval,
+        },
+    }
+}
+
+fn syncfeed_client_config(server: &TestServer) -> SyncFeedClientConfig {
+    SyncFeedClientConfig {
+        base_url: Url::parse(&server.base_url).expect("mock server URL"),
         content_mode: SyncFeedContentMode::Internal,
         request_timeout: Duration::from_secs(2),
         connect_timeout: Duration::from_secs(2),
@@ -224,16 +288,6 @@ fn runner<const N: usize>(
         initial_retry_delay: Duration::from_millis(1),
         max_retry_delay: Duration::from_millis(1),
         max_concurrent_requests: NonZeroUsize::new(2).expect("non-zero"),
-    })
-    .expect("valid client config");
-    CompleteSyncRunner {
-        client,
-        store,
-        config: CompleteSyncConfig {
-            categories: categories.into_iter().map(str::to_owned).collect(),
-            mode: SyncRunMode::UntilCaughtUp,
-            poll_interval: Duration::from_millis(1),
-        },
     }
 }
 
