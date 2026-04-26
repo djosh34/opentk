@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{BTreeSet, HashMap};
 
 use chrono::{DateTime, NaiveDate, Utc};
 use opentk_core::official_schema;
@@ -71,7 +71,9 @@ pub async fn write_sync_page(
     let schema = postgres_schema::schema();
     let entity_table_name = postgres_schema::sql_name(entity_type.category);
     let entity_table = table(&schema.tables, &entity_table_name)?;
+    let sync_entity_keys = collect_sync_entity_keys(&page, entity_type.category)?;
     let mut tx = pool.begin().await?;
+    acquire_sync_entity_locks(&mut tx, &sync_entity_keys).await?;
     let mut outcome = SyncPageWriteOutcome {
         entities_seen: page.entities.len(),
         entities_written: 0,
@@ -159,6 +161,51 @@ pub async fn write_sync_page(
 
     tx.commit().await?;
     Ok(outcome)
+}
+
+#[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
+struct SyncEntityKey {
+    source_category: String,
+    source_id: Uuid,
+}
+
+fn collect_sync_entity_keys(
+    page: &SyncPageWrite,
+    page_category: &str,
+) -> Result<Vec<SyncEntityKey>, SyncPageWriteError> {
+    let mut keys = BTreeSet::new();
+    for entity in &page.entities {
+        if entity.category != page_category {
+            return Err(SyncPageWriteError::CategoryMismatch {
+                page_category: page_category.to_owned(),
+                entity_category: entity.category.clone(),
+            });
+        }
+        keys.insert(SyncEntityKey {
+            source_category: entity.category.clone(),
+            source_id: entity.source_id,
+        });
+        for relation in &entity.relations {
+            keys.insert(SyncEntityKey {
+                source_category: relation.target_category.clone(),
+                source_id: relation.target_id,
+            });
+        }
+    }
+    Ok(keys.into_iter().collect())
+}
+
+async fn acquire_sync_entity_locks(
+    tx: &mut sqlx::Transaction<'_, Postgres>,
+    keys: &[SyncEntityKey],
+) -> Result<(), SyncPageWriteError> {
+    for key in keys {
+        sqlx::query("SELECT pg_advisory_xact_lock(hashtextextended($1, 0))")
+            .bind(format!("{}:{}", key.source_category, key.source_id))
+            .execute(&mut **tx)
+            .await?;
+    }
+    Ok(())
 }
 
 async fn upsert_sync_entity(

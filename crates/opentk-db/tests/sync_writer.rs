@@ -1,8 +1,10 @@
 use chrono::{DateTime, Utc};
 use opentk_core::official_schema;
 use opentk_db::sync_writer::{write_sync_page, SyncPageWrite};
-use opentk_sync::payload::parse_entity_xml;
+use opentk_sync::payload::{parse_entity_xml, ParsedEntity, ParsedRelation};
 use sqlx::{postgres::PgPoolOptions, PgPool, Row};
+use std::sync::Arc;
+use tokio::sync::Barrier;
 use uuid::Uuid;
 
 #[tokio::test]
@@ -202,6 +204,26 @@ async fn page_write_rolls_back_when_later_entity_fails() -> Result<(), sqlx::Err
 }
 
 #[tokio::test]
+async fn concurrent_pages_with_reciprocal_relation_targets_do_not_deadlock(
+) -> Result<(), sqlx::Error> {
+    let pool = migrated_pool("writer_concurrent_relation_locks").await?;
+    install_sync_entity_lock_delay(&pool, &[document_id(), related_document_id()]).await?;
+    let first = related_document(document_id(), related_document_id(), "2026D00001");
+    let second = related_document(related_document_id(), document_id(), "2026D00002");
+    let start = Arc::new(Barrier::new(2));
+
+    let first_write = tokio::spawn(write_after_barrier(pool.clone(), start.clone(), first, 101));
+    let second_write = tokio::spawn(write_after_barrier(pool.clone(), start, second, 102));
+
+    let first_result = first_write.await.expect("first writer task joins");
+    let second_result = second_write.await.expect("second writer task joins");
+
+    first_result.expect("first reciprocal page writes without deadlock");
+    second_result.expect("second reciprocal page writes without deadlock");
+    Ok(())
+}
+
+#[tokio::test]
 async fn every_official_category_can_round_trip_a_minimal_current_entity() -> Result<(), sqlx::Error>
 {
     let pool = migrated_pool("writer_all_categories").await?;
@@ -255,6 +277,28 @@ async fn write_document(pool: &PgPool, skiptoken: i64, xml: String) {
     .expect("document writes");
 }
 
+async fn write_after_barrier(
+    pool: PgPool,
+    start: Arc<Barrier>,
+    entity: ParsedEntity,
+    skiptoken: i64,
+) -> Result<(), String> {
+    start.wait().await;
+    write_sync_page(
+        &pool,
+        SyncPageWrite {
+            category: "Document".to_owned(),
+            latest_skiptoken: skiptoken,
+            next_url: None,
+            atom_updated_at: atom_updated_at(),
+            entities: vec![entity],
+        },
+    )
+    .await
+    .map(|_| ())
+    .map_err(|error| error.to_string())
+}
+
 async fn migrated_pool(test_name: &str) -> Result<PgPool, sqlx::Error> {
     let database_url = std::env::var("OPENTK_TEST_DATABASE_URL")
         .or_else(|_| std::env::var("DATABASE_URL"))
@@ -276,11 +320,49 @@ async fn migrated_pool(test_name: &str) -> Result<PgPool, sqlx::Error> {
     admin_pool.close().await;
 
     let pool = PgPoolOptions::new()
-        .max_connections(1)
+        .max_connections(4)
         .connect(&with_search_path(&database_url, &schema_name))
         .await?;
     sqlx::migrate!("../../migrations").run(&pool).await?;
     Ok(pool)
+}
+
+async fn install_sync_entity_lock_delay(
+    pool: &PgPool,
+    source_ids: &[Uuid],
+) -> Result<(), sqlx::Error> {
+    let id_list = source_ids
+        .iter()
+        .map(|source_id| format!("'{source_id}'::uuid"))
+        .collect::<Vec<_>>()
+        .join(", ");
+    let function_sql = format!(
+        r"
+        CREATE OR REPLACE FUNCTION delay_selected_sync_entity_locks()
+        RETURNS trigger
+        LANGUAGE plpgsql
+        AS $$
+        BEGIN
+          IF NEW.source_category = 'Document'
+             AND NEW.source_id IN ({id_list}) THEN
+            PERFORM pg_sleep(0.1);
+          END IF;
+          RETURN NEW;
+        END;
+        $$;
+        "
+    );
+    sqlx::query(&function_sql).execute(pool).await?;
+    sqlx::query(
+        r"
+        CREATE TRIGGER delay_selected_sync_entity_locks
+        BEFORE INSERT OR UPDATE ON sync_entity
+        FOR EACH ROW EXECUTE FUNCTION delay_selected_sync_entity_locks()
+        ",
+    )
+    .execute(pool)
+    .await?;
+    Ok(())
 }
 
 fn document_xml(document_nummer: &str, relation_id: Uuid) -> String {
@@ -302,6 +384,40 @@ fn document_xml(document_nummer: &str, relation_id: Uuid) -> String {
     )
 }
 
+fn related_document(source_id: Uuid, relation_id: Uuid, document_nummer: &str) -> ParsedEntity {
+    let mut entity = parse_entity_xml(
+        "Document",
+        &document_xml_with_id(source_id, document_nummer),
+    )
+    .expect("document payload parses");
+    entity.relations.push(ParsedRelation {
+        name: "bronDocument".to_owned(),
+        target_category: "Document".to_owned(),
+        target_id: relation_id,
+        target_updated_at: None,
+        ordinal: 0,
+    });
+    entity
+}
+
+fn document_xml_with_id(source_id: Uuid, document_nummer: &str) -> String {
+    format!(
+        r#"<document xmlns="http://www.tweedekamer.nl/xsd/tkData/v1-0"
+            id="{source_id}"
+            verwijderd="false"
+            bijgewerkt="2026-04-26T00:00:00Z"
+            contentType="application/pdf"
+            contentLength="12345">
+            <documentNummer>{document_nummer}</documentNummer>
+            <onderwerp>Writer task</onderwerp>
+            <datum>2026-04-26T00:00:00Z</datum>
+            <volgnummer>1</volgnummer>
+            <vergaderjaar>2025-2026</vergaderjaar>
+            <kamer>2</kamer>
+        </document>"#
+    )
+}
+
 fn atom_updated_at() -> DateTime<Utc> {
     "2026-04-26T01:00:00Z".parse().expect("valid timestamp")
 }
@@ -312,6 +428,10 @@ fn document_id() -> Uuid {
 
 fn kamerstukdossier_id() -> Uuid {
     Uuid::parse_str("22222222-2222-4222-8222-222222222222").expect("valid uuid")
+}
+
+fn related_document_id() -> Uuid {
+    Uuid::parse_str("11111111-1111-4111-8111-111111111112").expect("valid uuid")
 }
 
 fn with_search_path(database_url: &str, schema_name: &str) -> String {

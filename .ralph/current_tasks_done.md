@@ -1,6 +1,6 @@
 # Done Tasks Summary
 
-Generated: Sun Apr 26 07:58:13 PM CEST 2026
+Generated: Sun Apr 26 20:17:11 CEST 2026
 
 # Task `/home/joshazimullah.linux/work_mounts/patroni_rewrite/opentk/.ralph/tasks/bugs/bug-remove-swallowed-env-and-duration-errors.md`
 
@@ -9,6 +9,18 @@ Generated: Sun Apr 26 07:58:13 PM CEST 2026
 
 <description>
 Final boundary review for Story 3 Task 1 detected pre-existing swallowed errors outside the new API path:
+```
+
+==============
+
+# Task `/home/joshazimullah.linux/work_mounts/patroni_rewrite/opentk/.ralph/tasks/bugs/full-sync-deadlocks-writing-persoon-nevenfunctie.md`
+
+```
+## Bug: Full sync deadlocks writing PersoonNevenfunctie <status>not_started</status> <passes>true</passes> <priority>high</priority>
+
+<description>
+While manually verifying
+`.ralph/tasks/bugs/full-sync-fails-on-deleted-persoon-nevenfunctie-body.md`,
 ```
 
 ==============
