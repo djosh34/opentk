@@ -83,8 +83,6 @@ pub enum PayloadParseError {
     NonNullableNil { category: String, field: String },
     #[error("{category}.{field} relation is missing ref attribute")]
     MissingRelationRef { category: String, field: String },
-    #[error("deleted {category} {source_id} must not contain scalar or relation body content")]
-    DeletedEntityHasBody { category: String, source_id: Uuid },
     #[error("invalid XML for {category}: {message}")]
     Xml { category: String, message: String },
 }
@@ -113,8 +111,7 @@ pub fn parse_entry_payload(entry: &SyncFeedEntry) -> Result<ParsedEntity, Payloa
 ///
 /// Returns an error for unknown categories, root/category mismatches, malformed
 /// XML, missing required metadata, invalid typed values, unknown fields,
-/// multiplicity violations, invalid nil usage, or delete markers with body
-/// content.
+/// multiplicity violations, or invalid nil usage.
 pub fn parse_entity_xml(category: &str, xml: &str) -> Result<ParsedEntity, PayloadParseError> {
     let entity = official_schema::entity_named(category).ok_or_else(|| {
         PayloadParseError::UnknownCategory {
@@ -178,6 +175,16 @@ fn parse_root(
     }
 
     let mut parsed = parse_base_attributes(entity, root)?;
+    if parsed.deleted {
+        reader
+            .read_to_end(root.name())
+            .map_err(|source| PayloadParseError::Xml {
+                category: entity.category.to_owned(),
+                message: source.to_string(),
+            })?;
+        return Ok(parsed);
+    }
+
     let mut counts: HashMap<String, i32> = HashMap::new();
 
     loop {
@@ -211,15 +218,7 @@ fn parse_root(
         }
     }
 
-    if parsed.deleted && (!parsed.scalars.is_empty() || !parsed.relations.is_empty()) {
-        return Err(PayloadParseError::DeletedEntityHasBody {
-            category: parsed.category,
-            source_id: parsed.source_id,
-        });
-    }
-    if !parsed.deleted {
-        validate_required_fields(entity, &counts)?;
-    }
+    validate_required_fields(entity, &counts)?;
     Ok(parsed)
 }
 

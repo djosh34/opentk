@@ -45,3 +45,9 @@ In scope: running the sync once, measuring the fully synced database, writing th
 - [ ] Any failure or questionable result was immediately filed as an add-bug task
 - [ ] No application code, CLI command, script, or backup/restore product behavior was added
 </acceptance_criteria>
+
+<plan>
+.ralph/tasks/story-10-full-sync-backup/task-1-run-one-time-clean-full-sync-report_plans/one-time-clean-full-sync-report-plan.md
+</plan>
+
+NOW EXECUTE

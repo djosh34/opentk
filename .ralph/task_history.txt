@@ -26,3 +26,4 @@
 .ralph/tasks/story-7-binary-rename-and-cdc/task-1-rename-to-opentk-sync.md
 .ralph/tasks/story-7-binary-rename-and-cdc/task-2-implement-listen-notify-cdc.md
 .ralph/tasks/story-7-binary-rename-and-cdc/task-3-integrate-cdc-into-api.md
+.ralph/tasks/bugs/full-sync-fails-on-deleted-persoon-nevenfunctie-body.md

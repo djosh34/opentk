@@ -1,0 +1,21 @@
+$ date -Is
+2026-04-26T19:37:22+02:00
+$ git rev-parse HEAD
+3f4348d20278566444d276c6c3d4dd0127214c80
+$ git status --short
+ M .ralph/current_tasks.md
+ M .ralph/current_tasks_done.md
+ M .ralph/tasks/story-10-full-sync-backup/task-1-run-one-time-clean-full-sync-report.md
+?? .ralph/current_task.txt
+?? .ralph/progress/28.jsonl
+?? .ralph/reports/full-sync-config-20260426-193554.toml
+?? .ralph/reports/full-sync-db-setup-20260426-193554.log
+?? .ralph/reports/full-sync-empty-db-identity-20260426-193554.log
+?? .ralph/reports/full-sync-initial-metadata-20260426-193554.log
+?? .ralph/tasks/bugs/startup-validation-swallowing-response-body-errors.md
+?? .ralph/tasks/story-10-full-sync-backup/task-1-run-one-time-clean-full-sync-report_plans/
+$ cargo run -p opentk-db --bin opentk-sync -- --config .ralph/reports/full-sync-config-20260426-193554.toml --validate-config
+   Compiling opentk-db v0.1.0 (/home/joshazimullah.linux/work_mounts/patroni_rewrite/opentk/crates/opentk-db)
+error: failed to build archive at `/home/joshazimullah.linux/work_mounts/patroni_rewrite/opentk/target/debug/deps/libopentk_db-e0377b15faf265af.rlib`: failed to open object file: No such file or directory (os error 2)
+
+error: could not compile `opentk-db` (lib) due to 1 previous error

@@ -77,7 +77,7 @@ fn repeated_relations_keep_document_order_ordinals() {
 }
 
 #[test]
-fn delete_marker_carries_metadata_and_rejects_current_body_content() {
+fn delete_marker_carries_metadata_and_discards_current_body_content() {
     let deleted = parse_entity_xml(
         "Document",
         r#"<document xmlns="http://www.tweedekamer.nl/xsd/tkData/v1-0"
@@ -91,7 +91,7 @@ fn delete_marker_carries_metadata_and_rejects_current_body_content() {
     assert!(deleted.scalars.is_empty());
     assert!(deleted.relations.is_empty());
 
-    let error = parse_entity_xml(
+    let deleted_with_body = parse_entity_xml(
         "Document",
         r#"<document xmlns="http://www.tweedekamer.nl/xsd/tkData/v1-0"
             id="11111111-1111-4111-8111-111111111111"
@@ -100,13 +100,11 @@ fn delete_marker_carries_metadata_and_rejects_current_body_content() {
             <documentNummer>2026D00001</documentNummer>
         </document>"#,
     )
-    .expect_err("deleted entity body is rejected");
-    assert!(
-        error
-            .to_string()
-            .contains("must not contain scalar or relation body content"),
-        "{error}"
-    );
+    .expect("deleted entity body parses as tombstone");
+    assert!(deleted_with_body.deleted);
+    assert_eq!(deleted_with_body.source_id, deleted.source_id);
+    assert!(deleted_with_body.scalars.is_empty());
+    assert!(deleted_with_body.relations.is_empty());
 }
 
 #[test]

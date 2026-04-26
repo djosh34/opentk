@@ -1,6 +1,30 @@
 # Current Tasks Summary
 
-Generated: Sun Apr 26 19:31:08 CEST 2026
+Generated: Sun Apr 26 07:57:53 PM CEST 2026
+
+# Task `/home/joshazimullah.linux/work_mounts/patroni_rewrite/opentk/.ralph/tasks/bugs/full-sync-deadlocks-writing-persoon-nevenfunctie.md`
+
+```
+## Bug: Full sync deadlocks writing PersoonNevenfunctie <status>not_started</status> <passes>false</passes> <priority>high</priority>
+
+<description>
+While manually verifying
+`.ralph/tasks/bugs/full-sync-fails-on-deleted-persoon-nevenfunctie-body.md`,
+```
+
+==============
+
+# Task `/home/joshazimullah.linux/work_mounts/patroni_rewrite/opentk/.ralph/tasks/bugs/startup-validation-swallowing-response-body-errors.md`
+
+```
+## Bug: Startup validation swallows response body errors <status>not_started</status> <passes>false</passes> <priority>medium</priority>
+
+<description>
+During Story 10 Task 1 operational sync preparation, inspection found
+`crates/opentk-db/src/startup_validation.rs` using
+```
+
+==============
 
 # Task `/home/joshazimullah.linux/work_mounts/patroni_rewrite/opentk/.ralph/tasks/story-10-full-sync-backup/task-1-run-one-time-clean-full-sync-report.md`
 

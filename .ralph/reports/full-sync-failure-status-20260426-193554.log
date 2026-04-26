@@ -1,0 +1,38 @@
+$ CARGO_INCREMENTAL=0 cargo run -p opentk-db --bin opentk-sync -- --config .ralph/reports/full-sync-config-20260426-193554.toml status
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.55s
+     Running `target/debug/opentk-sync --config .ralph/reports/full-sync-config-20260426-193554.toml status`
+Activiteit	state=not_started	latest_skiptoken=null	lag_seconds=null	last_fetch_at=null	last_error=none
+ActiviteitActor	state=not_started	latest_skiptoken=null	lag_seconds=null	last_fetch_at=null	last_error=none
+Agendapunt	state=not_started	latest_skiptoken=null	lag_seconds=null	last_fetch_at=null	last_error=none
+Besluit	state=not_started	latest_skiptoken=null	lag_seconds=null	last_fetch_at=null	last_error=none
+Commissie	state=not_started	latest_skiptoken=null	lag_seconds=null	last_fetch_at=null	last_error=none
+CommissieContactinformatie	state=not_started	latest_skiptoken=null	lag_seconds=null	last_fetch_at=null	last_error=none
+CommissieZetel	state=not_started	latest_skiptoken=null	lag_seconds=null	last_fetch_at=null	last_error=none
+CommissieZetelVastPersoon	state=not_started	latest_skiptoken=null	lag_seconds=null	last_fetch_at=null	last_error=none
+CommissieZetelVastVacature	state=not_started	latest_skiptoken=null	lag_seconds=null	last_fetch_at=null	last_error=none
+CommissieZetelVervangerPersoon	state=not_started	latest_skiptoken=null	lag_seconds=null	last_fetch_at=null	last_error=none
+CommissieZetelVervangerVacature	state=not_started	latest_skiptoken=null	lag_seconds=null	last_fetch_at=null	last_error=none
+Document	state=running	latest_skiptoken=3484982	lag_seconds=68	last_fetch_at=2026-04-26T17:38:49.611115+00:00	last_error=none
+DocumentActor	state=not_started	latest_skiptoken=null	lag_seconds=null	last_fetch_at=null	last_error=none
+DocumentVersie	state=running	latest_skiptoken=3474594	lag_seconds=67	last_fetch_at=2026-04-26T17:38:50.837724+00:00	last_error=none
+Fractie	state=not_started	latest_skiptoken=null	lag_seconds=null	last_fetch_at=null	last_error=none
+FractieZetel	state=running	latest_skiptoken=16687980	lag_seconds=55	last_fetch_at=2026-04-26T17:39:02.573234+00:00	last_error=none
+FractieZetelPersoon	state=running	latest_skiptoken=16687913	lag_seconds=43	last_fetch_at=2026-04-26T17:39:14.820078+00:00	last_error=none
+FractieZetelVacature	state=running	latest_skiptoken=25174173	lag_seconds=41	last_fetch_at=2026-04-26T17:39:17.368998+00:00	last_error=none
+Kamerstukdossier	state=not_started	latest_skiptoken=null	lag_seconds=null	last_fetch_at=null	last_error=none
+Persoon	state=not_started	latest_skiptoken=null	lag_seconds=null	last_fetch_at=null	last_error=none
+PersoonContactinformatie	state=not_started	latest_skiptoken=null	lag_seconds=null	last_fetch_at=null	last_error=none
+PersoonGeschenk	state=running	latest_skiptoken=16663665	lag_seconds=39	last_fetch_at=2026-04-26T17:39:18.857460+00:00	last_error=none
+PersoonLoopbaan	state=running	latest_skiptoken=16669756	lag_seconds=42	last_fetch_at=2026-04-26T17:39:15.947696+00:00	last_error=none
+PersoonNevenfunctie	state=error	latest_skiptoken=null	lag_seconds=null	last_fetch_at=null	last_error=parse skiptoken=16662485 entity=null deleted PersoonNevenfunctie 551920a3-7757-467a-b689-9307fc59194c must not contain scalar or relation body content
+PersoonNevenfunctieInkomsten	state=not_started	latest_skiptoken=null	lag_seconds=null	last_fetch_at=null	last_error=none
+PersoonOnderwijs	state=not_started	latest_skiptoken=null	lag_seconds=null	last_fetch_at=null	last_error=none
+PersoonReis	state=not_started	latest_skiptoken=null	lag_seconds=null	last_fetch_at=null	last_error=none
+Reservering	state=running	latest_skiptoken=5375594	lag_seconds=38	last_fetch_at=2026-04-26T17:39:19.711174+00:00	last_error=none
+Stemming	state=not_started	latest_skiptoken=null	lag_seconds=null	last_fetch_at=null	last_error=none
+Toezegging	state=not_started	latest_skiptoken=null	lag_seconds=null	last_fetch_at=null	last_error=none
+Vergadering	state=not_started	latest_skiptoken=null	lag_seconds=null	last_fetch_at=null	last_error=none
+Verslag	state=not_started	latest_skiptoken=null	lag_seconds=null	last_fetch_at=null	last_error=none
+Zaak	state=not_started	latest_skiptoken=null	lag_seconds=null	last_fetch_at=null	last_error=none
+ZaakActor	state=not_started	latest_skiptoken=null	lag_seconds=null	last_fetch_at=null	last_error=none
+Zaal	state=not_started	latest_skiptoken=null	lag_seconds=null	last_fetch_at=null	last_error=none

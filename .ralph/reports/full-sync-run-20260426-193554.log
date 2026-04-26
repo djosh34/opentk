@@ -1,0 +1,6 @@
+$ date -Is # sync start
+2026-04-26T19:38:46+02:00
+$ CARGO_INCREMENTAL=0 cargo run -p opentk-db --bin opentk-sync -- --config .ralph/reports/full-sync-config-20260426-193554.toml run
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.78s
+     Running `target/debug/opentk-sync --config .ralph/reports/full-sync-config-20260426-193554.toml run`
+Error: Parse { category: "PersoonNevenfunctie", source: DeletedEntityHasBody { category: "PersoonNevenfunctie", source_id: 551920a3-7757-467a-b689-9307fc59194c } }

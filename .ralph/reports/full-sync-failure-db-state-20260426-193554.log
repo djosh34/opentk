@@ -1,0 +1,45 @@
+$ psql postgres://postgres@127.0.0.1:55432/opentk_full_sync_20260426_193554 -v ON_ERROR_STOP=1 <<SQL failure evidence
+Pager usage is off.
+         current_database         | current_user | inet_server_addr | inet_server_port 
+----------------------------------+--------------+------------------+------------------
+ opentk_full_sync_20260426_193554 | postgres     | 127.0.0.1        |            55432
+(1 row)
+
+ database_bytes | pretty_size 
+----------------+-------------
+       18797027 | 18 MB
+(1 row)
+
+   source_category    | latest_skiptoken |  state  |         last_fetch_at         | caught_up_at 
+----------------------+------------------+---------+-------------------------------+--------------
+ Document             |          3484982 | running | 2026-04-26 19:38:49.611115+02 | 
+ DocumentVersie       |          3474594 | running | 2026-04-26 19:38:50.837724+02 | 
+ FractieZetel         |         16687980 | running | 2026-04-26 19:39:02.573234+02 | 
+ FractieZetelPersoon  |         16687913 | running | 2026-04-26 19:39:14.820078+02 | 
+ FractieZetelVacature |         25174173 | running | 2026-04-26 19:39:17.368998+02 | 
+ PersoonGeschenk      |         16663665 | running | 2026-04-26 19:39:18.85746+02  | 
+ PersoonLoopbaan      |         16669756 | running | 2026-04-26 19:39:15.947696+02 | 
+ Reservering          |          5375594 | running | 2026-04-26 19:39:19.711174+02 | 
+(8 rows)
+
+ phase |   source_category   | source_id | latest_skiptoken |                                                      message                                                      |          created_at           
+-------+---------------------+-----------+------------------+-------------------------------------------------------------------------------------------------------------------+-------------------------------
+ parse | PersoonNevenfunctie |           |         16662485 | deleted PersoonNevenfunctie 551920a3-7757-467a-b689-9307fc59194c must not contain scalar or relation body content | 2026-04-26 19:39:42.864051+02
+(1 row)
+
+   source_category    | registry_rows 
+----------------------+---------------
+ Activiteit           |           174
+ Document             |           250
+ DocumentVersie       |           250
+ Fractie              |            12
+ FractieZetel         |           387
+ FractieZetelPersoon  |           250
+ FractieZetelVacature |           231
+ Persoon              |           250
+ PersoonGeschenk      |           250
+ PersoonLoopbaan      |           250
+ Reservering          |           250
+ Zaal                 |             9
+(12 rows)
+
