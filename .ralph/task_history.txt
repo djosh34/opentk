@@ -17,3 +17,4 @@
 .ralph/tasks/story-4-document-text-support/task-5-deep-verify-document-content.md
 .ralph/tasks/story-5-search/task-1-investigate-search-engine.md
 .ralph/tasks/story-5-search/task-2-design-search-indexing.md
+.ralph/tasks/story-5-search/task-3-implement-search-sync.md

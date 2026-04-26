@@ -289,6 +289,7 @@ checksum = "c673075a2e0e5f4a1dde27ce9dee1ea4558c7ffe648f576438a20ca1d2acc4b0"
 dependencies = [
  "iana-time-zone",
  "num-traits",
+ "serde",
  "windows-link",
 ]
 
@@ -1448,6 +1449,7 @@ dependencies = [
  "chrono",
  "clap",
  "opentk-core",
+ "opentk-search",
  "opentk-sync",
  "reqwest",
  "serde_json",
@@ -1463,9 +1465,11 @@ name = "opentk-search"
 version = "0.1.0"
 dependencies = [
  "chrono",
+ "reqwest",
  "serde",
  "serde_json",
  "thiserror",
+ "tokio",
  "uuid",
 ]
 
@@ -2895,6 +2899,7 @@ checksum = "ddd74a9687298c6858e9b88ec8935ec45d22e8fd5e6394fa1bd4e99a87789c76"
 dependencies = [
  "getrandom 0.4.2",
  "js-sys",
+ "serde_core",
  "wasm-bindgen",
 ]
 

@@ -100,6 +100,8 @@ DROP TABLE IF EXISTS "activiteit__vervangen_vanuit" CASCADE;
 DROP TABLE IF EXISTS "activiteit__voortgezet_vanuit" CASCADE;
 DROP TABLE IF EXISTS "activiteit__voortouwcommissie" CASCADE;
 DROP TABLE IF EXISTS "activiteit" CASCADE;
+DROP TABLE IF EXISTS "search_index_failure" CASCADE;
+DROP TABLE IF EXISTS "search_index_cursor" CASCADE;
 DROP TABLE IF EXISTS "sync_entity" CASCADE;
 DROP TABLE IF EXISTS "ingest_error" CASCADE;
 DROP TABLE IF EXISTS "sync_category" CASCADE;

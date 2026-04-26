@@ -1,7 +1,10 @@
 use std::collections::BTreeSet;
 
 use chrono::{DateTime, Utc};
+use reqwest::StatusCode;
+use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
+use std::time::Duration;
 use uuid::Uuid;
 
 #[derive(Debug, thiserror::Error, PartialEq, Eq)]
@@ -13,6 +16,41 @@ pub enum SearchMappingError {
         field: String,
         value_type: &'static str,
     },
+}
+
+#[derive(Debug, thiserror::Error, PartialEq, Eq)]
+pub enum SearchIndexError {
+    #[error("search index HTTP request failed with status {status:?}: {message}")]
+    Http {
+        status: Option<u16>,
+        message: String,
+    },
+    #[error("search index returned an invalid response: {0}")]
+    InvalidResponse(String),
+    #[error("search mapping failed")]
+    Mapping(#[from] SearchMappingError),
+}
+
+#[allow(async_fn_in_trait)]
+pub trait SearchIndexClient {
+    /// Delete and recreate the target index, then apply schema settings.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`SearchIndexError`] when the backing search engine rejects any
+    /// index reset or schema operation.
+    async fn reset_index(&self, schema: &SearchIndexSchema) -> Result<(), SearchIndexError>;
+
+    /// Apply a batch of upsert/delete operations to the target index.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`SearchIndexError`] when the backing search engine rejects the
+    /// batch or reports an asynchronous task failure.
+    async fn apply_batch(
+        &self,
+        operations: &[SearchIndexOperation],
+    ) -> Result<(), SearchIndexError>;
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -61,7 +99,7 @@ pub enum SearchIndexOperation {
 
 pub type SearchDocumentKey = String;
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct SearchIndexDocument {
     pub key: SearchDocumentKey,
     pub source_category: String,
@@ -93,13 +131,33 @@ pub struct SearchIndexSchema {
     pub ranking_rules: Vec<&'static str>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub enum SearchEntityKind {
     Document,
     Person,
     Activity,
     Dossier,
     Other,
+}
+
+#[derive(Clone, Debug)]
+pub struct MeilisearchClient {
+    pub base_url: String,
+    pub api_key: Option<String>,
+    pub index_name: String,
+    pub http: reqwest::Client,
+}
+
+impl MeilisearchClient {
+    #[must_use]
+    pub fn new(base_url: String, api_key: Option<String>, index_name: String) -> Self {
+        Self {
+            base_url,
+            api_key,
+            index_name,
+            http: reqwest::Client::new(),
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -229,6 +287,215 @@ pub fn storage_estimate(
     })
 }
 
+impl SearchIndexClient for MeilisearchClient {
+    async fn reset_index(&self, schema: &SearchIndexSchema) -> Result<(), SearchIndexError> {
+        let delete = self
+            .request(
+                reqwest::Method::DELETE,
+                &format!("/indexes/{}", self.index_name),
+            )
+            .send()
+            .await
+            .map_err(request_error)?;
+        if !delete.status().is_success() && delete.status() != StatusCode::NOT_FOUND {
+            return Err(response_error(delete).await);
+        }
+
+        let create_body = serde_json::json!({
+            "uid": self.index_name,
+            "primaryKey": schema.primary_key,
+        });
+        let create = self
+            .request(reqwest::Method::POST, "/indexes")
+            .header(reqwest::header::CONTENT_TYPE, "application/json")
+            .body(create_body.to_string())
+            .send()
+            .await
+            .map_err(request_error)?;
+        self.wait_for_response_task(create).await?;
+
+        self.apply_settings("searchable-attributes", &schema.searchable_attributes)
+            .await?;
+        self.apply_settings("displayed-attributes", &schema.displayed_attributes)
+            .await?;
+        self.apply_settings("filterable-attributes", &schema.filterable_attributes)
+            .await?;
+        self.apply_settings("sortable-attributes", &schema.sortable_attributes)
+            .await?;
+        self.apply_settings("ranking-rules", &schema.ranking_rules)
+            .await?;
+        Ok(())
+    }
+
+    async fn apply_batch(
+        &self,
+        operations: &[SearchIndexOperation],
+    ) -> Result<(), SearchIndexError> {
+        let upserts = operations
+            .iter()
+            .filter_map(|operation| match operation {
+                SearchIndexOperation::Upsert(document) => Some(document.as_ref()),
+                SearchIndexOperation::Delete(_) => None,
+            })
+            .collect::<Vec<_>>();
+        if !upserts.is_empty() {
+            let response = self
+                .request(
+                    reqwest::Method::POST,
+                    &format!("/indexes/{}/documents", self.index_name),
+                )
+                .header(reqwest::header::CONTENT_TYPE, "application/json")
+                .body(serde_json::to_string(&upserts).map_err(json_error)?)
+                .send()
+                .await
+                .map_err(request_error)?;
+            self.wait_for_response_task(response).await?;
+        }
+
+        let delete_keys = operations
+            .iter()
+            .filter_map(|operation| match operation {
+                SearchIndexOperation::Delete(key) => Some(key.as_str()),
+                SearchIndexOperation::Upsert(_) => None,
+            })
+            .collect::<Vec<_>>();
+        if !delete_keys.is_empty() {
+            let response = self
+                .request(
+                    reqwest::Method::POST,
+                    &format!("/indexes/{}/documents/delete-batch", self.index_name),
+                )
+                .header(reqwest::header::CONTENT_TYPE, "application/json")
+                .body(serde_json::to_string(&delete_keys).map_err(json_error)?)
+                .send()
+                .await
+                .map_err(request_error)?;
+            self.wait_for_response_task(response).await?;
+        }
+        Ok(())
+    }
+}
+
+impl MeilisearchClient {
+    fn request(&self, method: reqwest::Method, path: &str) -> reqwest::RequestBuilder {
+        let url = format!("{}{}", self.base_url.trim_end_matches('/'), path);
+        let mut request = self.http.request(method, url);
+        if let Some(api_key) = &self.api_key {
+            request = request.bearer_auth(api_key);
+        }
+        request
+    }
+
+    async fn apply_settings<T: Serialize + ?Sized>(
+        &self,
+        setting: &str,
+        value: &T,
+    ) -> Result<(), SearchIndexError> {
+        let response = self
+            .request(
+                reqwest::Method::PUT,
+                &format!("/indexes/{}/settings/{setting}", self.index_name),
+            )
+            .header(reqwest::header::CONTENT_TYPE, "application/json")
+            .body(serde_json::to_string(value).map_err(json_error)?)
+            .send()
+            .await
+            .map_err(request_error)?;
+        self.wait_for_response_task(response).await
+    }
+
+    async fn wait_for_response_task(
+        &self,
+        response: reqwest::Response,
+    ) -> Result<(), SearchIndexError> {
+        let status = response.status();
+        let body = response.text().await.map_err(request_error)?;
+        if !status.is_success() {
+            return Err(SearchIndexError::Http {
+                status: Some(status.as_u16()),
+                message: body,
+            });
+        }
+        let task: MeiliTaskCreate = serde_json::from_str(&body).map_err(json_error)?;
+        self.wait_for_task(task.task_uid).await
+    }
+
+    async fn wait_for_task(&self, task_uid: u64) -> Result<(), SearchIndexError> {
+        for _ in 0..100 {
+            let response = self
+                .request(reqwest::Method::GET, &format!("/tasks/{task_uid}"))
+                .send()
+                .await
+                .map_err(request_error)?;
+            let status = response.status();
+            let body = response.text().await.map_err(request_error)?;
+            if !status.is_success() {
+                return Err(SearchIndexError::Http {
+                    status: Some(status.as_u16()),
+                    message: body,
+                });
+            }
+            let task: MeiliTaskStatus = serde_json::from_str(&body).map_err(json_error)?;
+            match task.status.as_str() {
+                "succeeded" => return Ok(()),
+                "failed" | "canceled" => {
+                    return Err(SearchIndexError::InvalidResponse(
+                        task.error
+                            .and_then(|error| error.message)
+                            .unwrap_or_else(|| format!("Meilisearch task {task_uid} failed")),
+                    ));
+                }
+                _ => tokio::time::sleep(Duration::from_millis(50)).await,
+            }
+        }
+        Err(SearchIndexError::InvalidResponse(format!(
+            "Meilisearch task {task_uid} did not finish before timeout"
+        )))
+    }
+}
+
+#[derive(Debug, Deserialize)]
+struct MeiliTaskCreate {
+    #[serde(rename = "taskUid")]
+    task_uid: u64,
+}
+
+#[derive(Debug, Deserialize)]
+struct MeiliTaskStatus {
+    status: String,
+    error: Option<MeiliTaskError>,
+}
+
+#[derive(Debug, Deserialize)]
+struct MeiliTaskError {
+    message: Option<String>,
+}
+
+fn request_error(error: reqwest::Error) -> SearchIndexError {
+    let status = error.status().map(|status| status.as_u16());
+    let message = error.to_string();
+    drop(error);
+    SearchIndexError::Http { status, message }
+}
+
+async fn response_error(response: reqwest::Response) -> SearchIndexError {
+    let status = response.status();
+    let message = response
+        .text()
+        .await
+        .unwrap_or_else(|error| error.to_string());
+    SearchIndexError::Http {
+        status: Some(status.as_u16()),
+        message,
+    }
+}
+
+fn json_error(error: serde_json::Error) -> SearchIndexError {
+    let message = error.to_string();
+    drop(error);
+    SearchIndexError::InvalidResponse(message)
+}
+
 /// Maps one source record from `PostgreSQL` into the operation to submit to the search index.
 ///
 /// # Errors
@@ -327,14 +594,14 @@ fn entity_kind(source_category: &str) -> SearchEntityKind {
 }
 
 fn title_for_record(record: &SearchSourceRecord) -> Result<String, SearchMappingError> {
-    for field in ["titel", "onderwerp", "nummer", "document_nummer"] {
-        if let Some(value) = optional_string(&record.fields, field) {
+    if record.metadata.category == "Persoon" {
+        if let Some(value) = person_display_name(&record.fields) {
             return Ok(value);
         }
     }
 
-    if record.metadata.category == "Persoon" {
-        if let Some(value) = person_display_name(&record.fields) {
+    for field in ["titel", "onderwerp", "nummer", "document_nummer"] {
+        if let Some(value) = optional_string(&record.fields, field) {
             return Ok(value);
         }
     }

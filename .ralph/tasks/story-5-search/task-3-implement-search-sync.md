@@ -1,4 +1,10 @@
-## Task: Story 5 Task 3 - Implement Search Sync Pipeline <status>not_started</status> <passes>false</passes>
+## Task: Story 5 Task 3 - Implement Search Sync Pipeline <status>completed</status> <passes>true</passes>
+
+<plan>
+.ralph/tasks/story-5-search/task-3-implement-search-sync_plans/search-sync-pipeline-plan.md
+</plan>
+
+NOW EXECUTE
 
 <description>
 Must use tdd skill to complete
@@ -12,14 +18,14 @@ In scope: engine client integration, batch indexing, incremental indexing, retry
 
 
 <acceptance_criteria>
-- [ ] Red/green TDD: integration test fails when a PostgreSQL update is not reflected in the search index, then passes.
-- [ ] Full reindex command builds an index from PostgreSQL.
-- [ ] Incremental index command applies created, updated, and deleted records.
-- [ ] Indexing progress is durable.
-- [ ] Failures are explicit and retryable.
-- [ ] Tests cover documents, extracted text, stored HTML, and entity metadata.
-- [ ] `make check` — passes cleanly
-- [ ] `make test` — passes cleanly (default suite; excludes only ultra-long tests moved to `make test-long`)
-- [ ] `make lint` — passes cleanly
-- [ ] If this task impacts ultra-long tests (or their selection): `make test-long` — passes cleanly (ultra-long-only)
+- [x] Red/green TDD: integration test fails when a PostgreSQL update is not reflected in the search index, then passes.
+- [x] Full reindex command builds an index from PostgreSQL.
+- [x] Incremental index command applies created, updated, and deleted records.
+- [x] Indexing progress is durable.
+- [x] Failures are explicit and retryable.
+- [x] Tests cover documents, extracted text, stored HTML, and entity metadata.
+- [x] `make check` — passes cleanly
+- [x] `make test` — passes cleanly (default suite; excludes only ultra-long tests moved to `make test-long`)
+- [x] `make lint` — passes cleanly
+- [x] If this task impacts ultra-long tests (or their selection): `make test-long` — not impacted and intentionally not run for this non-story-finishing task
 </acceptance_criteria>

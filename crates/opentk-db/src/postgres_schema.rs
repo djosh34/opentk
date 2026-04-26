@@ -51,6 +51,8 @@ pub enum TableKind {
     },
     DocumentAsset,
     DocumentContent,
+    SearchIndexCursor,
+    SearchIndexFailure,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -120,6 +122,9 @@ pub enum IndexPurpose {
     AssetUrl,
     DocumentContentOwner,
     OfficialContentSource,
+    SearchIndexCursor,
+    SearchIndexFailureRetry,
+    SearchIndexFailureSource,
     ForeignKeyPath,
 }
 
@@ -129,6 +134,8 @@ pub fn schema() -> SchemaSpec {
         sync_category_table(),
         ingest_error_table(),
         sync_entity_table(),
+        search_index_cursor_table(),
+        search_index_failure_table(),
     ];
     let mut indexes = vec![
         index(
@@ -154,6 +161,29 @@ pub fn schema() -> SchemaSpec {
             &["source_category", "deleted", "latest_skiptoken"],
             false,
             IndexPurpose::CategoryCursor,
+        ),
+        index(
+            "search_index_cursor",
+            &["index_name", "source_category", "latest_skiptoken"],
+            false,
+            IndexPurpose::SearchIndexCursor,
+        ),
+        index(
+            "search_index_failure",
+            &["next_retry_at", "attempt_count"],
+            false,
+            IndexPurpose::SearchIndexFailureRetry,
+        ),
+        index(
+            "search_index_failure",
+            &[
+                "index_name",
+                "source_category",
+                "source_id",
+                "latest_skiptoken",
+            ],
+            false,
+            IndexPurpose::SearchIndexFailureSource,
         ),
     ];
 
@@ -337,6 +367,57 @@ fn ingest_error_table() -> TableSpec {
         primary_key: names(&["id"]),
         foreign_keys: Vec::new(),
         unique_constraints: Vec::new(),
+        check_constraints: Vec::new(),
+    }
+}
+
+fn search_index_cursor_table() -> TableSpec {
+    TableSpec {
+        name: "search_index_cursor".to_owned(),
+        kind: TableKind::SearchIndexCursor,
+        columns: columns(&[
+            ("index_name", SqlType::Text, false),
+            ("source_category", SqlType::Text, false),
+            ("latest_skiptoken", SqlType::BigInteger, false),
+            ("last_indexed_at", SqlType::TimestampTz, true),
+            ("state", SqlType::Text, false),
+            ("last_error", SqlType::Text, true),
+        ]),
+        primary_key: names(&["index_name", "source_category"]),
+        foreign_keys: Vec::new(),
+        unique_constraints: Vec::new(),
+        check_constraints: Vec::new(),
+    }
+}
+
+fn search_index_failure_table() -> TableSpec {
+    TableSpec {
+        name: "search_index_failure".to_owned(),
+        kind: TableKind::SearchIndexFailure,
+        columns: columns(&[
+            ("id", SqlType::BigIdentity, false),
+            ("index_name", SqlType::Text, false),
+            ("source_category", SqlType::Text, false),
+            ("source_id", SqlType::Uuid, false),
+            ("latest_skiptoken", SqlType::BigInteger, false),
+            ("operation", SqlType::Text, false),
+            ("attempt_count", SqlType::Integer, false),
+            ("next_retry_at", SqlType::TimestampTz, false),
+            ("error", SqlType::Text, false),
+            ("created_at", SqlType::TimestampTz, false),
+            ("updated_at", SqlType::TimestampTz, false),
+        ]),
+        primary_key: names(&["id"]),
+        foreign_keys: Vec::new(),
+        unique_constraints: vec![UniqueConstraintSpec {
+            columns: names(&[
+                "index_name",
+                "source_category",
+                "source_id",
+                "latest_skiptoken",
+                "operation",
+            ]),
+        }],
         check_constraints: Vec::new(),
     }
 }
