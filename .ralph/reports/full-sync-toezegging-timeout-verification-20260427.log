@@ -1,0 +1,5 @@
+   Compiling opentk-sync v0.1.0 (/home/joshazimullah.linux/work_mounts/patroni_rewrite/opentk/crates/opentk-sync)
+   Compiling opentk-db v0.1.0 (/home/joshazimullah.linux/work_mounts/patroni_rewrite/opentk/crates/opentk-db)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 15.81s
+     Running `target/debug/opentk-sync --config .ralph/reports/full-sync-config-20260426-213953.toml run`
+Error: Parse { category: "Persoon", source: InvalidValue { category: "Persoon", field: "verwijderd", datatype: "xs:boolean", value: "True", message: "expected true, false, 1, or 0" } }

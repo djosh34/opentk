@@ -1,6 +1,6 @@
 # Current Tasks Summary
 
-Generated: Mon Apr 27 01:15:26 AM CEST 2026
+Generated: Mon Apr 27 01:32:08 CEST 2026
 
 # Task `/home/joshazimullah.linux/work_mounts/patroni_rewrite/opentk/.ralph/tasks/bugs/bug-cargo-run-opentk-sync-linker-missing-objects.md`
 
@@ -26,14 +26,14 @@ before starting the sync binary because `/usr/bin/time` was not available:
 
 ==============
 
-# Task `/home/joshazimullah.linux/work_mounts/patroni_rewrite/opentk/.ralph/tasks/bugs/bug-full-sync-toezegging-initial-feed-timeout.md`
+# Task `/home/joshazimullah.linux/work_mounts/patroni_rewrite/opentk/.ralph/tasks/bugs/full-sync-fails-on-persoon-verwijderd-true.md`
 
 ```
-## Bug: full sync fails on Toezegging initial SyncFeed timeout <status>not_started</status> <passes>false</passes> <priority>high</priority>
+## Bug: full sync fails on Persoon verwijderd boolean value True <status>not_started</status> <passes>false</passes> <priority>high</priority>
 
 <description>
-Story 10 Task 1 attempted one clean full SyncFeed-to-PostgreSQL sync from a
-fresh migrated database on 2026-04-26. The actual sync command failed after
+Manual verification for `.ralph/tasks/bugs/bug-full-sync-toezegging-initial-feed-timeout.md`
+reran the captured full-sync command on 2026-04-27:
 ```
 
 ==============

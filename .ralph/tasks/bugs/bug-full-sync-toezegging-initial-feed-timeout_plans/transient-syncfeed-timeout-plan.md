@@ -84,23 +84,30 @@ Use vertical Red-Green cycles. Do not write all tests first.
   - Keep page parsing, writing, cursor extraction, and store code unchanged
     unless the Red result proves a boundary leak.
   - Keep non-timeout fetch errors on the existing fail-fast durable-error path.
-- [ ] Red 2, only if manual verification still fails with the same transient
+- [x] Red 2, only if manual verification still fails with the same transient
   timeout shape: add the next narrow public test that captures the exact
-  remaining behavior.
-- [ ] Green 2, only if Red 2 is needed: fix only the behavior captured by that
-  Red test.
+  remaining behavior. Not needed: manual verification progressed past the
+  original initial `Toezegging` timeout.
+- [x] Green 2, only if Red 2 is needed: fix only the behavior captured by that
+  Red test. Not needed.
 
 ## Manual Verification
 
 - [x] Run the focused runner test by exact name after each Red/Green cycle.
-- [ ] Run any nearby focused client test if `syncfeed.rs` timeout exhaustion
-  semantics are changed.
-- [ ] Re-run the captured full-sync command from the bug report if the same
+- [x] Run any nearby focused client test if `syncfeed.rs` timeout exhaustion
+  semantics are changed. Not applicable: `syncfeed.rs` timeout exhaustion
+  semantics were not changed.
+- [x] Re-run the captured full-sync command from the bug report if the same
   database and local services are still available:
   `cargo run -p opentk-db --bin opentk-sync -- --config .ralph/reports/full-sync-config-20260426-213953.toml run`
-- [ ] If the rerun progresses past the initial `Toezegging` timeout but exposes
+- [x] Verification evidence: rerun output was captured in
+  `.ralph/reports/full-sync-toezegging-timeout-verification-20260427.log`.
+  The run progressed past the original `Toezegging` fetch timeout and failed
+  later on an unrelated `Persoon.verwijderd` boolean parse issue.
+- [x] If the rerun progresses past the initial `Toezegging` timeout but exposes
   a new unrelated sync failure, create a separate bug task and keep this fix
-  scoped to transient fetch recovery.
+  scoped to transient fetch recovery. Filed
+  `.ralph/tasks/bugs/full-sync-fails-on-persoon-verwijderd-true.md`.
 
 ## Boundary Review
 
@@ -116,10 +123,10 @@ Use vertical Red-Green cycles. Do not write all tests first.
 
 ## Final Checks
 
-- [ ] `make check`
-- [ ] `make test`
-- [ ] `make lint`
-- [ ] Do not run `make test-long`; this is a normal bug task unless manual
+- [x] `make check`
+- [x] `make test`
+- [x] `make lint`
+- [x] Do not run `make test-long`; this is a normal bug task unless manual
   verification proves it must become a story-end validation gate.
 
 NOW EXECUTE
