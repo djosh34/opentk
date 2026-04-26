@@ -65,6 +65,11 @@ metadata; retrieval and extracted body state live in storage-owned tables.
 `document(source_category, source_id)` and are unique per
 `(document_source_category, document_source_id, asset_url)`.
 
+`opentk-db::document_assets` upserts these rows from typed fetch reports. A
+later retry of the same `(document_source_category, document_source_id,
+asset_url)` updates the existing row with the latest upstream metadata,
+retrieval status, error detail, and retrieval timestamp.
+
 `document_content` stores official text/HTML source selection and extracted
 content:
 
@@ -86,6 +91,11 @@ and ordered with `source_rank` so readers can prefer those rows when available.
 `invalid`. A row must contain at least one of `extracted_text` or
 `extracted_html`, and `(document_asset_id, content_hash)` prevents duplicate
 extracted bodies for the same asset.
+
+For this stage, `document_content` means a real persisted text or HTML body
+exists. Official text, HTML, XHTML, and transcript sources are inserted with the
+official body in `extracted_text` or `extracted_html`; binary-only PDF/DOCX
+reports do not create bodyless placeholder rows.
 
 ## Sync Page Writes
 

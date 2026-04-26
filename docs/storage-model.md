@@ -18,6 +18,8 @@ write relation rows
 write upstream document asset metadata from SyncFeed
 advance category cursor
 commit
+fetch linked document assets
+record retrieval status and official text/HTML content
 ```
 
 The critical invariant is:
@@ -95,6 +97,16 @@ Document retrieval and extraction state is storage-owned:
 - `document_content` stores the selected source URL, official-source ranking,
   source content metadata, extraction provenance, validation status, content
   hash, extraction timestamp, and extracted text/HTML.
+
+The asset fetcher records every retrieval attempt in `document_asset`,
+including durable `not_found`, `unsupported_content_type`, and `failed` states
+with retryable error detail. When the upstream asset or an official alternative
+is already text, HTML, XHTML, or transcript content, the real body is persisted
+in `document_content` immediately with `extraction_status = 'extracted'` and
+`validation_status = 'unverified'`. Binary PDF and DOCX files are extraction
+inputs only; they are selected and hashed on the asset report, but they do not
+create `document_content` rows until a later extraction task produces real
+text/HTML.
 
 `document_asset` and `document_content` both keep a direct
 `(document_source_category, document_source_id)` owner path back to

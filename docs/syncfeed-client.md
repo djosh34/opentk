@@ -49,6 +49,21 @@ workers still respect the configured maximum. A small adaptive pacing delay is
 also shared: `429` observations increase delay up to the configured maximum
 retry delay, and successful responses reduce it.
 
+## Document Asset Fetcher
+
+`opentk-sync::document_asset` is the HTTP boundary for linked document assets.
+It fetches the upstream URL, classifies supported official content
+(`text/plain`, `text/html`, `application/xhtml+xml`) and binary extraction
+inputs (`application/pdf`, DOCX), validates available and expected content
+lengths, computes SHA-256 over the selected source body, and returns retrieval
+status as data instead of hiding errors.
+
+HTML upstream assets can advertise official text/HTML alternatives with
+`rel="alternate"` links. The fetcher prefers those official alternatives over a
+binary extraction input when available. `fetch_many` applies the configured
+bounded concurrency, and request timeouts are reported as failed retrievals
+with explicit error detail.
+
 ## Complete Sync Runner
 
 `opentk-sync::runner` is the ingestion orchestration boundary. It runs one

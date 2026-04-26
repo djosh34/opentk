@@ -1,17 +1,6 @@
 # Current Tasks Summary
 
-Generated: Sun Apr 26 03:50:51 CEST 2026
-
-# Task `/home/joshazimullah.linux/work_mounts/patroni_rewrite/opentk/.ralph/tasks/story-4-document-text-support/task-2-fetch-and-classify-document-assets.md`
-
-```
-## Task: Story 4 Task 2 - Fetch and Classify Document Assets <status>not_started</status> <passes>false</passes>
-
-<description>
-Must use tdd skill to complete
-```
-
-==============
+Generated: Sun Apr 26 04:24:24 CEST 2026
 
 # Task `/home/joshazimullah.linux/work_mounts/patroni_rewrite/opentk/.ralph/tasks/story-4-document-text-support/task-3-extract-document-text-and-html.md`
 

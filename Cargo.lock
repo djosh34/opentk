@@ -1176,6 +1176,7 @@ dependencies = [
  "quick-xml",
  "reqwest",
  "roxmltree",
+ "sha2",
  "thiserror",
  "tokio",
  "tracing",
