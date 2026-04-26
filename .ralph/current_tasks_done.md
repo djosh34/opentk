@@ -1,6 +1,6 @@
 # Done Tasks Summary
 
-Generated: Mon Apr 27 01:32:08 CEST 2026
+Generated: Mon Apr 27 01:44:18 AM CEST 2026
 
 # Task `/home/joshazimullah.linux/work_mounts/patroni_rewrite/opentk/.ralph/tasks/bugs/bug-full-sync-toezegging-initial-feed-timeout.md`
 
@@ -57,6 +57,18 @@ While manually verifying
 <description>
 Story 10 Task 1 attempted one clean full SyncFeed-to-PostgreSQL sync from an
 empty dedicated database:
+```
+
+==============
+
+# Task `/home/joshazimullah.linux/work_mounts/patroni_rewrite/opentk/.ralph/tasks/bugs/full-sync-fails-on-persoon-verwijderd-true.md`
+
+```
+## Bug: full sync fails on Persoon verwijderd boolean value True <status>done</status> <passes>true</passes> <priority>high</priority>
+
+<description>
+Manual verification for `.ralph/tasks/bugs/bug-full-sync-toezegging-initial-feed-timeout.md`
+reran the captured full-sync command on 2026-04-27:
 ```
 
 ==============

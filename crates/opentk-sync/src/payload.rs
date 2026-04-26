@@ -483,14 +483,14 @@ fn required_attribute<'a>(
 
 fn parse_bool(category: &str, field: &str, value: &str) -> Result<bool, PayloadParseError> {
     match value {
-        "true" | "1" => Ok(true),
-        "false" | "0" => Ok(false),
+        "true" | "True" | "1" => Ok(true),
+        "false" | "False" | "0" => Ok(false),
         _ => Err(PayloadParseError::InvalidValue {
             category: category.to_owned(),
             field: field.to_owned(),
             datatype: "xs:boolean".to_owned(),
             value: value.to_owned(),
-            message: "expected true, false, 1, or 0".to_owned(),
+            message: "expected true, false, True, False, 1, or 0".to_owned(),
         }),
     }
 }

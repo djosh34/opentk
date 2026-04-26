@@ -108,6 +108,21 @@ fn delete_marker_carries_metadata_and_discards_current_body_content() {
 }
 
 #[test]
+fn live_persoon_capitalized_deleted_boolean_parses() {
+    let deleted = parse_entity_xml(
+        "Persoon",
+        r#"<persoon xmlns="http://www.tweedekamer.nl/xsd/tkData/v1-0"
+            id="11111111-1111-4111-8111-111111111111"
+            verwijderd="True"
+            bijgewerkt="2026-04-26T00:00:00Z"/>"#,
+    )
+    .expect("live Persoon delete marker parses");
+
+    assert_eq!(deleted.category, "Persoon");
+    assert!(deleted.deleted);
+}
+
+#[test]
 fn live_syncfeed_naive_fractional_datetimes_parse_as_utc() {
     let deleted = parse_entity_xml(
         "Document",
