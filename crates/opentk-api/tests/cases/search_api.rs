@@ -9,6 +9,7 @@ use axum::{
     body::{to_bytes, Body},
     http::{Request, StatusCode},
 };
+use opentk_db::search_cdc::SearchCdcRuntimeStatus;
 use opentk_search::{
     SearchEntityKind, SearchIndexError, SearchQueryClient, SearchRequest, SearchResponse,
     SearchResult, SearchSnippet,
@@ -154,6 +155,33 @@ async fn search_endpoint_reports_backend_unavailable() -> Result<(), Box<dyn std
 }
 
 #[tokio::test]
+async fn search_endpoint_reports_search_sync_degraded_without_calling_backend(
+) -> Result<(), Box<dyn std::error::Error>> {
+    let search = FakeSearchClient::with_response(SearchResponse {
+        query: "fixture".to_owned(),
+        limit: 20,
+        offset: 0,
+        estimated_total_hits: None,
+        results: Vec::new(),
+    });
+    let status = SearchCdcRuntimeStatus::new();
+    status.record_error(&"fixture CDC failure");
+
+    let body = router_json_with_search_client_and_status(
+        Arc::new(search.clone()),
+        status,
+        "/search?q=fixture",
+        StatusCode::SERVICE_UNAVAILABLE,
+    )
+    .await?;
+
+    assert_eq!(body["code"], "search_sync_degraded");
+    assert_eq!(search.requests(), Vec::new());
+
+    Ok(())
+}
+
+#[tokio::test]
 async fn search_endpoint_matches_deep_quality_benchmark_queries(
 ) -> Result<(), Box<dyn std::error::Error>> {
     let benchmark = load_quality_benchmark(Path::new("../opentk-search-eval/fixtures"))?;
@@ -251,6 +279,24 @@ async fn router_json_with_search_client(
         .max_connections(1)
         .connect_lazy("postgres://opentk.invalid/opentk")?;
     let response = opentk_api::router_with_search(pool, search)
+        .oneshot(Request::get(path).body(Body::empty())?)
+        .await?;
+    assert_eq!(response.status(), expected_status);
+    Ok(serde_json::from_slice(
+        &to_bytes(response.into_body(), usize::MAX).await?,
+    )?)
+}
+
+async fn router_json_with_search_client_and_status(
+    search: Arc<dyn SearchQueryClient + Send + Sync>,
+    status: SearchCdcRuntimeStatus,
+    path: &str,
+    expected_status: StatusCode,
+) -> Result<Value, Box<dyn std::error::Error>> {
+    let pool = PgPoolOptions::new()
+        .max_connections(1)
+        .connect_lazy("postgres://opentk.invalid/opentk")?;
+    let response = opentk_api::router_with_search_and_cdc_status(pool, search, status)
         .oneshot(Request::get(path).body(Body::empty())?)
         .await?;
     assert_eq!(response.status(), expected_status);

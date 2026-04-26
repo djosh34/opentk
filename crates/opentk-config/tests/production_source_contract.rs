@@ -16,6 +16,12 @@ fn sync_binary_is_named_opentk_sync_not_complete_sync() {
             .exists(),
         "old complete-sync binary source must be removed"
     );
+    assert!(
+        !workspace
+            .join("crates/opentk-db/src/bin/search-sync.rs")
+            .exists(),
+        "old search-sync binary source must be removed"
+    );
 
     let db_manifest = fs::read_to_string(workspace.join("crates/opentk-db/Cargo.toml"))
         .expect("read opentk-db manifest");
@@ -26,6 +32,10 @@ fn sync_binary_is_named_opentk_sync_not_complete_sync() {
     assert!(
         !db_manifest.contains("complete-sync"),
         "opentk-db manifest must not expose the old complete-sync binary"
+    );
+    assert!(
+        !db_manifest.contains("search-sync"),
+        "opentk-db manifest must not expose the old search-sync binary"
     );
 }
 
@@ -38,7 +48,6 @@ fn production_application_config_does_not_read_individual_setting_env_vars() {
         "crates/opentk-api/src/bin/opentk-api.rs",
         "crates/opentk-api/src/lib.rs",
         "crates/opentk-db/src/bin/opentk-sync.rs",
-        "crates/opentk-db/src/bin/search-sync.rs",
     ] {
         let path = workspace.join(relative);
         let source = fs::read_to_string(&path).expect("read production source");
@@ -66,7 +75,6 @@ fn production_search_defaults_live_only_in_unified_config() {
         "crates/opentk-api/src/bin/opentk-api.rs",
         "crates/opentk-api/src/lib.rs",
         "crates/opentk-db/src/bin/opentk-sync.rs",
-        "crates/opentk-db/src/bin/search-sync.rs",
     ] {
         let source = fs::read_to_string(workspace.join(relative)).expect("read production source");
         for forbidden in [
@@ -93,7 +101,6 @@ fn runtime_binaries_initialize_plain_fmt_logging_and_log_redacted_config() {
     for relative in [
         "crates/opentk-api/src/bin/opentk-api.rs",
         "crates/opentk-db/src/bin/opentk-sync.rs",
-        "crates/opentk-db/src/bin/search-sync.rs",
     ] {
         let source = fs::read_to_string(workspace.join(relative)).expect("read binary source");
         assert!(

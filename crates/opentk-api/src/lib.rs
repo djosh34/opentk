@@ -15,6 +15,10 @@ use opentk_db::{
         self, DocumentContentDetail, EntityChange, EntityDetail, ReadModelError, RelationDirection,
         RelationRow,
     },
+    search_cdc::{
+        run_search_cdc_listener, SearchCdcBatchConfig, SearchCdcRuntimeStatus, SearchCdcStatus,
+    },
+    search_sync::SearchSyncConfig,
     startup_validation::{
         validate_database_config, validate_meilisearch_config, DependencyValidationError,
     },
@@ -28,7 +32,7 @@ use serde_json::{Map, Value};
 use sqlx::PgPool;
 use std::{future::Future, net::SocketAddr, pin::Pin, sync::Arc};
 use thiserror::Error;
-use tokio::net::TcpListener;
+use tokio::{net::TcpListener, sync::broadcast};
 use utoipa::{
     openapi::Required,
     openapi::{
@@ -47,6 +51,7 @@ use utoipa::{
 struct ApiState {
     pool: PgPool,
     search: Arc<dyn SearchQueryClient + Send + Sync>,
+    search_cdc_status: SearchCdcRuntimeStatus,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -54,6 +59,7 @@ pub struct ApiConfig {
     pub bind_address: SocketAddr,
     pub database: DatabaseConfig,
     pub search: SearchBackendConfig,
+    pub search_sync: SearchSyncConfig,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -80,6 +86,8 @@ pub enum ApiError {
     ReadModel(#[from] ReadModelError),
     #[error("search request failed")]
     Search(#[from] SearchIndexError),
+    #[error("search sync degraded")]
+    SearchSyncDegraded,
     #[error("invalid request")]
     InvalidRequest,
     #[error("failed to bind API listener at {address}")]
@@ -90,6 +98,8 @@ pub enum ApiError {
     },
     #[error("API server failed")]
     Serve(#[source] std::io::Error),
+    #[error("API background task failed")]
+    BackgroundTask(#[source] tokio::task::JoinError),
 }
 
 impl IntoResponse for ApiError {
@@ -123,6 +133,13 @@ impl IntoResponse for ApiError {
                     message: "search unavailable",
                 },
             ),
+            Self::SearchSyncDegraded => (
+                StatusCode::SERVICE_UNAVAILABLE,
+                ErrorResponse {
+                    code: "search_sync_degraded",
+                    message: "search sync degraded",
+                },
+            ),
             Self::InvalidRequest | Self::ReadModel(ReadModelError::InvalidLimit) => (
                 StatusCode::BAD_REQUEST,
                 ErrorResponse {
@@ -134,7 +151,8 @@ impl IntoResponse for ApiError {
             | Self::StartupValidation(_)
             | Self::ReadModel(ReadModelError::Sql(_))
             | Self::Bind { .. }
-            | Self::Serve(_) => (
+            | Self::Serve(_)
+            | Self::BackgroundTask(_) => (
                 StatusCode::INTERNAL_SERVER_ERROR,
                 ErrorResponse {
                     code: "internal_error",
@@ -156,6 +174,23 @@ pub struct ErrorResponse {
 #[derive(Serialize, ToSchema)]
 struct HealthResponse {
     status: &'static str,
+}
+
+#[derive(Serialize, ToSchema)]
+struct SearchSyncDaemonStatusResponse {
+    state: &'static str,
+    last_notification_at: Option<String>,
+    pending_count: usize,
+    last_batch: Option<SearchSyncDaemonBatchResponse>,
+    last_error: Option<String>,
+}
+
+#[derive(Serialize, ToSchema)]
+struct SearchSyncDaemonBatchResponse {
+    indexed: u64,
+    deleted: u64,
+    failed: u64,
+    duration_ms: u64,
 }
 
 #[derive(Serialize, ToSchema)]
@@ -322,21 +357,26 @@ struct RelationResponse {
 pub async fn build_app(config: ApiConfig) -> Result<ApiServer, ApiError> {
     validate_database_config(&config.database).await?;
     let pool = connect(&config.database).await?;
-    let search = configured_search_client(SearchBackendConfig {
-        url: config.search.url,
-        api_key: config.search.api_key,
-        index_name: config.search.index_name,
-    })
+    let search_cdc_status = SearchCdcRuntimeStatus::new();
+    let search = configured_search_client(
+        SearchBackendConfig {
+            url: config.search.url,
+            api_key: config.search.api_key,
+            index_name: config.search.index_name,
+        },
+        &search_cdc_status,
+    )
     .await;
 
     Ok(ApiServer {
         bind_address: config.bind_address,
-        router: router_with_search(pool, search),
+        router: router_with_search_and_cdc_status(pool, search, search_cdc_status),
     })
 }
 
 async fn configured_search_client(
     config: SearchBackendConfig,
+    search_cdc_status: &SearchCdcRuntimeStatus,
 ) -> Arc<dyn SearchQueryClient + Send + Sync> {
     let search = Arc::new(MeilisearchClient::new(
         config.url.clone(),
@@ -347,6 +387,7 @@ async fn configured_search_client(
         validate_meilisearch_config(config.url, config.api_key, config.index_name).await
     {
         tracing::error!(%error, "search backend unavailable at startup");
+        search_cdc_status.record_error(&error);
         return Arc::new(UnavailableSearchClient);
     }
     search
@@ -360,27 +401,101 @@ async fn configured_search_client(
 /// [`ApiError::Bind`] when the configured socket cannot be bound, or
 /// [`ApiError::Serve`] when `Axum` reports a serving failure.
 pub async fn serve(config: ApiConfig) -> Result<(), ApiError> {
-    let server = build_app(config).await?;
+    serve_with_shutdown(config, shutdown_signal()).await
+}
+
+/// Starts the HTTP API server and stops it when the supplied shutdown future resolves.
+///
+/// # Errors
+///
+/// Returns [`ApiError`] when startup validation, database connection, TCP bind,
+/// HTTP serving, or background task joining fails.
+pub async fn serve_with_shutdown(
+    config: ApiConfig,
+    shutdown: impl Future<Output = ()> + Send + 'static,
+) -> Result<(), ApiError> {
+    validate_database_config(&config.database).await?;
+    let pool = connect(&config.database).await?;
+    let search_cdc_status = SearchCdcRuntimeStatus::new();
+    let concrete_search = Arc::new(MeilisearchClient::new(
+        config.search.url.clone(),
+        config.search.api_key.clone(),
+        config.search.index_name.clone(),
+    ));
+    let search: Arc<dyn SearchQueryClient + Send + Sync> = match validate_meilisearch_config(
+        config.search.url,
+        config.search.api_key,
+        config.search.index_name,
+    )
+    .await
+    {
+        Ok(_) => concrete_search.clone(),
+        Err(error) => {
+            tracing::error!(%error, "search backend unavailable at startup");
+            search_cdc_status.record_error(&error);
+            Arc::new(UnavailableSearchClient)
+        }
+    };
+    let server = ApiServer {
+        bind_address: config.bind_address,
+        router: router_with_search_and_cdc_status(pool.clone(), search, search_cdc_status.clone()),
+    };
     let listener = TcpListener::bind(server.bind_address)
         .await
         .map_err(|source| ApiError::Bind {
             address: server.bind_address,
             source,
         })?;
+    let (cdc_shutdown_tx, cdc_shutdown_rx) = broadcast::channel(1);
+    let cdc_status = search_cdc_status.clone();
+    let cdc_database_url = config.database.url;
+    let cdc_search_config = config.search_sync;
+    let cdc_task = tokio::spawn(async move {
+        if let Err(error) = run_search_cdc_listener(
+            cdc_database_url,
+            pool,
+            concrete_search,
+            cdc_search_config,
+            SearchCdcBatchConfig::default(),
+            cdc_shutdown_rx,
+            cdc_status.clone(),
+        )
+        .await
+        {
+            tracing::error!(%error, "search CDC listener stopped");
+            cdc_status.record_error(&error);
+        }
+    });
 
     axum::serve(listener, server.router)
+        .with_graceful_shutdown(shutdown)
         .await
-        .map_err(ApiError::Serve)
+        .map_err(ApiError::Serve)?;
+    match cdc_shutdown_tx.send(()) {
+        Ok(_) => {}
+        Err(error) => tracing::warn!(%error, "search CDC shutdown signal had no receivers"),
+    }
+    cdc_task.await.map_err(ApiError::BackgroundTask)?;
+    Ok(())
 }
 
 pub fn router_with_search(
     pool: PgPool,
     search_client: Arc<dyn SearchQueryClient + Send + Sync>,
 ) -> Router {
+    router_with_search_and_cdc_status(pool, search_client, SearchCdcRuntimeStatus::new())
+}
+
+pub fn router_with_search_and_cdc_status(
+    pool: PgPool,
+    search_client: Arc<dyn SearchQueryClient + Send + Sync>,
+    search_cdc_status: SearchCdcRuntimeStatus,
+) -> Router {
     Router::new()
         .route("/health", get(health))
         .route("/openapi.json", get(openapi_json))
         .route("/search", get(search::search))
+        .route("/admin/search-sync/status", get(search_sync_daemon_status))
         .route("/categories", get(categories))
         .route("/sync/status", get(sync_status))
         .route("/changes/{category}", get(changes))
@@ -393,6 +508,7 @@ pub fn router_with_search(
         .with_state(ApiState {
             pool,
             search: search_client,
+            search_cdc_status,
         })
 }
 
@@ -437,6 +553,17 @@ fn base_paths(paths: PathsBuilder) -> PathsBuilder {
                 .response(
                     "503",
                     json_response("Database is unreachable", ErrorResponse::name().as_ref()),
+                ),
+            ),
+        )
+        .path(
+            "/admin/search-sync/status",
+            PathItem::new(
+                HttpMethod::Get,
+                get_operation(
+                    "search_sync_daemon_status",
+                    "Search sync daemon status",
+                    SearchSyncDaemonStatusResponse::name().as_ref(),
                 ),
             ),
         )
@@ -677,6 +804,8 @@ fn api_components() -> Components {
     ComponentsBuilder::new()
         .schema_from::<ErrorResponse>()
         .schema_from::<HealthResponse>()
+        .schema_from::<SearchSyncDaemonStatusResponse>()
+        .schema_from::<SearchSyncDaemonBatchResponse>()
         .schema_from::<CategoryMetadataResponse>()
         .schema_from::<CategoryMetadata>()
         .schema_from::<SyncStatusResponse>()
@@ -736,12 +865,75 @@ async fn health(State(state): State<ApiState>) -> Result<Json<HealthResponse>, A
         .execute(&state.pool)
         .await
         .map_err(ApiError::DatabaseUnavailable)?;
+    ensure_search_sync_usable(&state)?;
 
     Ok(Json(HealthResponse { status: "ok" }))
 }
 
 async fn openapi_json() -> Json<utoipa::openapi::OpenApi> {
     Json(openapi())
+}
+
+async fn search_sync_daemon_status(
+    State(state): State<ApiState>,
+) -> Json<SearchSyncDaemonStatusResponse> {
+    Json(search_sync_daemon_status_response(
+        state.search_cdc_status.snapshot(),
+    ))
+}
+
+pub(crate) fn ensure_search_sync_usable(state: &ApiState) -> Result<(), ApiError> {
+    if state.search_cdc_status.snapshot().state.is_search_usable() {
+        Ok(())
+    } else {
+        Err(ApiError::SearchSyncDegraded)
+    }
+}
+
+fn search_sync_daemon_status_response(status: SearchCdcStatus) -> SearchSyncDaemonStatusResponse {
+    SearchSyncDaemonStatusResponse {
+        state: status.state.as_str(),
+        last_notification_at: status.last_notification_at.map(|time| time.to_rfc3339()),
+        pending_count: status.pending_count,
+        last_batch: status
+            .last_batch
+            .map(|batch| SearchSyncDaemonBatchResponse {
+                indexed: batch.indexed,
+                deleted: batch.deleted,
+                failed: batch.failed,
+                duration_ms: batch.duration_ms,
+            }),
+        last_error: status.last_error,
+    }
+}
+
+async fn shutdown_signal() {
+    let ctrl_c = async {
+        if let Err(error) = tokio::signal::ctrl_c().await {
+            tracing::error!(%error, "failed to install Ctrl-C handler");
+        }
+    };
+
+    #[cfg(unix)]
+    let terminate = async {
+        match tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate()) {
+            Ok(mut signal) => {
+                signal.recv().await;
+            }
+            Err(error) => {
+                tracing::error!(%error, "failed to install SIGTERM handler");
+                std::future::pending::<()>().await;
+            }
+        }
+    };
+
+    #[cfg(not(unix))]
+    let terminate = std::future::pending::<()>();
+
+    tokio::select! {
+        () = ctrl_c => {}
+        () = terminate => {}
+    }
 }
 
 async fn categories() -> Json<CategoryMetadataResponse> {

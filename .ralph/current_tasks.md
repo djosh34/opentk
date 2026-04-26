@@ -1,6 +1,6 @@
 # Current Tasks Summary
 
-Generated: Sun Apr 26 19:02:31 CEST 2026
+Generated: Sun Apr 26 19:31:08 CEST 2026
 
 # Task `/home/joshazimullah.linux/work_mounts/patroni_rewrite/opentk/.ralph/tasks/story-10-full-sync-backup/task-1-run-one-time-clean-full-sync-report.md`
 
@@ -39,17 +39,6 @@ Must use tdd skill to complete
 
 ```
 ## Task: Story 11 Task 2 - Structured Logging, Metrics, and JSON Log Format <status>not_started</status> <passes>false</passes>
-
-<description>
-Must use tdd skill to complete
-```
-
-==============
-
-# Task `/home/joshazimullah.linux/work_mounts/patroni_rewrite/opentk/.ralph/tasks/story-7-binary-rename-and-cdc/task-3-integrate-cdc-into-api.md`
-
-```
-## Task: Story 7 Task 3 - Integrate Search CDC Background Task into opentk-api <status>not_started</status> <passes>false</passes>
 
 <description>
 Must use tdd skill to complete

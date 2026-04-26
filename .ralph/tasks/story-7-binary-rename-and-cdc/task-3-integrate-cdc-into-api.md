@@ -1,4 +1,4 @@
-## Task: Story 7 Task 3 - Integrate Search CDC Background Task into opentk-api <status>not_started</status> <passes>false</passes>
+## Task: Story 7 Task 3 - Integrate Search CDC Background Task into opentk-api <status>done</status> <passes>true</passes>
 
 <description>
 Must use tdd skill to complete
@@ -40,12 +40,18 @@ In scope: background task integration, graceful shutdown, admin endpoint, error 
 
 
 <acceptance_criteria>
-- [ ] `opentk-api` spawns CDC listener alongside HTTP server
-- [ ] SIGTERM gracefully shuts down both HTTP and CDC
-- [ ] CDC errors are logged, recorded in status state, exposed via health/admin endpoints, and do not crash non-search API routes
-- [ ] `GET /admin/search-sync/status` returns current daemon state
-- [ ] `search-sync` binary is removed from Cargo.toml
-- [ ] `make check` — passes cleanly
-- [ ] `make test` — passes cleanly (default suite)
-- [ ] `make lint` — passes cleanly
+- [x] `opentk-api` spawns CDC listener alongside HTTP server
+- [x] SIGTERM gracefully shuts down both HTTP and CDC
+- [x] CDC errors are logged, recorded in status state, exposed via health/admin endpoints, and do not crash non-search API routes
+- [x] `GET /admin/search-sync/status` returns current daemon state
+- [x] `search-sync` binary is removed from Cargo.toml
+- [x] `make check` — passes cleanly
+- [x] `make test` — passes cleanly (default suite)
+- [x] `make lint` — passes cleanly
 </acceptance_criteria>
+
+<plan>
+.ralph/tasks/story-7-binary-rename-and-cdc/task-3-integrate-cdc-into-api_plans/integrate-cdc-into-api-plan.md
+</plan>
+
+NOW EXECUTE

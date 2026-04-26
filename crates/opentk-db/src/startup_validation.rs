@@ -134,7 +134,7 @@ pub async fn validate_api_dependencies(
     })
 }
 
-/// Validate dependencies needed by `search-sync`.
+/// Validate dependencies needed by search synchronization.
 ///
 /// # Errors
 ///

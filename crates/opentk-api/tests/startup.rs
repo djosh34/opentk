@@ -36,18 +36,21 @@ async fn api_config_builds_router_connected_to_configured_database(
             api_key: Some("startup-key".to_owned()),
             index_name: "startup_index".to_owned(),
         },
+        search_sync: opentk_db::search_sync::SearchSyncConfig::default(),
     })
     .await?;
 
     assert_eq!(server.bind_address, bind_address);
     let response = server
         .router
-        .oneshot(Request::get("/health").body(Body::empty())?)
+        .oneshot(Request::get("/categories").body(Body::empty())?)
         .await?;
 
     assert_eq!(response.status(), StatusCode::OK);
     let body: Value = serde_json::from_slice(&to_bytes(response.into_body(), usize::MAX).await?)?;
-    assert_eq!(body, serde_json::json!({ "status": "ok" }));
+    assert!(body["categories"]
+        .as_array()
+        .is_some_and(|items| !items.is_empty()));
 
     Ok(())
 }
@@ -71,6 +74,7 @@ async fn api_startup_marks_search_unavailable_when_probe_fails(
             api_key: Some("startup-key".to_owned()),
             index_name: "startup_index".to_owned(),
         },
+        search_sync: opentk_db::search_sync::SearchSyncConfig::default(),
     })
     .await?;
 
@@ -86,7 +90,7 @@ async fn api_startup_marks_search_unavailable_when_probe_fails(
         .clone()
         .oneshot(Request::get("/health").body(Body::empty())?)
         .await?;
-    assert_eq!(health.status(), StatusCode::OK);
+    assert_eq!(health.status(), StatusCode::SERVICE_UNAVAILABLE);
 
     let search_response = server
         .router
@@ -98,8 +102,8 @@ async fn api_startup_marks_search_unavailable_when_probe_fails(
     assert_eq!(
         body,
         serde_json::json!({
-            "code": "search_unavailable",
-            "message": "search unavailable"
+            "code": "search_sync_degraded",
+            "message": "search sync degraded"
         })
     );
     assert_eq!(

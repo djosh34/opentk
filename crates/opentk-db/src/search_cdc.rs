@@ -1,11 +1,17 @@
 use std::{
     collections::BTreeMap,
+    error::Error as StdError,
+    fmt::Display,
+    sync::MutexGuard,
+    sync::{Arc, Mutex},
     time::{Duration, Instant},
 };
 
+use chrono::{DateTime, Utc};
 use serde::Deserialize;
 use sqlx::{postgres::PgListener, PgPool};
 use thiserror::Error;
+use tokio::sync::broadcast;
 use uuid::Uuid;
 
 use crate::search_sync::{
@@ -16,6 +22,117 @@ use opentk_search::SearchIndexClient;
 pub const SEARCH_CDC_CHANNEL: &str = "sync_entity_change";
 pub const DEFAULT_SEARCH_CDC_FLUSH_WINDOW: Duration = Duration::from_secs(1);
 pub const DEFAULT_SEARCH_CDC_MAX_UNIQUE_RECORDS: usize = 100;
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum SearchCdcRuntimeState {
+    Starting,
+    Running,
+    Degraded,
+    Stopped,
+}
+
+impl SearchCdcRuntimeState {
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Starting => "starting",
+            Self::Running => "running",
+            Self::Degraded => "degraded",
+            Self::Stopped => "stopped",
+        }
+    }
+
+    #[must_use]
+    pub const fn is_search_usable(self) -> bool {
+        matches!(self, Self::Starting | Self::Running)
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct SearchCdcBatchReport {
+    pub indexed: u64,
+    pub deleted: u64,
+    pub failed: u64,
+    pub duration_ms: u64,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct SearchCdcStatus {
+    pub state: SearchCdcRuntimeState,
+    pub last_notification_at: Option<DateTime<Utc>>,
+    pub pending_count: usize,
+    pub last_batch: Option<SearchCdcBatchReport>,
+    pub last_error: Option<String>,
+}
+
+#[derive(Clone, Debug)]
+pub struct SearchCdcRuntimeStatus {
+    inner: Arc<Mutex<SearchCdcStatus>>,
+}
+
+impl Default for SearchCdcRuntimeStatus {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl SearchCdcRuntimeStatus {
+    #[must_use]
+    pub fn new() -> Self {
+        Self {
+            inner: Arc::new(Mutex::new(SearchCdcStatus {
+                state: SearchCdcRuntimeState::Starting,
+                last_notification_at: None,
+                pending_count: 0,
+                last_batch: None,
+                last_error: None,
+            })),
+        }
+    }
+
+    #[must_use]
+    pub fn snapshot(&self) -> SearchCdcStatus {
+        self.lock_status().clone()
+    }
+
+    pub fn mark_running(&self) {
+        let mut status = self.lock_status();
+        status.state = SearchCdcRuntimeState::Running;
+        status.last_error = None;
+    }
+
+    pub fn record_notification(&self, pending_count: usize) {
+        let mut status = self.lock_status();
+        status.last_notification_at = Some(Utc::now());
+        status.pending_count = pending_count;
+    }
+
+    pub fn record_batch(&self, report: SearchCdcBatchReport) {
+        let mut status = self.lock_status();
+        status.state = SearchCdcRuntimeState::Running;
+        status.pending_count = 0;
+        status.last_batch = Some(report);
+        status.last_error = None;
+    }
+
+    pub fn record_error(&self, error: &impl Display) {
+        let mut status = self.lock_status();
+        status.state = SearchCdcRuntimeState::Degraded;
+        status.last_error = Some(error.to_string());
+    }
+
+    pub fn mark_stopped(&self) {
+        let mut status = self.lock_status();
+        status.state = SearchCdcRuntimeState::Stopped;
+    }
+
+    fn lock_status(&self) -> MutexGuard<'_, SearchCdcStatus> {
+        match self.inner.lock() {
+            Ok(status) => status,
+            Err(poisoned) => poisoned.into_inner(),
+        }
+    }
+}
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct SearchCdcNotification {
@@ -145,6 +262,11 @@ impl SearchCdcBatcher {
     pub fn is_empty(&self) -> bool {
         self.notifications.is_empty()
     }
+
+    #[must_use]
+    pub fn len(&self) -> usize {
+        self.notifications.len()
+    }
 }
 
 #[derive(Debug)]
@@ -208,6 +330,16 @@ where
         }
     }
 
+    #[must_use]
+    pub fn pending_count(&self) -> usize {
+        self.batcher.len()
+    }
+
+    #[must_use]
+    pub fn flush_window(&self) -> Duration {
+        self.batcher.config.flush_window
+    }
+
     /// Flush buffered CDC notifications through targeted search indexing.
     ///
     /// # Errors
@@ -228,6 +360,107 @@ where
             .collect::<Vec<_>>();
         Ok(index_records(&self.pool, self.client, &self.search_config, &records).await?)
     }
+}
+
+/// Run the search CDC listener until shutdown, recording runtime status as it goes.
+///
+/// # Errors
+///
+/// Returns [`SearchCdcError`] when the listener cannot connect or subscribe
+/// during startup. Per-notification and per-batch runtime errors are recorded
+/// in `status` and do not stop the daemon.
+pub async fn run_search_cdc_listener<C>(
+    database_url: String,
+    pool: PgPool,
+    client: Arc<C>,
+    search_config: SearchSyncConfig,
+    batch_config: SearchCdcBatchConfig,
+    mut shutdown: broadcast::Receiver<()>,
+    status: SearchCdcRuntimeStatus,
+) -> Result<(), SearchCdcError>
+where
+    C: SearchIndexClient + Sync + Send + 'static,
+{
+    let mut listener = SearchCdcListener::connect(
+        &database_url,
+        pool,
+        client.as_ref(),
+        search_config,
+        batch_config,
+    )
+    .await?;
+    status.mark_running();
+
+    loop {
+        tokio::select! {
+            biased;
+            shutdown_result = shutdown.recv() => {
+                match shutdown_result {
+                    Ok(()) | Err(broadcast::error::RecvError::Closed) => {
+                        flush_pending(&mut listener, &status).await;
+                        status.mark_stopped();
+                        return Ok(());
+                    }
+                    Err(broadcast::error::RecvError::Lagged(skipped)) => {
+                        status.record_error(&format!("search CDC shutdown receiver lagged by {skipped} messages"));
+                        flush_pending(&mut listener, &status).await;
+                        status.mark_stopped();
+                        return Ok(());
+                    }
+                }
+            }
+            result = listener.receive_once(Instant::now()) => {
+                status.record_notification(listener.pending_count());
+                match result {
+                    Ok(Some(report)) => {
+                        status.record_batch(batch_report(&report, Duration::ZERO));
+                    }
+                    Ok(None) => {}
+                    Err(error) => {
+                        tracing::error!(%error, "search CDC listener runtime error");
+                        status.record_error(&error_message(&error));
+                    }
+                }
+            }
+        }
+    }
+}
+
+async fn flush_pending<C>(listener: &mut SearchCdcListener<'_, C>, status: &SearchCdcRuntimeStatus)
+where
+    C: SearchIndexClient + Sync,
+{
+    if listener.pending_count() == 0 {
+        return;
+    }
+    let started = Instant::now();
+    match listener.flush().await {
+        Ok(report) => status.record_batch(batch_report(&report, started.elapsed())),
+        Err(error) => {
+            tracing::error!(%error, "search CDC listener failed to flush pending batch");
+            status.record_error(&error_message(&error));
+        }
+    }
+}
+
+fn batch_report(report: &SearchSyncReport, duration: Duration) -> SearchCdcBatchReport {
+    SearchCdcBatchReport {
+        indexed: report.indexed,
+        deleted: report.deleted,
+        failed: report.failed,
+        duration_ms: u64::try_from(duration.as_millis()).unwrap_or(u64::MAX),
+    }
+}
+
+fn error_message(error: &SearchCdcError) -> String {
+    let mut message = error.to_string();
+    let mut source = error.source();
+    while let Some(error) = source {
+        message.push_str(": ");
+        message.push_str(&error.to_string());
+        source = error.source();
+    }
+    message
 }
 
 #[derive(Debug, Error)]

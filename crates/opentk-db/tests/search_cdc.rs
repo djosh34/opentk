@@ -1,19 +1,62 @@
 use std::{
-    sync::Mutex,
+    sync::{Arc, Mutex},
     time::{Duration, Instant},
 };
 
 use opentk_db::{
     search_cdc::{
-        SearchCdcBatchConfig, SearchCdcBatcher, SearchCdcError, SearchCdcListener,
-        SearchCdcNotification, SEARCH_CDC_CHANNEL,
+        run_search_cdc_listener, SearchCdcBatchConfig, SearchCdcBatchReport, SearchCdcBatcher,
+        SearchCdcError, SearchCdcListener, SearchCdcNotification, SearchCdcRuntimeState,
+        SearchCdcRuntimeStatus, SEARCH_CDC_CHANNEL,
     },
     search_sync::SearchSyncConfig,
 };
 use opentk_search::{SearchIndexClient, SearchIndexError, SearchIndexOperation, SearchIndexSchema};
 use sqlx::{postgres::PgPoolOptions, PgPool};
+use tokio::sync::broadcast;
 use tokio::time::timeout;
 use uuid::Uuid;
+
+#[test]
+fn runtime_status_starts_without_activity() {
+    let status = SearchCdcRuntimeStatus::new().snapshot();
+
+    assert_eq!(status.state, SearchCdcRuntimeState::Starting);
+    assert_eq!(status.last_notification_at, None);
+    assert_eq!(status.pending_count, 0);
+    assert_eq!(status.last_batch, None);
+    assert_eq!(status.last_error, None);
+}
+
+#[test]
+fn runtime_status_records_transitions() {
+    let status = SearchCdcRuntimeStatus::new();
+
+    status.mark_running();
+    status.record_notification(2);
+    status.record_batch(SearchCdcBatchReport {
+        indexed: 42,
+        deleted: 3,
+        failed: 0,
+        duration_ms: 1500,
+    });
+    status.record_error(&"fixture error");
+
+    let snapshot = status.snapshot();
+    assert_eq!(snapshot.state, SearchCdcRuntimeState::Degraded);
+    assert!(snapshot.last_notification_at.is_some());
+    assert_eq!(snapshot.pending_count, 0);
+    assert_eq!(
+        snapshot.last_batch,
+        Some(SearchCdcBatchReport {
+            indexed: 42,
+            deleted: 3,
+            failed: 0,
+            duration_ms: 1500,
+        })
+    );
+    assert_eq!(snapshot.last_error.as_deref(), Some("fixture error"));
+}
 
 #[test]
 fn notification_payload_parses_into_typed_change() {
@@ -180,8 +223,148 @@ async fn listener_receives_postgres_notification_and_flushes(
     Ok(())
 }
 
+#[tokio::test]
+async fn daemon_records_batch_and_stops_after_shutdown() -> Result<(), Box<dyn std::error::Error>> {
+    let (pool, database_url) = migrated_pool("search_cdc_daemon_success").await?;
+    let source_id = Uuid::parse_str("11111111-1111-4111-8111-111111111111").expect("valid uuid");
+    let client = Arc::new(MemoryIndexClient::default());
+    let status = SearchCdcRuntimeStatus::new();
+    let (shutdown_tx, shutdown_rx) = broadcast::channel(1);
+    let task_status = status.clone();
+    let task = tokio::spawn(run_search_cdc_listener(
+        database_url,
+        pool.clone(),
+        client.clone(),
+        search_sync_config(),
+        SearchCdcBatchConfig {
+            flush_window: Duration::from_secs(1),
+            max_unique_records: 1,
+        },
+        shutdown_rx,
+        task_status,
+    ));
+
+    wait_for_state(&status, SearchCdcRuntimeState::Running).await;
+    insert_sync_entity(&pool, source_id, 43, true).await?;
+    wait_for_last_batch(&status).await;
+    shutdown_tx.send(())?;
+    task.await??;
+
+    let snapshot = status.snapshot();
+    assert_eq!(snapshot.state, SearchCdcRuntimeState::Stopped);
+    assert_eq!(snapshot.last_batch.expect("last batch").deleted, 1);
+    assert_eq!(
+        client.operations(),
+        vec![SearchIndexOperation::Delete(format!(
+            "Document:{source_id}"
+        ))]
+    );
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn daemon_records_indexing_error_and_keeps_running_until_shutdown(
+) -> Result<(), Box<dyn std::error::Error>> {
+    let (pool, database_url) = migrated_pool("search_cdc_daemon_error").await?;
+    let source_id = Uuid::parse_str("11111111-1111-4111-8111-111111111111").expect("valid uuid");
+    let client = Arc::new(FailingIndexClient);
+    let status = SearchCdcRuntimeStatus::new();
+    let (shutdown_tx, shutdown_rx) = broadcast::channel(1);
+    let task_status = status.clone();
+    let task = tokio::spawn(run_search_cdc_listener(
+        database_url,
+        pool.clone(),
+        client,
+        search_sync_config(),
+        SearchCdcBatchConfig {
+            flush_window: Duration::from_secs(1),
+            max_unique_records: 1,
+        },
+        shutdown_rx,
+        task_status,
+    ));
+
+    wait_for_state(&status, SearchCdcRuntimeState::Running).await;
+    insert_sync_entity(&pool, source_id, 44, true).await?;
+    wait_for_state(&status, SearchCdcRuntimeState::Degraded).await;
+    assert!(status
+        .snapshot()
+        .last_error
+        .as_deref()
+        .is_some_and(|error| error.contains("fixture indexing failure")));
+    assert!(
+        !task.is_finished(),
+        "daemon must keep listening after batch errors"
+    );
+    shutdown_tx.send(())?;
+    task.await??;
+
+    Ok(())
+}
+
 fn notification(source_id: Uuid, latest_skiptoken: i64, deleted: bool) -> SearchCdcNotification {
     SearchCdcNotification::new("Document".to_owned(), source_id, latest_skiptoken, deleted)
+}
+
+fn search_sync_config() -> SearchSyncConfig {
+    SearchSyncConfig {
+        index_name: "opentk_entities".to_owned(),
+        categories: vec!["Document".to_owned()],
+        batch_size: 10,
+        retry_limit: 3,
+    }
+}
+
+async fn insert_sync_entity(
+    pool: &PgPool,
+    source_id: Uuid,
+    latest_skiptoken: i64,
+    deleted: bool,
+) -> Result<(), sqlx::Error> {
+    sqlx::query(
+        "INSERT INTO sync_entity (
+            source_category,
+            source_id,
+            latest_skiptoken,
+            deleted,
+            source_updated_at,
+            atom_updated_at
+         )
+         VALUES ('Document', $1, $2, $3, '2026-04-26T00:00:00Z', '2026-04-26T01:00:00Z')",
+    )
+    .bind(source_id)
+    .bind(latest_skiptoken)
+    .bind(deleted)
+    .execute(pool)
+    .await?;
+    Ok(())
+}
+
+async fn wait_for_state(status: &SearchCdcRuntimeStatus, state: SearchCdcRuntimeState) {
+    timeout(Duration::from_secs(3), async {
+        loop {
+            if status.snapshot().state == state {
+                return;
+            }
+            tokio::time::sleep(Duration::from_millis(20)).await;
+        }
+    })
+    .await
+    .expect("status reaches expected state");
+}
+
+async fn wait_for_last_batch(status: &SearchCdcRuntimeStatus) {
+    timeout(Duration::from_secs(3), async {
+        loop {
+            if status.snapshot().last_batch.is_some() {
+                return;
+            }
+            tokio::time::sleep(Duration::from_millis(20)).await;
+        }
+    })
+    .await
+    .expect("daemon records a batch");
 }
 
 async fn migrated_pool(test_name: &str) -> Result<(PgPool, String), sqlx::Error> {
@@ -247,5 +430,23 @@ impl SearchIndexClient for MemoryIndexClient {
             .expect("operations mutex")
             .extend_from_slice(operations);
         Ok(())
+    }
+}
+
+struct FailingIndexClient;
+
+impl SearchIndexClient for FailingIndexClient {
+    async fn reset_index(&self, _schema: &SearchIndexSchema) -> Result<(), SearchIndexError> {
+        Ok(())
+    }
+
+    async fn apply_batch(
+        &self,
+        _operations: &[SearchIndexOperation],
+    ) -> Result<(), SearchIndexError> {
+        Err(SearchIndexError::Http {
+            status: Some(503),
+            message: "fixture indexing failure".to_owned(),
+        })
     }
 }
