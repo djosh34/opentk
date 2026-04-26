@@ -1,5 +1,7 @@
 -- Generated from opentk-db::postgres_schema.
 
+DROP TABLE IF EXISTS "document_content" CASCADE;
+DROP TABLE IF EXISTS "document_asset" CASCADE;
 DROP TABLE IF EXISTS "zaal" CASCADE;
 DROP TABLE IF EXISTS "zaak_actor__commissie" CASCADE;
 DROP TABLE IF EXISTS "zaak_actor__fractie" CASCADE;

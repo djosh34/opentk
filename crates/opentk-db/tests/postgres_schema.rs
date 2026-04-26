@@ -251,6 +251,210 @@ fn required_direct_query_paths_are_indexed() {
 }
 
 #[test]
+fn document_asset_schema_preserves_upstream_link_metadata_and_retrieval_state() {
+    let schema = postgres_schema::schema();
+    let asset = table(&schema.tables, "document_asset");
+
+    assert_eq!(asset.kind, TableKind::DocumentAsset);
+    assert_columns(
+        asset,
+        &[
+            ("id", SqlType::BigIdentity, false),
+            ("document_source_category", SqlType::Text, false),
+            ("document_source_id", SqlType::Uuid, false),
+            ("asset_url", SqlType::Text, false),
+            ("upstream_url", SqlType::Text, false),
+            ("upstream_content_type", SqlType::Text, true),
+            ("upstream_content_length", SqlType::BigInteger, true),
+            ("upstream_last_modified_at", SqlType::TimestampTz, true),
+            ("retrieval_status", SqlType::Text, false),
+            ("retrieval_error", SqlType::Text, true),
+            ("retrieved_at", SqlType::TimestampTz, true),
+            ("created_at", SqlType::TimestampTz, false),
+            ("updated_at", SqlType::TimestampTz, false),
+        ],
+    );
+    assert_eq!(asset.primary_key, ["id"]);
+    assert!(
+        asset.foreign_keys.iter().any(|fk| {
+            fk.referenced_table == "document"
+                && fk.columns == ["document_source_category", "document_source_id"]
+                && fk.referenced_columns == ["source_category", "source_id"]
+        }),
+        "document_asset must cascade from its owning document"
+    );
+    assert!(
+        asset.unique_constraints.iter().any(|unique| unique.columns
+            == [
+                "document_source_category",
+                "document_source_id",
+                "asset_url"
+            ]),
+        "document_asset must deduplicate asset URLs per document"
+    );
+
+    let purposes: HashSet<_> = schema
+        .indexes
+        .iter()
+        .map(|index| {
+            (
+                index.table_name.as_str(),
+                index.purpose,
+                index.columns.as_slice(),
+            )
+        })
+        .collect();
+
+    assert!(purposes.contains(&(
+        "document_asset",
+        IndexPurpose::AssetOwner,
+        [
+            "document_source_category".to_owned(),
+            "document_source_id".to_owned()
+        ]
+        .as_slice(),
+    )));
+    assert!(purposes.contains(&(
+        "document_asset",
+        IndexPurpose::AssetUrl,
+        ["asset_url".to_owned()].as_slice(),
+    )));
+    assert!(purposes.contains(&(
+        "document_asset",
+        IndexPurpose::AssetUrl,
+        ["upstream_url".to_owned()].as_slice(),
+    )));
+}
+
+#[test]
+fn document_content_schema_stores_official_source_selection_and_extraction_provenance() {
+    let schema = postgres_schema::schema();
+    let content = table(&schema.tables, "document_content");
+
+    assert_eq!(content.kind, TableKind::DocumentContent);
+    assert_columns(
+        content,
+        &[
+            ("id", SqlType::BigIdentity, false),
+            ("document_asset_id", SqlType::BigInteger, false),
+            ("document_source_category", SqlType::Text, false),
+            ("document_source_id", SqlType::Uuid, false),
+            ("selected_source_url", SqlType::Text, false),
+            ("selected_source_content_type", SqlType::Text, true),
+            ("selected_source_content_length", SqlType::BigInteger, true),
+            ("official_source", SqlType::Boolean, false),
+            ("source_rank", SqlType::Integer, false),
+            ("extraction_status", SqlType::Text, false),
+            ("validation_status", SqlType::Text, false),
+            ("extraction_tool", SqlType::Text, false),
+            ("extraction_tool_version", SqlType::Text, false),
+            ("content_hash", SqlType::Text, false),
+            ("extracted_text", SqlType::Text, true),
+            ("extracted_html", SqlType::Text, true),
+            ("extracted_at", SqlType::TimestampTz, false),
+            ("created_at", SqlType::TimestampTz, false),
+            ("updated_at", SqlType::TimestampTz, false),
+        ],
+    );
+    assert_eq!(content.primary_key, ["id"]);
+    assert!(
+        content.foreign_keys.iter().any(|fk| {
+            fk.referenced_table == "document_asset"
+                && fk.columns == ["document_asset_id"]
+                && fk.referenced_columns == ["id"]
+        }),
+        "document_content must cascade from the asset extraction source"
+    );
+    assert!(
+        content.foreign_keys.iter().any(|fk| {
+            fk.referenced_table == "document"
+                && fk.columns == ["document_source_category", "document_source_id"]
+                && fk.referenced_columns == ["source_category", "source_id"]
+        }),
+        "document_content must keep a direct document owner path"
+    );
+    assert!(
+        content
+            .unique_constraints
+            .iter()
+            .any(|unique| unique.columns == ["document_asset_id", "content_hash"]),
+        "document_content must deduplicate extracted bodies per asset hash"
+    );
+
+    let purposes: HashSet<_> = schema
+        .indexes
+        .iter()
+        .map(|index| {
+            (
+                index.table_name.as_str(),
+                index.purpose,
+                index.columns.as_slice(),
+            )
+        })
+        .collect();
+
+    assert!(purposes.contains(&(
+        "document_content",
+        IndexPurpose::DocumentContentOwner,
+        [
+            "document_source_category".to_owned(),
+            "document_source_id".to_owned()
+        ]
+        .as_slice(),
+    )));
+    assert!(purposes.contains(&(
+        "document_content",
+        IndexPurpose::ForeignKeyPath,
+        ["document_asset_id".to_owned()].as_slice(),
+    )));
+    assert!(purposes.contains(&(
+        "document_content",
+        IndexPurpose::OfficialContentSource,
+        ["official_source".to_owned(), "source_rank".to_owned()].as_slice(),
+    )));
+}
+
+#[test]
+fn document_content_schema_constrains_status_values_and_body_consistency() {
+    let schema = postgres_schema::schema();
+    let asset = table(&schema.tables, "document_asset");
+    let content = table(&schema.tables, "document_content");
+
+    assert!(
+        asset.check_constraints.iter().any(|constraint| {
+            constraint.name == "document_asset_retrieval_status_check"
+                && constraint.expression
+                    == "retrieval_status IN ('pending', 'fetched', 'not_found', 'unsupported_content_type', 'failed')"
+        }),
+        "document_asset must constrain retrieval_status to known states"
+    );
+    assert!(
+        content.check_constraints.iter().any(|constraint| {
+            constraint.name == "document_content_extraction_status_check"
+                && constraint.expression
+                    == "extraction_status IN ('pending', 'extracted', 'empty', 'failed')"
+        }),
+        "document_content must constrain extraction_status to known states"
+    );
+    assert!(
+        content.check_constraints.iter().any(|constraint| {
+            constraint.name == "document_content_validation_status_check"
+                && constraint.expression
+                    == "validation_status IN ('unverified', 'valid', 'invalid')"
+        }),
+        "document_content must constrain validation_status to known states"
+    );
+    assert!(
+        content.check_constraints.iter().any(|constraint| {
+            constraint.name == "document_content_extracted_body_check"
+                && constraint.expression
+                    == "extracted_text IS NOT NULL OR extracted_html IS NOT NULL"
+        }),
+        "document_content must reject rows without extracted text or HTML"
+    );
+}
+
+#[test]
 fn checked_in_migrations_match_schema_spec() {
     let schema = postgres_schema::schema();
     let up_sql = include_str!("../../../migrations/20260426000000_complete_sync_schema.up.sql");

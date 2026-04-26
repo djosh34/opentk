@@ -16,22 +16,36 @@ Consequences:
 - The parser must handle Atom and Tweede Kamer XML namespaces explicitly.
 - Parser fixtures must cover normal entries, deleted entries, references, repeated references, enclosures, and caught-up resume feeds.
 
-## D002: Binary document storage
+## D002: Document asset and extracted content storage
 
 Status: accepted
 
-Decision: Store links and metadata for PDF, DOC, DOCX, RTF, ODT, and similar binary document assets. Store HTML assets in the database when encountered.
+Decision: Keep official document metadata and upstream links in the core
+`document` table, and store retrieval/extraction state in PostgreSQL tables
+owned by the storage layer. Prefer official government text/HTML sources when
+available, and store extracted text/HTML with provenance, content hash, source
+metadata, extraction timestamp, official-source indicator, and validation
+status.
 
 Rationale:
 
-- The immediate goal is a fast API over metadata and relationships.
-- Binary document storage adds disk pressure and operational complexity.
-- HTML content is small enough and queryable enough to justify storing early.
+- Upstream document links and metadata must remain queryable even when
+  retrieval or extraction fails.
+- Official text/HTML is more authoritative than generated extraction output
+  and needs explicit ranking.
+- Storing extracted text/HTML in PostgreSQL makes later document APIs and
+  search indexing deterministic without reparsing source assets.
+- Storing extracted bodies avoids committing to binary blob retention while
+  still preserving extraction provenance.
 
 Consequences:
 
-- API asset endpoints return upstream links for binary documents.
-- A later phase can add binary download or text extraction while preserving the core entity model.
+- `document_asset` tracks fetchable/upstream URLs, upstream content metadata,
+  retrieval status, errors, and timestamps.
+- `document_content` tracks selected source metadata, official-source ranking,
+  extraction tool/version, content hash, text/HTML bodies, extraction time, and
+  validation status.
+- Status and body consistency are enforced by PostgreSQL `CHECK` constraints.
 
 ## D003: Database choice
 

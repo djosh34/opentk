@@ -47,6 +47,46 @@ canonical source metadata columns:
 - `content_length`
 - `enclosure_url`
 
+Document extraction storage is separate from the generated official
+`document` entity table. The main `document` row keeps the upstream official
+metadata; retrieval and extracted body state live in storage-owned tables.
+
+`document_asset` stores one fetchable asset/source URL for a document:
+
+- document owner: `document_source_category`, `document_source_id`
+- source links: `asset_url`, `upstream_url`
+- upstream metadata: `upstream_content_type`, `upstream_content_length`,
+  `upstream_last_modified_at`
+- retrieval state: `retrieval_status`, `retrieval_error`, `retrieved_at`
+- storage timestamps: `created_at`, `updated_at`
+
+`retrieval_status` is constrained to `pending`, `fetched`, `not_found`,
+`unsupported_content_type`, or `failed`. Asset rows foreign-key to
+`document(source_category, source_id)` and are unique per
+`(document_source_category, document_source_id, asset_url)`.
+
+`document_content` stores official text/HTML source selection and extracted
+content:
+
+- source path: `document_asset_id`, `document_source_category`,
+  `document_source_id`
+- selected source metadata: `selected_source_url`,
+  `selected_source_content_type`, `selected_source_content_length`,
+  `official_source`, `source_rank`
+- extraction provenance: `extraction_status`, `validation_status`,
+  `extraction_tool`, `extraction_tool_version`, `content_hash`,
+  `extracted_at`
+- extracted bodies: `extracted_text`, `extracted_html`
+- storage timestamps: `created_at`, `updated_at`
+
+Official government text/HTML sources are represented by `official_source`
+and ordered with `source_rank` so readers can prefer those rows when available.
+`extraction_status` is constrained to `pending`, `extracted`, `empty`, or
+`failed`; `validation_status` is constrained to `unverified`, `valid`, or
+`invalid`. A row must contain at least one of `extracted_text` or
+`extracted_html`, and `(document_asset_id, content_hash)` prevents duplicate
+extracted bodies for the same asset.
+
 ## Sync Page Writes
 
 `opentk-db::sync_writer` writes one SyncFeed page per transaction. It upserts

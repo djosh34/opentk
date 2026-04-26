@@ -51,6 +51,51 @@ async fn sqlx_migrations_run_and_revert_against_fresh_postgres_schema() -> Resul
         "document.document_nummer lookup index must be created"
     );
 
+    let document_asset =
+        sqlx::query_scalar::<_, Option<String>>("SELECT to_regclass('document_asset')::text")
+            .fetch_one(&pool)
+            .await?;
+    assert_eq!(document_asset.as_deref(), Some("document_asset"));
+
+    let document_content =
+        sqlx::query_scalar::<_, Option<String>>("SELECT to_regclass('document_content')::text")
+            .fetch_one(&pool)
+            .await?;
+    assert_eq!(document_content.as_deref(), Some("document_content"));
+
+    let document_asset_url_index_count: i64 = sqlx::query(
+        "SELECT count(*)::bigint AS count
+         FROM pg_indexes
+         WHERE schemaname = $1
+           AND tablename = 'document_asset'
+           AND indexdef LIKE '%asset_url%'",
+    )
+    .bind(&schema_name)
+    .fetch_one(&pool)
+    .await?
+    .get("count");
+    assert!(
+        document_asset_url_index_count > 0,
+        "document_asset.asset_url lookup index must be created"
+    );
+
+    let document_content_owner_index_count: i64 = sqlx::query(
+        "SELECT count(*)::bigint AS count
+         FROM pg_indexes
+         WHERE schemaname = $1
+           AND tablename = 'document_content'
+           AND indexdef LIKE '%document_source_category%'
+           AND indexdef LIKE '%document_source_id%'",
+    )
+    .bind(&schema_name)
+    .fetch_one(&pool)
+    .await?
+    .get("count");
+    assert!(
+        document_content_owner_index_count > 0,
+        "document_content document owner lookup index must be created"
+    );
+
     sqlx::migrate!("../../migrations").undo(&pool, 0).await?;
 
     let reverted_sync_entity =

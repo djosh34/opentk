@@ -1,6 +1,6 @@
 # Done Tasks Summary
 
-Generated: Sun Apr 26 03:37:02 CEST 2026
+Generated: Sun Apr 26 03:50:51 CEST 2026
 
 # Task `/home/joshazimullah.linux/work_mounts/patroni_rewrite/opentk/.ralph/tasks/bugs/bug-remove-swallowed-env-and-duration-errors.md`
 
@@ -106,6 +106,17 @@ Must use tdd skill to complete
 
 ```
 ## Task: Story 3 Task 3 - Deep Verify HTTP API <status>done</status> <passes>true</passes>
+
+<description>
+Must use tdd skill to complete
+```
+
+==============
+
+# Task `/home/joshazimullah.linux/work_mounts/patroni_rewrite/opentk/.ralph/tasks/story-4-document-text-support/task-1-design-document-content-schema.md`
+
+```
+## Task: Story 4 Task 1 - Design Document Content Schema <status>completed</status> <passes>true</passes>
 
 <description>
 Must use tdd skill to complete

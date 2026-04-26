@@ -15,7 +15,7 @@ parse embedded entity XML
 write sync metadata
 write typed entity row
 write relation rows
-write document asset metadata
+write upstream document asset metadata from SyncFeed
 advance category cursor
 commit
 ```
@@ -81,6 +81,29 @@ Every official entity table has:
 The canonical identity is `(source_category, source_id)`. Each typed entity
 table uses that pair as its primary key and foreign-keys it to `sync_entity`.
 
+## Document Assets And Content
+
+Official document rows keep upstream metadata from SyncFeed, including
+download metadata (`content_type`, `content_length`, and `enclosure_url`) when
+the official source exposes an enclosure.
+
+Document retrieval and extraction state is storage-owned:
+
+- `document_asset` preserves fetchable and upstream URLs, upstream content
+  metadata, retrieval status, retrieval error details, and retrieval
+  timestamps.
+- `document_content` stores the selected source URL, official-source ranking,
+  source content metadata, extraction provenance, validation status, content
+  hash, extraction timestamp, and extracted text/HTML.
+
+`document_asset` and `document_content` both keep a direct
+`(document_source_category, document_source_id)` owner path back to
+`document(source_category, source_id)`. `document_content` also links to the
+specific `document_asset` row that produced the extracted body. This keeps the
+source metadata queryable independently from extraction attempts while letting
+readers prefer official text/HTML rows through `official_source` and
+`source_rank`.
+
 ## Relations
 
 Each official relation field has a generated table named:
@@ -126,6 +149,9 @@ queries:
 - relation source endpoints,
 - relation target endpoints,
 - document asset owner lookups,
+- document asset URL lookups,
+- document extracted-content owner lookups,
+- official content source ranking,
 - foreign-key paths.
 
 ## Migration Tests

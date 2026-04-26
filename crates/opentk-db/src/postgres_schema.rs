@@ -24,6 +24,7 @@ pub struct TableSpec {
     pub primary_key: Vec<String>,
     pub foreign_keys: Vec<ForeignKeySpec>,
     pub unique_constraints: Vec<UniqueConstraintSpec>,
+    pub check_constraints: Vec<CheckConstraintSpec>,
 }
 
 impl TableSpec {
@@ -48,6 +49,8 @@ pub enum TableKind {
         category: &'static str,
         field_name: &'static str,
     },
+    DocumentAsset,
+    DocumentContent,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -90,6 +93,12 @@ pub struct UniqueConstraintSpec {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
+pub struct CheckConstraintSpec {
+    pub name: String,
+    pub expression: String,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct IndexSpec {
     pub name: String,
     pub table_name: String,
@@ -108,6 +117,9 @@ pub enum IndexPurpose {
     RelationSource,
     RelationTarget,
     AssetOwner,
+    AssetUrl,
+    DocumentContentOwner,
+    OfficialContentSource,
     ForeignKeyPath,
 }
 
@@ -189,7 +201,53 @@ pub fn schema() -> SchemaSpec {
         }
     }
 
+    append_document_content_storage(&mut tables, &mut indexes);
+
     SchemaSpec { tables, indexes }
+}
+
+fn append_document_content_storage(tables: &mut Vec<TableSpec>, indexes: &mut Vec<IndexSpec>) {
+    let document_asset = document_asset_table();
+    indexes.push(index(
+        &document_asset.name,
+        &["document_source_category", "document_source_id"],
+        false,
+        IndexPurpose::AssetOwner,
+    ));
+    indexes.push(index(
+        &document_asset.name,
+        &["asset_url"],
+        false,
+        IndexPurpose::AssetUrl,
+    ));
+    indexes.push(index(
+        &document_asset.name,
+        &["upstream_url"],
+        false,
+        IndexPurpose::AssetUrl,
+    ));
+    tables.push(document_asset);
+
+    let document_content = document_content_table();
+    indexes.push(index(
+        &document_content.name,
+        &["document_source_category", "document_source_id"],
+        false,
+        IndexPurpose::DocumentContentOwner,
+    ));
+    indexes.push(index(
+        &document_content.name,
+        &["document_asset_id"],
+        false,
+        IndexPurpose::ForeignKeyPath,
+    ));
+    indexes.push(index(
+        &document_content.name,
+        &["official_source", "source_rank"],
+        false,
+        IndexPurpose::OfficialContentSource,
+    ));
+    tables.push(document_content);
 }
 
 #[must_use]
@@ -258,6 +316,7 @@ fn sync_category_table() -> TableSpec {
         primary_key: names(&["source_category"]),
         foreign_keys: Vec::new(),
         unique_constraints: Vec::new(),
+        check_constraints: Vec::new(),
     }
 }
 
@@ -278,6 +337,7 @@ fn ingest_error_table() -> TableSpec {
         primary_key: names(&["id"]),
         foreign_keys: Vec::new(),
         unique_constraints: Vec::new(),
+        check_constraints: Vec::new(),
     }
 }
 
@@ -289,6 +349,7 @@ fn sync_entity_table() -> TableSpec {
         primary_key: identity_columns(),
         foreign_keys: Vec::new(),
         unique_constraints: Vec::new(),
+        check_constraints: Vec::new(),
     }
 }
 
@@ -339,6 +400,7 @@ fn entity_table(entity: &'static EntityType) -> TableSpec {
             on_delete: ForeignKeyAction::Cascade,
         }],
         unique_constraints: Vec::new(),
+        check_constraints: Vec::new(),
     }
 }
 
@@ -363,6 +425,7 @@ fn repeated_scalar_table(entity: &'static EntityType, field: &'static Field) -> 
             on_delete: ForeignKeyAction::Cascade,
         }],
         unique_constraints: Vec::new(),
+        check_constraints: Vec::new(),
     }
 }
 
@@ -412,6 +475,109 @@ fn relation_table(entity: &'static EntityType, field: &'static Field) -> TableSp
             },
         ],
         unique_constraints,
+        check_constraints: Vec::new(),
+    }
+}
+
+fn document_asset_table() -> TableSpec {
+    TableSpec {
+        name: "document_asset".to_owned(),
+        kind: TableKind::DocumentAsset,
+        columns: columns(&[
+            ("id", SqlType::BigIdentity, false),
+            ("document_source_category", SqlType::Text, false),
+            ("document_source_id", SqlType::Uuid, false),
+            ("asset_url", SqlType::Text, false),
+            ("upstream_url", SqlType::Text, false),
+            ("upstream_content_type", SqlType::Text, true),
+            ("upstream_content_length", SqlType::BigInteger, true),
+            ("upstream_last_modified_at", SqlType::TimestampTz, true),
+            ("retrieval_status", SqlType::Text, false),
+            ("retrieval_error", SqlType::Text, true),
+            ("retrieved_at", SqlType::TimestampTz, true),
+            ("created_at", SqlType::TimestampTz, false),
+            ("updated_at", SqlType::TimestampTz, false),
+        ]),
+        primary_key: names(&["id"]),
+        foreign_keys: vec![ForeignKeySpec {
+            columns: names(&["document_source_category", "document_source_id"]),
+            referenced_table: "document".to_owned(),
+            referenced_columns: identity_columns(),
+            on_delete: ForeignKeyAction::Cascade,
+        }],
+        unique_constraints: vec![UniqueConstraintSpec {
+            columns: names(&[
+                "document_source_category",
+                "document_source_id",
+                "asset_url",
+            ]),
+        }],
+        check_constraints: vec![CheckConstraintSpec {
+            name: "document_asset_retrieval_status_check".to_owned(),
+            expression: "retrieval_status IN ('pending', 'fetched', 'not_found', 'unsupported_content_type', 'failed')"
+                .to_owned(),
+        }],
+    }
+}
+
+fn document_content_table() -> TableSpec {
+    TableSpec {
+        name: "document_content".to_owned(),
+        kind: TableKind::DocumentContent,
+        columns: columns(&[
+            ("id", SqlType::BigIdentity, false),
+            ("document_asset_id", SqlType::BigInteger, false),
+            ("document_source_category", SqlType::Text, false),
+            ("document_source_id", SqlType::Uuid, false),
+            ("selected_source_url", SqlType::Text, false),
+            ("selected_source_content_type", SqlType::Text, true),
+            ("selected_source_content_length", SqlType::BigInteger, true),
+            ("official_source", SqlType::Boolean, false),
+            ("source_rank", SqlType::Integer, false),
+            ("extraction_status", SqlType::Text, false),
+            ("validation_status", SqlType::Text, false),
+            ("extraction_tool", SqlType::Text, false),
+            ("extraction_tool_version", SqlType::Text, false),
+            ("content_hash", SqlType::Text, false),
+            ("extracted_text", SqlType::Text, true),
+            ("extracted_html", SqlType::Text, true),
+            ("extracted_at", SqlType::TimestampTz, false),
+            ("created_at", SqlType::TimestampTz, false),
+            ("updated_at", SqlType::TimestampTz, false),
+        ]),
+        primary_key: names(&["id"]),
+        foreign_keys: vec![
+            ForeignKeySpec {
+                columns: names(&["document_asset_id"]),
+                referenced_table: "document_asset".to_owned(),
+                referenced_columns: names(&["id"]),
+                on_delete: ForeignKeyAction::Cascade,
+            },
+            ForeignKeySpec {
+                columns: names(&["document_source_category", "document_source_id"]),
+                referenced_table: "document".to_owned(),
+                referenced_columns: identity_columns(),
+                on_delete: ForeignKeyAction::Cascade,
+            },
+        ],
+        unique_constraints: vec![UniqueConstraintSpec {
+            columns: names(&["document_asset_id", "content_hash"]),
+        }],
+        check_constraints: vec![
+            CheckConstraintSpec {
+                name: "document_content_extraction_status_check".to_owned(),
+                expression: "extraction_status IN ('pending', 'extracted', 'empty', 'failed')"
+                    .to_owned(),
+            },
+            CheckConstraintSpec {
+                name: "document_content_validation_status_check".to_owned(),
+                expression: "validation_status IN ('unverified', 'valid', 'invalid')".to_owned(),
+            },
+            CheckConstraintSpec {
+                name: "document_content_extracted_body_check".to_owned(),
+                expression: "extracted_text IS NOT NULL OR extracted_html IS NOT NULL".to_owned(),
+            },
+        ],
     }
 }
 
@@ -556,6 +722,14 @@ fn render_create_table(sql: &mut String, table: &TableSpec) {
         clauses.push(format!(
             "    UNIQUE ({})",
             ident_list(&unique_constraint.columns)
+        ));
+    }
+
+    for check_constraint in &table.check_constraints {
+        clauses.push(format!(
+            "    CONSTRAINT {} CHECK ({})",
+            ident(&check_constraint.name),
+            check_constraint.expression
         ));
     }
 

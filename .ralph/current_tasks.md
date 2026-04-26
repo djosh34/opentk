@@ -1,17 +1,6 @@
 # Current Tasks Summary
 
-Generated: Sun Apr 26 03:37:02 CEST 2026
-
-# Task `/home/joshazimullah.linux/work_mounts/patroni_rewrite/opentk/.ralph/tasks/story-4-document-text-support/task-1-design-document-content-schema.md`
-
-```
-## Task: Story 4 Task 1 - Design Document Content Schema <status>not_started</status> <passes>false</passes>
-
-<description>
-Must use tdd skill to complete
-```
-
-==============
+Generated: Sun Apr 26 03:50:51 CEST 2026
 
 # Task `/home/joshazimullah.linux/work_mounts/patroni_rewrite/opentk/.ralph/tasks/story-4-document-text-support/task-2-fetch-and-classify-document-assets.md`
 
