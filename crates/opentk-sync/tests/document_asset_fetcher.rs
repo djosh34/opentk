@@ -74,7 +74,7 @@ async fn html_asset_prefers_official_text_alternative() {
     assert!(selected.official_source);
     assert_eq!(selected.source_rank, 0);
     assert_eq!(
-        report.content_hash.as_deref(),
+        report.source_hash.as_deref(),
         Some("0ae0f2625510c92b5b792ec6103b96fbfa40d52940ace95fe7ce1e02d93a3aa3")
     );
     assert_eq!(
@@ -121,7 +121,7 @@ async fn pdf_and_docx_assets_are_binary_extraction_inputs() {
     assert!(!pdf_selected.official_source);
     assert_eq!(pdf_selected.source_rank, 10);
     assert_eq!(
-        pdf.content_hash.as_deref(),
+        pdf.source_hash.as_deref(),
         Some("9fabd57eb6ff1bc32d6a31eb86c7f493e6ba94b62fa5277f24e8bb4bd7429f0a")
     );
     assert_eq!(
@@ -155,7 +155,7 @@ async fn pdf_and_docx_assets_are_binary_extraction_inputs() {
     assert!(!docx_selected.official_source);
     assert_eq!(docx_selected.source_rank, 10);
     assert_eq!(
-        docx.content_hash.as_deref(),
+        docx.source_hash.as_deref(),
         Some("7af448b8f1053dc147679949648b9145f66d40ce42d359d3b83505737b043e06")
     );
     assert_eq!(
@@ -218,7 +218,7 @@ async fn missing_length_succeeds_but_wrong_expected_length_fails() {
         wrong_length.retrieval_error
     );
     assert!(wrong_length.selected_source.is_none());
-    assert!(wrong_length.content_hash.is_none());
+    assert!(wrong_length.source_hash.is_none());
 
     let wrong_type_url =
         Url::parse(&format!("{}/wrong-type.txt", server.base_url)).expect("wrong-type URL");
@@ -242,7 +242,7 @@ async fn missing_length_succeeds_but_wrong_expected_length_fails() {
         wrong_type.retrieval_error
     );
     assert!(wrong_type.selected_source.is_none());
-    assert!(wrong_type.content_hash.is_none());
+    assert!(wrong_type.source_hash.is_none());
 }
 
 #[tokio::test]
@@ -273,7 +273,7 @@ async fn unsupported_not_found_and_retry_exhaustion_are_status_reports() {
         RetrievalStatus::UnsupportedContentType
     );
     assert!(unsupported.selected_source.is_none());
-    assert!(unsupported.content_hash.is_none());
+    assert!(unsupported.source_hash.is_none());
 
     let not_found = fetcher
         .fetch_one(DocumentAssetFetchRequest {

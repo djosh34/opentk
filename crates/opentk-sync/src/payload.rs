@@ -194,7 +194,7 @@ fn parse_root(
                 parse_empty_child(entity, &mut parsed, &mut counts, &child)?;
             }
             Event::End(end) if local_name(end.name()) == entity.xml_element => break,
-            Event::Text(text) if text.as_ref().iter().all(u8::is_ascii_whitespace) => {}
+            Event::Text(text) if text.iter().all(u8::is_ascii_whitespace) => {}
             Event::Comment(_) | Event::CData(_) => {}
             Event::Eof => {
                 return Err(PayloadParseError::Xml {

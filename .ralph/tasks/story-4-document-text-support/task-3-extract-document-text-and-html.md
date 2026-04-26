@@ -1,4 +1,4 @@
-## Task: Story 4 Task 3 - Extract Document Text and HTML <status>not_started</status> <passes>false</passes>
+## Task: Story 4 Task 3 - Extract Document Text and HTML <status>done</status> <passes>true</passes>
 
 <description>
 Must use tdd skill to complete
@@ -14,17 +14,23 @@ In scope: official text/HTML/transcript source preference, PDF extraction fallba
 
 
 <acceptance_criteria>
-- [ ] Red/green TDD: add golden fixtures for PDF, DOCX, and HTML where expected output mismatches fail, then make them pass.
-- [ ] Official text/HTML/transcript source is selected over PDF/DOCX extraction when both are available.
-- [ ] Stored provenance records whether content came from an official text/HTML source or binary extraction fallback.
-- [ ] Extraction stores exact expected text for supported PDF fixtures.
-- [ ] Extraction stores exact expected text for supported DOCX fixtures.
-- [ ] HTML assets store retrievable HTML and extracted plain text where applicable.
-- [ ] Extraction output is deterministic across repeated runs.
-- [ ] Word mistakes, missing text, ordering errors, encoding errors, and layout artifacts fail tests and record explicit extraction error status.
-- [ ] Extraction provenance includes source hash, output hash, tool/library name, and tool/library version.
-- [ ] `make check` — passes cleanly
-- [ ] `make test` — passes cleanly (default suite; excludes only ultra-long tests moved to `make test-long`)
-- [ ] `make lint` — passes cleanly
-- [ ] If this task impacts ultra-long tests (or their selection): `make test-long` — passes cleanly (ultra-long-only)
+- [x] Red/green TDD: add golden fixtures for PDF, DOCX, and HTML where expected output mismatches fail, then make them pass.
+- [x] Official text/HTML/transcript source is selected over PDF/DOCX extraction when both are available.
+- [x] Stored provenance records whether content came from an official text/HTML source or binary extraction fallback.
+- [x] Extraction stores exact expected text for supported PDF fixtures.
+- [x] Extraction stores exact expected text for supported DOCX fixtures.
+- [x] HTML assets store retrievable HTML and extracted plain text where applicable.
+- [x] Extraction output is deterministic across repeated runs.
+- [x] Word mistakes, missing text, ordering errors, encoding errors, and layout artifacts fail tests and record explicit extraction error status.
+- [x] Extraction provenance includes source hash, output hash, tool/library name, and tool/library version.
+- [x] `make check` — passes cleanly
+- [x] `make test` — passes cleanly (default suite; excludes only ultra-long tests moved to `make test-long`)
+- [x] `make lint` — passes cleanly
+- [x] If this task impacts ultra-long tests (or their selection): `make test-long` — not applicable; task is not story-ending and did not change long-test selection
 </acceptance_criteria>
+
+<plan>
+.ralph/tasks/story-4-document-text-support/task-3-extract-document-text-and-html_plans/document-text-and-html-extraction-plan.md
+</plan>
+
+NOW EXECUTE

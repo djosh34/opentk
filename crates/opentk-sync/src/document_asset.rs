@@ -287,7 +287,7 @@ fn failed_report(
         retrieval_status: RetrievalStatus::Failed,
         retrieval_error: Some(error),
         retrieved_at,
-        content_hash: None,
+        source_hash: None,
         selected_source: None,
         selected_body: None,
         discovered_sources: Vec::new(),
@@ -311,7 +311,7 @@ fn status_report(
         retrieval_status: status,
         retrieval_error: None,
         retrieved_at,
-        content_hash: None,
+        source_hash: None,
         selected_source: None,
         selected_body: None,
         discovered_sources: Vec::new(),
@@ -345,7 +345,7 @@ fn fetched_report_for_response(
         kind,
         source_rank,
     };
-    let content_hash = sha256_hex(&upstream.body);
+    let source_hash = sha256_hex(&upstream.body);
     DocumentAssetFetchReport {
         document_source_category: request.document_source_category,
         document_source_id: request.document_source_id,
@@ -357,7 +357,7 @@ fn fetched_report_for_response(
         retrieval_status: RetrievalStatus::Fetched,
         retrieval_error: None,
         retrieved_at,
-        content_hash: Some(content_hash),
+        source_hash: Some(source_hash),
         selected_source: Some(selected),
         selected_body: Some(upstream.body),
         discovered_sources: Vec::new(),
@@ -391,7 +391,7 @@ fn fetched_report_for_alternative(
         retrieval_status: RetrievalStatus::Fetched,
         retrieval_error: None,
         retrieved_at,
-        content_hash: Some(sha256_hex(&candidate.body)),
+        source_hash: Some(sha256_hex(&candidate.body)),
         selected_source: Some(selected),
         selected_body: Some(candidate.body),
         discovered_sources,
@@ -549,7 +549,7 @@ pub struct DocumentAssetFetchReport {
     pub retrieval_status: RetrievalStatus,
     pub retrieval_error: Option<String>,
     pub retrieved_at: DateTime<Utc>,
-    pub content_hash: Option<String>,
+    pub source_hash: Option<String>,
     pub selected_source: Option<DocumentSelectedSource>,
     pub selected_body: Option<Vec<u8>>,
     pub discovered_sources: Vec<DocumentDiscoveredSource>,

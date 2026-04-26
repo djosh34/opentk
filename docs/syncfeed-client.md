@@ -64,6 +64,13 @@ binary extraction input when available. `fetch_many` applies the configured
 bounded concurrency, and request timeouts are reported as failed retrievals
 with explicit error detail.
 
+`opentk-sync::document_content` is the extraction boundary for selected
+document bodies. It preserves official text/HTML/transcript bodies ahead of
+binary parsing, normalizes text deterministically, stores HTML plus visible
+plain text for HTML inputs, and treats PDF/DOCX extraction as a fixture-gated
+fallback with explicit failure reports for parser errors or exact-output
+mismatches.
+
 ## Complete Sync Runner
 
 `opentk-sync::runner` is the ingestion orchestration boundary. It runs one

@@ -348,7 +348,9 @@ fn document_content_schema_stores_official_source_selection_and_extraction_prove
             ("validation_status", SqlType::Text, false),
             ("extraction_tool", SqlType::Text, false),
             ("extraction_tool_version", SqlType::Text, false),
-            ("content_hash", SqlType::Text, false),
+            ("source_hash", SqlType::Text, false),
+            ("output_hash", SqlType::Text, true),
+            ("extraction_error", SqlType::Text, true),
             ("extracted_text", SqlType::Text, true),
             ("extracted_html", SqlType::Text, true),
             ("extracted_at", SqlType::TimestampTz, false),
@@ -377,8 +379,8 @@ fn document_content_schema_stores_official_source_selection_and_extraction_prove
         content
             .unique_constraints
             .iter()
-            .any(|unique| unique.columns == ["document_asset_id", "content_hash"]),
-        "document_content must deduplicate extracted bodies per asset hash"
+            .any(|unique| unique.columns == ["document_asset_id", "source_hash", "output_hash"]),
+        "document_content must deduplicate extracted bodies per source/output hash"
     );
 
     let purposes: HashSet<_> = schema
@@ -448,9 +450,9 @@ fn document_content_schema_constrains_status_values_and_body_consistency() {
         content.check_constraints.iter().any(|constraint| {
             constraint.name == "document_content_extracted_body_check"
                 && constraint.expression
-                    == "extracted_text IS NOT NULL OR extracted_html IS NOT NULL"
+                    == "(extraction_status = 'failed' AND extraction_error IS NOT NULL) OR (extraction_status <> 'failed' AND (extracted_text IS NOT NULL OR extracted_html IS NOT NULL))"
         }),
-        "document_content must reject rows without extracted text or HTML"
+        "document_content must reject bodyless rows unless they are explicit failures"
     );
 }
 

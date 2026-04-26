@@ -79,8 +79,8 @@ content:
   `selected_source_content_type`, `selected_source_content_length`,
   `official_source`, `source_rank`
 - extraction provenance: `extraction_status`, `validation_status`,
-  `extraction_tool`, `extraction_tool_version`, `content_hash`,
-  `extracted_at`
+  `extraction_tool`, `extraction_tool_version`, `source_hash`, `output_hash`,
+  `extraction_error`, `extracted_at`
 - extracted bodies: `extracted_text`, `extracted_html`
 - storage timestamps: `created_at`, `updated_at`
 
@@ -88,14 +88,17 @@ Official government text/HTML sources are represented by `official_source`
 and ordered with `source_rank` so readers can prefer those rows when available.
 `extraction_status` is constrained to `pending`, `extracted`, `empty`, or
 `failed`; `validation_status` is constrained to `unverified`, `valid`, or
-`invalid`. A row must contain at least one of `extracted_text` or
-`extracted_html`, and `(document_asset_id, content_hash)` prevents duplicate
-extracted bodies for the same asset.
+`invalid`. Successful rows must contain at least one of `extracted_text` or
+`extracted_html`. Bodyless rows are allowed only when
+`extraction_status = 'failed'` and `extraction_error` is present, so parser or
+fixture failures are durable instead of swallowed. `(document_asset_id,
+source_hash, output_hash)` prevents duplicate extraction results for the same
+asset/source/output.
 
 For this stage, `document_content` means a real persisted text or HTML body
 exists. Official text, HTML, XHTML, and transcript sources are inserted with the
-official body in `extracted_text` or `extracted_html`; binary-only PDF/DOCX
-reports do not create bodyless placeholder rows.
+official body in `extracted_text` or `extracted_html`; binary PDF/DOCX rows are
+inserted only after extraction succeeds or fails with explicit provenance.
 
 ## Sync Page Writes
 

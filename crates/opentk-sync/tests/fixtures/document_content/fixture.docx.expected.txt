@@ -1,0 +1,6 @@
+DOCX fixture heading
+
+First paragraph from document XML.
+
+Second paragraph with tabs and
+line breaks.

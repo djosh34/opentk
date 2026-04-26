@@ -12,3 +12,4 @@
 .ralph/tasks/story-3-http-api/task-3-deep-verify-http-api.md
 .ralph/tasks/story-4-document-text-support/task-1-design-document-content-schema.md
 .ralph/tasks/story-4-document-text-support/task-2-fetch-and-classify-document-assets.md
+.ralph/tasks/story-4-document-text-support/task-3-extract-document-text-and-html.md

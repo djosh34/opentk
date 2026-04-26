@@ -538,7 +538,9 @@ fn document_content_table() -> TableSpec {
             ("validation_status", SqlType::Text, false),
             ("extraction_tool", SqlType::Text, false),
             ("extraction_tool_version", SqlType::Text, false),
-            ("content_hash", SqlType::Text, false),
+            ("source_hash", SqlType::Text, false),
+            ("output_hash", SqlType::Text, true),
+            ("extraction_error", SqlType::Text, true),
             ("extracted_text", SqlType::Text, true),
             ("extracted_html", SqlType::Text, true),
             ("extracted_at", SqlType::TimestampTz, false),
@@ -561,7 +563,7 @@ fn document_content_table() -> TableSpec {
             },
         ],
         unique_constraints: vec![UniqueConstraintSpec {
-            columns: names(&["document_asset_id", "content_hash"]),
+            columns: names(&["document_asset_id", "source_hash", "output_hash"]),
         }],
         check_constraints: vec![
             CheckConstraintSpec {
@@ -575,7 +577,7 @@ fn document_content_table() -> TableSpec {
             },
             CheckConstraintSpec {
                 name: "document_content_extracted_body_check".to_owned(),
-                expression: "extracted_text IS NOT NULL OR extracted_html IS NOT NULL".to_owned(),
+                expression: "(extraction_status = 'failed' AND extraction_error IS NOT NULL) OR (extraction_status <> 'failed' AND (extracted_text IS NOT NULL OR extracted_html IS NOT NULL))".to_owned(),
             },
         ],
     }

@@ -1,0 +1,5 @@
+Document heading & entities
+
+First paragraph with Dutch text.
+
+Second paragraph with inline emphasis and spacing.
