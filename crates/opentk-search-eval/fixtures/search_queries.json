@@ -1,0 +1,44 @@
+[
+  {
+    "id": "q-fuzzy-person",
+    "category": "fuzzy_typo",
+    "query": "Fatma Kaija digitalisering",
+    "expected_top": "person-fatima-kaya",
+    "acceptable_results": ["person-fatima-kaya", "doc-2024-35567"]
+  },
+  {
+    "id": "q-exact-document-number",
+    "category": "exact",
+    "query": "35567-12",
+    "expected_top": "doc-2024-35567",
+    "acceptable_results": ["doc-2024-35567"]
+  },
+  {
+    "id": "q-document-text",
+    "category": "document_text",
+    "query": "betaalbare huur stikstofruimte vergunningverlening",
+    "expected_top": "doc-2024-29810",
+    "acceptable_results": ["doc-2024-29810"]
+  },
+  {
+    "id": "q-html-content",
+    "category": "html_content",
+    "query": "CO2-reductie per maatregel voorjaar 2024",
+    "expected_top": "doc-2024-18725",
+    "acceptable_results": ["doc-2024-18725"]
+  },
+  {
+    "id": "q-entity-metadata",
+    "category": "entity_metadata",
+    "query": "commissie EZK technische briefing netcongestie",
+    "expected_top": "dossier-energie-2030",
+    "acceptable_results": ["dossier-energie-2030"]
+  },
+  {
+    "id": "q-mixed",
+    "category": "mixed",
+    "query": "GroenLinks-PvdA algoritmeregister motie",
+    "expected_top": "doc-2024-35567",
+    "acceptable_results": ["doc-2024-35567", "person-fatima-kaya"]
+  }
+]

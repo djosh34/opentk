@@ -1459,6 +1459,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "opentk-search-eval"
+version = "0.1.0"
+dependencies = [
+ "clap",
+ "serde",
+ "serde_json",
+ "thiserror",
+]
+
+[[package]]
 name = "opentk-sync"
 version = "0.1.0"
 dependencies = [

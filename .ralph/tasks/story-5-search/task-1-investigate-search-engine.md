@@ -1,4 +1,4 @@
-## Task: Story 5 Task 1 - Investigate Search Engine With Current Repo State <status>not_started</status> <passes>false</passes>
+## Task: Story 5 Task 1 - Investigate Search Engine With Current Repo State <status>completed</status> <passes>true</passes>
 
 <description>
 Must use tdd skill to complete
@@ -14,13 +14,19 @@ In scope: research, local experiments, sample indexed data, benchmark queries, q
 
 
 <acceptance_criteria>
-- [ ] Red/green TDD: add a repeatable search-evaluation harness that fails on missing benchmark inputs/results, then make it pass.
-- [ ] At least two viable search engines are evaluated against the same representative query set.
-- [ ] Evaluation includes fuzzy/typo queries, exact queries, document text queries, entity metadata queries, and mixed queries.
-- [ ] Evaluation records disk usage, index build time, update time, and result quality.
-- [ ] Recommendation explains the chosen engine and tradeoffs using measured data.
-- [ ] `make check` — passes cleanly
-- [ ] `make test` — passes cleanly (default suite; excludes only ultra-long tests moved to `make test-long`)
-- [ ] `make lint` — passes cleanly
-- [ ] If this task impacts ultra-long tests (or their selection): `make test-long` — passes cleanly (ultra-long-only)
+- [x] Red/green TDD: add a repeatable search-evaluation harness that fails on missing benchmark inputs/results, then make it pass.
+- [x] At least two viable search engines are evaluated against the same representative query set.
+- [x] Evaluation includes fuzzy/typo queries, exact queries, document text queries, entity metadata queries, and mixed queries.
+- [x] Evaluation records disk usage, index build time, update time, and result quality.
+- [x] Recommendation explains the chosen engine and tradeoffs using measured data.
+- [x] `make check` — passes cleanly
+- [x] `make test` — passes cleanly (default suite; excludes only ultra-long tests moved to `make test-long`)
+- [x] `make lint` — passes cleanly
+- [x] If this task impacts ultra-long tests (or their selection): not applicable; this task did not change long/e2e selection and `make test-long` was intentionally not run.
 </acceptance_criteria>
+
+<plan>
+.ralph/tasks/story-5-search/task-1-investigate-search-engine_plans/search-engine-investigation-plan.md
+</plan>
+
+NOW EXECUTE

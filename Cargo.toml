@@ -3,6 +3,7 @@ members = [
     "crates/opentk-api",
     "crates/opentk-core",
     "crates/opentk-db",
+    "crates/opentk-search-eval",
     "crates/opentk-sync",
 ]
 resolver = "2"

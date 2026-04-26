@@ -1,0 +1,62 @@
+[
+  {
+    "id": "doc-2024-35567",
+    "title": "Motie van het lid Jansen over transparantie in algoritmisch bestuur",
+    "source_category": "document",
+    "source_id": "2024D35567",
+    "document_number": "35567-12",
+    "date": "2024-03-12",
+    "url": "https://www.tweedekamer.nl/kamerstukken/detail?id=2024D35567",
+    "extracted_text": "De Kamer verzoekt de regering om transparantie in algoritmisch bestuur te versterken en jaarlijks te rapporteren over publieke algoritmeregisters.",
+    "extracted_html": "<article><h1>Algoritmisch bestuur</h1><p>De motie noemt auditbaarheid, uitlegbaarheid en publieke algoritmeregisters.</p></article>",
+    "entity_metadata": ["Jansen", "GroenLinks-PvdA", "motie", "digitalisering", "algoritmeregister"]
+  },
+  {
+    "id": "doc-2024-29810",
+    "title": "Verslag van een commissiedebat over de woningbouwopgave",
+    "source_category": "document",
+    "source_id": "2024D29810",
+    "document_number": "32847-1120",
+    "date": "2024-02-05",
+    "url": "https://www.tweedekamer.nl/kamerstukken/detail?id=2024D29810",
+    "extracted_text": "In het commissiedebat bespreken leden de woningbouwopgave, betaalbare huur, stikstofruimte en versnelling van vergunningverlening.",
+    "extracted_html": "<section><p>Minister De Vries reageert op vragen over regionale woondeals en tijdelijke woningen.</p></section>",
+    "entity_metadata": ["De Vries", "VVD", "commissiedebat", "wonen", "woondeals"]
+  },
+  {
+    "id": "doc-2024-18725",
+    "title": "Brief van de minister over uitvoering klimaatfonds",
+    "source_category": "document",
+    "source_id": "2024D18725",
+    "document_number": "32813-1395",
+    "date": "2024-01-18",
+    "url": "https://www.tweedekamer.nl/kamerstukken/detail?id=2024D18725",
+    "extracted_text": "De minister beschrijft de uitvoering van het klimaatfonds, investeringen in warmtenetten en verduurzaming van industrie.",
+    "extracted_html": "<article><p>Bijlage: indicatieve CO2-reductie per maatregel en planning voor voorjaar 2024.</p></article>",
+    "entity_metadata": ["Peters", "D66", "kamerbrief", "klimaat", "klimaatfonds"]
+  },
+  {
+    "id": "person-fatima-kaya",
+    "title": "Fatima Kaya",
+    "source_category": "person",
+    "source_id": "p-1042",
+    "document_number": null,
+    "date": null,
+    "url": "https://www.tweedekamer.nl/kamerleden_en_commissies/alle_kamerleden/kaya-f",
+    "extracted_text": "Kamerlid Fatima Kaya voert namens D66 het woord over digitalisering, onderwijs en constitutionele zaken.",
+    "extracted_html": "<div><span>Fractie D66</span><span>Activiteiten: mondelinge vragen, moties, amendementen.</span></div>",
+    "entity_metadata": ["Fatima Kaya", "D66", "kamerlid", "digitalisering", "onderwijs"]
+  },
+  {
+    "id": "dossier-energie-2030",
+    "title": "Dossier Energie-infrastructuur 2030",
+    "source_category": "dossier",
+    "source_id": "d-2030",
+    "document_number": null,
+    "date": null,
+    "url": "https://www.tweedekamer.nl/debat_en_vergadering/commissievergaderingen/details?id=d-2030",
+    "extracted_text": "Het dossier bundelt stukken over netcongestie, energie-infrastructuur, vergunningen en regionale prioritering.",
+    "extracted_html": "<main><p>Gerelateerde activiteit: technische briefing over netcongestie en hoogspanningsstations.</p></main>",
+    "entity_metadata": ["energie-infrastructuur", "netcongestie", "technische briefing", "commissie EZK"]
+  }
+]

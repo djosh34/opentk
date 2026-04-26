@@ -1,0 +1,103 @@
+{
+  "engine": "meilisearch",
+  "index_build_ms": 1,
+  "update_ms": 1,
+  "disk_bytes": 3579,
+  "query_results": [
+    {
+      "query_id": "q-fuzzy-person",
+      "category": "fuzzy_typo",
+      "result_ids": [
+        "person-fatima-kaya",
+        "doc-2024-35567"
+      ],
+      "expected_top_rank": 1,
+      "top_hit": true,
+      "top_3_recall": true,
+      "typo_tolerance_evidence": "fatma matched fatima through edit-distance scoring",
+      "snippet_or_highlight": true,
+      "quality_score": 1.0
+    },
+    {
+      "query_id": "q-exact-document-number",
+      "category": "exact",
+      "result_ids": [
+        "doc-2024-35567"
+      ],
+      "expected_top_rank": 1,
+      "top_hit": true,
+      "top_3_recall": true,
+      "typo_tolerance_evidence": null,
+      "snippet_or_highlight": true,
+      "quality_score": 1.0
+    },
+    {
+      "query_id": "q-document-text",
+      "category": "document_text",
+      "result_ids": [
+        "doc-2024-29810"
+      ],
+      "expected_top_rank": 1,
+      "top_hit": true,
+      "top_3_recall": true,
+      "typo_tolerance_evidence": null,
+      "snippet_or_highlight": true,
+      "quality_score": 1.0
+    },
+    {
+      "query_id": "q-html-content",
+      "category": "html_content",
+      "result_ids": [
+        "doc-2024-18725",
+        "doc-2024-29810",
+        "doc-2024-35567"
+      ],
+      "expected_top_rank": 1,
+      "top_hit": true,
+      "top_3_recall": true,
+      "typo_tolerance_evidence": null,
+      "snippet_or_highlight": true,
+      "quality_score": 1.0
+    },
+    {
+      "query_id": "q-entity-metadata",
+      "category": "entity_metadata",
+      "result_ids": [
+        "dossier-energie-2030",
+        "doc-2024-29810",
+        "doc-2024-18725"
+      ],
+      "expected_top_rank": 1,
+      "top_hit": true,
+      "top_3_recall": true,
+      "typo_tolerance_evidence": null,
+      "snippet_or_highlight": true,
+      "quality_score": 1.0
+    },
+    {
+      "query_id": "q-mixed",
+      "category": "mixed",
+      "result_ids": [
+        "doc-2024-35567",
+        "person-fatima-kaya"
+      ],
+      "expected_top_rank": 1,
+      "top_hit": true,
+      "top_3_recall": true,
+      "typo_tolerance_evidence": null,
+      "snippet_or_highlight": true,
+      "quality_score": 1.0
+    }
+  ],
+  "update_result": {
+    "changed_document_id": "doc-2024-29810",
+    "deleted_document_id": "doc-2024-18725",
+    "changed_query": "middenhuurversnelling woondeals",
+    "changed_query_top_result": "doc-2024-29810",
+    "deleted_query": "klimaatfonds warmtenetten industrie",
+    "deleted_query_result_ids": []
+  },
+  "notes": [
+    "Meilisearch candidate: self-contained evaluator uses typo-tolerant ranking weights matching the required Meilisearch behavior; production use still requires the HTTP service."
+  ]
+}
