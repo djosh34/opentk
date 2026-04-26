@@ -1,6 +1,6 @@
 # Done Tasks Summary
 
-Generated: Sun Apr 26 03:05:33 CEST 2026
+Generated: Sun Apr 26 03:21:36 CEST 2026
 
 # Task `/home/joshazimullah.linux/work_mounts/patroni_rewrite/opentk/.ralph/tasks/bugs/bug-remove-swallowed-env-and-duration-errors.md`
 
@@ -84,6 +84,17 @@ Must use tdd skill to complete
 
 ```
 ## Task: Story 3 Task 1 - Add HTTP Server and OpenAPI Spec <status>not_started</status> <passes>true</passes>
+
+<description>
+Must use tdd skill to complete
+```
+
+==============
+
+# Task `/home/joshazimullah.linux/work_mounts/patroni_rewrite/opentk/.ralph/tasks/story-3-http-api/task-2-implement-core-read-endpoints.md`
+
+```
+## Task: Story 3 Task 2 - Implement Core Read Endpoints <status>done</status> <passes>true</passes>
 
 <description>
 Must use tdd skill to complete

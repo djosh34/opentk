@@ -8,3 +8,4 @@
 .ralph/tasks/story-2-complete-sync-postgres/task-6-deep-verify-complete-sync.md
 .ralph/tasks/story-3-http-api/task-1-add-http-server-and-openapi.md
 .ralph/tasks/bugs/bug-remove-swallowed-env-and-duration-errors.md
+.ralph/tasks/story-3-http-api/task-2-implement-core-read-endpoints.md

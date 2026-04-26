@@ -6,6 +6,7 @@
 mod database;
 
 pub mod postgres_schema;
+pub mod read_model;
 pub mod sync_state;
 pub mod sync_verification;
 pub mod sync_writer;

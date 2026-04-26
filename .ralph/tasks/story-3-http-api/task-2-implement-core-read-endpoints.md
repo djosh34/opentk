@@ -1,4 +1,4 @@
-## Task: Story 3 Task 2 - Implement Core Read Endpoints <status>not_started</status> <passes>false</passes>
+## Task: Story 3 Task 2 - Implement Core Read Endpoints <status>done</status> <passes>true</passes>
 
 <description>
 Must use tdd skill to complete
@@ -12,15 +12,21 @@ In scope: endpoint handlers, typed response models, pagination by cursor/skiptok
 
 
 <acceptance_criteria>
-- [ ] Red/green TDD: add failing endpoint tests backed by fixture PostgreSQL rows, then make them pass.
-- [ ] Endpoints expose category progress and sync status.
-- [ ] Changes endpoint pages by category and skiptoken.
-- [ ] Entity detail endpoint returns source metadata and typed fields.
-- [ ] Document, activity, and person endpoints return database-backed data.
-- [ ] Relation lookup endpoint supports outgoing and incoming relations.
-- [ ] OpenAPI spec includes every implemented endpoint and response schema.
-- [ ] `make check` — passes cleanly
-- [ ] `make test` — passes cleanly (default suite; excludes only ultra-long tests moved to `make test-long`)
-- [ ] `make lint` — passes cleanly
-- [ ] If this task impacts ultra-long tests (or their selection): `make test-long` — passes cleanly (ultra-long-only)
+- [x] Red/green TDD: add failing endpoint tests backed by fixture PostgreSQL rows, then make them pass.
+- [x] Endpoints expose category progress and sync status.
+- [x] Changes endpoint pages by category and skiptoken.
+- [x] Entity detail endpoint returns source metadata and typed fields.
+- [x] Document, activity, and person endpoints return database-backed data.
+- [x] Relation lookup endpoint supports outgoing and incoming relations.
+- [x] OpenAPI spec includes every implemented endpoint and response schema.
+- [x] `make check` — passes cleanly
+- [x] `make test` — passes cleanly (default suite; excludes only ultra-long tests moved to `make test-long`)
+- [x] `make lint` — passes cleanly
+- [x] If this task impacts ultra-long tests (or their selection): `make test-long` — passes cleanly (ultra-long-only) — not applicable; this task does not affect ultra-long/e2e selection and per task instructions the long lane was not run.
 </acceptance_criteria>
+
+<plan>
+.ralph/tasks/story-3-http-api/task-2-implement-core-read-endpoints_plans/core-read-endpoints-plan.md
+</plan>
+
+NOW EXECUTE

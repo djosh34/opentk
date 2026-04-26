@@ -10,14 +10,15 @@ axum.workspace = true
 clap.workspace = true
 opentk-db.workspace = true
 serde.workspace = true
+serde_json.workspace = true
 sqlx.workspace = true
 thiserror.workspace = true
 tokio.workspace = true
 tracing-subscriber.workspace = true
 utoipa.workspace = true
+uuid.workspace = true
 
 [dev-dependencies]
-serde_json.workspace = true
 tower.workspace = true
 
 [lints]

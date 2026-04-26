@@ -1,23 +1,30 @@
 //! HTTP API boundary for `OpenTK`.
 
 use axum::{
-    extract::State,
+    extract::{Path, Query, State},
     http::StatusCode,
     response::{IntoResponse, Response},
     routing::get,
     Json, Router,
 };
-use opentk_db::{connect, DatabaseConfig, DatabaseError};
-use serde::Serialize;
+use opentk_db::{
+    connect,
+    read_model::{
+        self, EntityChange, EntityDetail, ReadModelError, RelationDirection, RelationRow,
+    },
+    DatabaseConfig, DatabaseError,
+};
+use serde::{Deserialize, Serialize};
+use serde_json::{Map, Value};
 use sqlx::PgPool;
 use std::net::SocketAddr;
 use thiserror::Error;
 use tokio::net::TcpListener;
 use utoipa::{
     openapi::{
-        path::{HttpMethod, OperationBuilder, PathItem, PathsBuilder},
+        path::{HttpMethod, OperationBuilder, PathItem, Paths, PathsBuilder},
         response::ResponseBuilder,
-        schema::ComponentsBuilder,
+        schema::{Components, ComponentsBuilder},
         Content, Info, Ref,
     },
     ToSchema,
@@ -47,6 +54,10 @@ pub enum ApiError {
     Database(#[from] DatabaseError),
     #[error("database unavailable")]
     DatabaseUnavailable(#[source] sqlx::Error),
+    #[error("read model request failed")]
+    ReadModel(#[from] ReadModelError),
+    #[error("invalid request")]
+    InvalidRequest,
     #[error("failed to bind API listener at {address}")]
     Bind {
         address: SocketAddr,
@@ -67,7 +78,24 @@ impl IntoResponse for ApiError {
                     message: "database unavailable",
                 },
             ),
-            Self::Database(_) | Self::Bind { .. } | Self::Serve(_) => (
+            Self::ReadModel(ReadModelError::UnknownCategory(_) | ReadModelError::NotFound) => (
+                StatusCode::NOT_FOUND,
+                ErrorResponse {
+                    code: "not_found",
+                    message: "resource not found",
+                },
+            ),
+            Self::InvalidRequest | Self::ReadModel(ReadModelError::InvalidLimit) => (
+                StatusCode::BAD_REQUEST,
+                ErrorResponse {
+                    code: "invalid_request",
+                    message: "invalid request",
+                },
+            ),
+            Self::Database(_)
+            | Self::ReadModel(ReadModelError::Sql(_))
+            | Self::Bind { .. }
+            | Self::Serve(_) => (
                 StatusCode::INTERNAL_SERVER_ERROR,
                 ErrorResponse {
                     code: "internal_error",
@@ -89,6 +117,115 @@ pub struct ErrorResponse {
 #[derive(Serialize, ToSchema)]
 struct HealthResponse {
     status: &'static str,
+}
+
+#[derive(Serialize, ToSchema)]
+struct CategoryMetadataResponse {
+    categories: Vec<CategoryMetadata>,
+}
+
+#[derive(Serialize, ToSchema)]
+struct CategoryMetadata {
+    category: String,
+    table: String,
+    field_count: usize,
+    relation_count: usize,
+}
+
+#[derive(Serialize, ToSchema)]
+struct SyncStatusResponse {
+    categories: Vec<CategorySyncStatus>,
+}
+
+#[derive(Serialize, ToSchema)]
+struct CategorySyncStatus {
+    category: String,
+    latest_skiptoken: Option<i64>,
+    state: Option<String>,
+    last_fetch_at: Option<String>,
+    last_synced_at: Option<String>,
+    caught_up_at: Option<String>,
+    next_url: Option<String>,
+    resume_url: Option<String>,
+}
+
+#[derive(Deserialize)]
+struct ChangesQuery {
+    after: Option<i64>,
+    limit: Option<u32>,
+}
+
+#[derive(Serialize, ToSchema)]
+struct ChangePageResponse {
+    category: String,
+    items: Vec<EntityChangeResponse>,
+    next_skiptoken: Option<i64>,
+    has_more: bool,
+}
+
+#[derive(Serialize, ToSchema)]
+struct EntityChangeResponse {
+    category: String,
+    source_id: String,
+    latest_skiptoken: i64,
+    deleted: bool,
+    source_updated_at: String,
+    atom_updated_at: String,
+}
+
+#[derive(Deserialize)]
+struct RelationsQuery {
+    #[serde(default)]
+    relations: RelationExpansion,
+}
+
+#[derive(Clone, Copy, Debug, Default, Deserialize, Eq, PartialEq)]
+#[serde(rename_all = "lowercase")]
+enum RelationExpansion {
+    #[default]
+    None,
+    Outgoing,
+    Incoming,
+    Both,
+}
+
+#[derive(Deserialize)]
+struct RelationLookupQuery {
+    #[serde(default)]
+    direction: RelationLookupDirection,
+}
+
+#[derive(Clone, Copy, Debug, Default, Deserialize, Eq, PartialEq)]
+#[serde(rename_all = "lowercase")]
+enum RelationLookupDirection {
+    #[default]
+    Outgoing,
+    Incoming,
+    Both,
+}
+
+#[derive(Serialize, ToSchema)]
+struct EntityDetailResponse {
+    metadata: EntityChangeResponse,
+    fields: Map<String, Value>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    relations: Option<Vec<RelationResponse>>,
+}
+
+#[derive(Serialize, ToSchema)]
+struct RelationLookupResponse {
+    items: Vec<RelationResponse>,
+}
+
+#[derive(Serialize, ToSchema)]
+struct RelationResponse {
+    source_category: String,
+    source_id: String,
+    relation_name: String,
+    target_category: String,
+    target_id: String,
+    ordinal: i32,
+    source_updated_at: String,
 }
 
 /// Builds an API router and stores the bind address that should be used by the listener.
@@ -135,29 +272,43 @@ pub fn router(pool: PgPool) -> Router {
     Router::new()
         .route("/health", get(health))
         .route("/openapi.json", get(openapi_json))
+        .route("/categories", get(categories))
+        .route("/sync/status", get(sync_status))
+        .route("/changes/{category}", get(changes))
+        .route("/entities/{category}/{source_id}", get(entity_detail))
+        .route("/documents/{source_id}", get(document_detail))
+        .route("/activities/{source_id}", get(activity_detail))
+        .route("/persons/{source_id}", get(person_detail))
+        .route("/relations/{category}/{source_id}", get(relations))
         .with_state(ApiState { pool })
 }
 
 #[must_use]
 pub fn openapi() -> utoipa::openapi::OpenApi {
-    let paths = PathsBuilder::new()
+    let mut document = utoipa::openapi::OpenApi::new(Info::new("OpenTK API", "0.1.0"), api_paths());
+    document.components = Some(api_components());
+    document
+}
+
+fn api_paths() -> Paths {
+    read_paths(base_paths(PathsBuilder::new())).build()
+}
+
+fn base_paths(paths: PathsBuilder) -> PathsBuilder {
+    paths
         .path(
             "/health",
             PathItem::new(
                 HttpMethod::Get,
-                OperationBuilder::new()
-                    .operation_id(Some("health"))
-                    .response(
-                        "200",
-                        json_response(
-                            "API and database are reachable",
-                            HealthResponse::name().as_ref(),
-                        ),
-                    )
-                    .response(
-                        "503",
-                        json_response("Database is unreachable", ErrorResponse::name().as_ref()),
-                    ),
+                get_operation(
+                    "health",
+                    "API and database are reachable",
+                    HealthResponse::name().as_ref(),
+                )
+                .response(
+                    "503",
+                    json_response("Database is unreachable", ErrorResponse::name().as_ref()),
+                ),
             ),
         )
         .path(
@@ -172,16 +323,138 @@ pub fn openapi() -> utoipa::openapi::OpenApi {
                     ),
             ),
         )
-        .build();
+}
 
-    let mut document = utoipa::openapi::OpenApi::new(Info::new("OpenTK API", "0.1.0"), paths);
-    document.components = Some(
-        ComponentsBuilder::new()
-            .schema_from::<ErrorResponse>()
-            .schema_from::<HealthResponse>()
-            .build(),
-    );
-    document
+fn read_paths(paths: PathsBuilder) -> PathsBuilder {
+    detail_paths(
+        paths
+            .path(
+                "/categories",
+                PathItem::new(
+                    HttpMethod::Get,
+                    get_operation(
+                        "categories",
+                        "Official category metadata",
+                        CategoryMetadataResponse::name().as_ref(),
+                    ),
+                ),
+            )
+            .path(
+                "/sync/status",
+                PathItem::new(
+                    HttpMethod::Get,
+                    get_operation(
+                        "sync_status",
+                        "Category sync status",
+                        SyncStatusResponse::name().as_ref(),
+                    ),
+                ),
+            )
+            .path(
+                "/changes/{category}",
+                PathItem::new(
+                    HttpMethod::Get,
+                    get_operation(
+                        "changes",
+                        "Category changes page",
+                        ChangePageResponse::name().as_ref(),
+                    )
+                    .response(
+                        "404",
+                        json_response("Unknown category", ErrorResponse::name().as_ref()),
+                    ),
+                ),
+            ),
+    )
+}
+
+fn detail_paths(paths: PathsBuilder) -> PathsBuilder {
+    paths
+        .path(
+            "/entities/{category}/{source_id}",
+            PathItem::new(
+                HttpMethod::Get,
+                get_operation(
+                    "entity_detail",
+                    "Entity detail",
+                    EntityDetailResponse::name().as_ref(),
+                )
+                .response(
+                    "404",
+                    json_response("Missing entity", ErrorResponse::name().as_ref()),
+                ),
+            ),
+        )
+        .path(
+            "/documents/{source_id}",
+            PathItem::new(
+                HttpMethod::Get,
+                get_operation(
+                    "document_detail",
+                    "Document detail",
+                    EntityDetailResponse::name().as_ref(),
+                ),
+            ),
+        )
+        .path(
+            "/activities/{source_id}",
+            PathItem::new(
+                HttpMethod::Get,
+                get_operation(
+                    "activity_detail",
+                    "Activity detail",
+                    EntityDetailResponse::name().as_ref(),
+                ),
+            ),
+        )
+        .path(
+            "/persons/{source_id}",
+            PathItem::new(
+                HttpMethod::Get,
+                get_operation(
+                    "person_detail",
+                    "Person detail",
+                    EntityDetailResponse::name().as_ref(),
+                ),
+            ),
+        )
+        .path(
+            "/relations/{category}/{source_id}",
+            PathItem::new(
+                HttpMethod::Get,
+                get_operation(
+                    "relations",
+                    "Entity relations",
+                    RelationLookupResponse::name().as_ref(),
+                ),
+            ),
+        )
+}
+
+fn get_operation(
+    operation_id: &'static str,
+    description: &str,
+    schema_name: &str,
+) -> OperationBuilder {
+    OperationBuilder::new()
+        .operation_id(Some(operation_id))
+        .response("200", json_response(description, schema_name))
+}
+
+fn api_components() -> Components {
+    ComponentsBuilder::new()
+        .schema_from::<ErrorResponse>()
+        .schema_from::<HealthResponse>()
+        .schema_from::<CategoryMetadataResponse>()
+        .schema_from::<CategoryMetadata>()
+        .schema_from::<SyncStatusResponse>()
+        .schema_from::<CategorySyncStatus>()
+        .schema_from::<ChangePageResponse>()
+        .schema_from::<EntityChangeResponse>()
+        .schema_from::<EntityDetailResponse>()
+        .schema_from::<RelationLookupResponse>()
+        .schema_from::<RelationResponse>()
+        .build()
 }
 
 fn json_response(description: &str, schema_name: &str) -> ResponseBuilder {
@@ -202,4 +475,176 @@ async fn health(State(state): State<ApiState>) -> Result<Json<HealthResponse>, A
 
 async fn openapi_json() -> Json<utoipa::openapi::OpenApi> {
     Json(openapi())
+}
+
+async fn categories() -> Json<CategoryMetadataResponse> {
+    Json(CategoryMetadataResponse {
+        categories: read_model::list_category_metadata()
+            .into_iter()
+            .map(|category| CategoryMetadata {
+                category: category.category,
+                table: category.table,
+                field_count: category.field_count,
+                relation_count: category.relation_count,
+            })
+            .collect(),
+    })
+}
+
+async fn sync_status(State(state): State<ApiState>) -> Result<Json<SyncStatusResponse>, ApiError> {
+    Ok(Json(SyncStatusResponse {
+        categories: read_model::list_category_progress(&state.pool)
+            .await?
+            .into_iter()
+            .map(|category| CategorySyncStatus {
+                category: category.category,
+                latest_skiptoken: category.latest_skiptoken,
+                state: category.state,
+                last_fetch_at: category.last_fetch_at,
+                last_synced_at: category.last_synced_at,
+                caught_up_at: category.caught_up_at,
+                next_url: category.next_url,
+                resume_url: category.resume_url,
+            })
+            .collect(),
+    }))
+}
+
+async fn changes(
+    State(state): State<ApiState>,
+    Path(category): Path<String>,
+    Query(query): Query<ChangesQuery>,
+) -> Result<Json<ChangePageResponse>, ApiError> {
+    let limit = i64::from(query.limit.unwrap_or(100));
+    let page = read_model::list_changes(&state.pool, &category, query.after, limit).await?;
+    Ok(Json(ChangePageResponse {
+        category,
+        items: page.items.into_iter().map(change_response).collect(),
+        next_skiptoken: page.next_skiptoken,
+        has_more: page.has_more,
+    }))
+}
+
+async fn entity_detail(
+    State(state): State<ApiState>,
+    Path((category, source_id)): Path<(String, String)>,
+    Query(query): Query<RelationsQuery>,
+) -> Result<Json<EntityDetailResponse>, ApiError> {
+    let source_id = parse_uuid(&source_id)?;
+    let detail = read_model::get_entity_detail(&state.pool, &category, source_id).await?;
+    let relations = expanded_relations(&state.pool, &category, source_id, query.relations).await?;
+    Ok(Json(detail_response(detail, relations)))
+}
+
+async fn document_detail(
+    State(state): State<ApiState>,
+    Path(source_id): Path<String>,
+    Query(query): Query<RelationsQuery>,
+) -> Result<Json<EntityDetailResponse>, ApiError> {
+    let source_id = parse_uuid(&source_id)?;
+    let detail = read_model::get_document_detail(&state.pool, source_id).await?;
+    let relations = expanded_relations(&state.pool, "Document", source_id, query.relations).await?;
+    Ok(Json(detail_response(detail, relations)))
+}
+
+async fn activity_detail(
+    State(state): State<ApiState>,
+    Path(source_id): Path<String>,
+    Query(query): Query<RelationsQuery>,
+) -> Result<Json<EntityDetailResponse>, ApiError> {
+    let source_id = parse_uuid(&source_id)?;
+    let detail = read_model::get_activity_detail(&state.pool, source_id).await?;
+    let relations =
+        expanded_relations(&state.pool, "Activiteit", source_id, query.relations).await?;
+    Ok(Json(detail_response(detail, relations)))
+}
+
+async fn person_detail(
+    State(state): State<ApiState>,
+    Path(source_id): Path<String>,
+    Query(query): Query<RelationsQuery>,
+) -> Result<Json<EntityDetailResponse>, ApiError> {
+    let source_id = parse_uuid(&source_id)?;
+    let detail = read_model::get_person_detail(&state.pool, source_id).await?;
+    let relations = expanded_relations(&state.pool, "Persoon", source_id, query.relations).await?;
+    Ok(Json(detail_response(detail, relations)))
+}
+
+async fn relations(
+    State(state): State<ApiState>,
+    Path((category, source_id)): Path<(String, String)>,
+    Query(query): Query<RelationLookupQuery>,
+) -> Result<Json<RelationLookupResponse>, ApiError> {
+    let source_id = parse_uuid(&source_id)?;
+    let direction = match query.direction {
+        RelationLookupDirection::Outgoing => RelationDirection::Outgoing,
+        RelationLookupDirection::Incoming => RelationDirection::Incoming,
+        RelationLookupDirection::Both => RelationDirection::Both,
+    };
+    Ok(Json(RelationLookupResponse {
+        items: read_model::list_relations(&state.pool, &category, source_id, direction)
+            .await?
+            .into_iter()
+            .map(relation_response)
+            .collect(),
+    }))
+}
+
+async fn expanded_relations(
+    pool: &PgPool,
+    category: &str,
+    source_id: uuid::Uuid,
+    expansion: RelationExpansion,
+) -> Result<Option<Vec<RelationResponse>>, ApiError> {
+    let direction = match expansion {
+        RelationExpansion::None => return Ok(None),
+        RelationExpansion::Outgoing => RelationDirection::Outgoing,
+        RelationExpansion::Incoming => RelationDirection::Incoming,
+        RelationExpansion::Both => RelationDirection::Both,
+    };
+    Ok(Some(
+        read_model::list_relations(pool, category, source_id, direction)
+            .await?
+            .into_iter()
+            .map(relation_response)
+            .collect(),
+    ))
+}
+
+fn detail_response(
+    detail: EntityDetail,
+    relations: Option<Vec<RelationResponse>>,
+) -> EntityDetailResponse {
+    EntityDetailResponse {
+        metadata: change_response(detail.metadata),
+        fields: detail.fields,
+        relations,
+    }
+}
+
+fn change_response(change: EntityChange) -> EntityChangeResponse {
+    EntityChangeResponse {
+        category: change.category,
+        source_id: change.source_id.to_string(),
+        latest_skiptoken: change.latest_skiptoken,
+        deleted: change.deleted,
+        source_updated_at: change.source_updated_at,
+        atom_updated_at: change.atom_updated_at,
+    }
+}
+
+fn relation_response(relation: RelationRow) -> RelationResponse {
+    RelationResponse {
+        source_category: relation.source_category,
+        source_id: relation.source_id.to_string(),
+        relation_name: relation.relation_name,
+        target_category: relation.target_category,
+        target_id: relation.target_id.to_string(),
+        ordinal: relation.ordinal,
+        source_updated_at: relation.source_updated_at,
+    }
+}
+
+fn parse_uuid(value: &str) -> Result<uuid::Uuid, ApiError> {
+    uuid::Uuid::parse_str(value).map_err(|_| ApiError::InvalidRequest)
 }
