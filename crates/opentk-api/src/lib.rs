@@ -10,7 +10,8 @@ use axum::{
 use opentk_db::{
     connect,
     read_model::{
-        self, EntityChange, EntityDetail, ReadModelError, RelationDirection, RelationRow,
+        self, DocumentContentDetail, EntityChange, EntityDetail, ReadModelError, RelationDirection,
+        RelationRow,
     },
     DatabaseConfig, DatabaseError,
 };
@@ -87,6 +88,13 @@ impl IntoResponse for ApiError {
                 ErrorResponse {
                     code: "not_found",
                     message: "resource not found",
+                },
+            ),
+            Self::ReadModel(ReadModelError::DocumentContentNotFound) => (
+                StatusCode::NOT_FOUND,
+                ErrorResponse {
+                    code: "document_content_not_found",
+                    message: "document content not found",
                 },
             ),
             Self::InvalidRequest | Self::ReadModel(ReadModelError::InvalidLimit) => (
@@ -217,6 +225,52 @@ struct EntityDetailResponse {
 }
 
 #[derive(Serialize, ToSchema)]
+struct DocumentContentResponse {
+    document: DocumentIdentityResponse,
+    asset: DocumentAssetResponse,
+    content: DocumentContentBodyResponse,
+}
+
+#[derive(Serialize, ToSchema)]
+struct DocumentIdentityResponse {
+    source_category: String,
+    source_id: String,
+}
+
+#[derive(Serialize, ToSchema)]
+struct DocumentAssetResponse {
+    id: i64,
+    asset_url: String,
+    upstream_url: String,
+    upstream_content_type: Option<String>,
+    upstream_content_length: Option<i64>,
+    upstream_last_modified_at: Option<String>,
+    retrieval_status: String,
+    retrieval_error: Option<String>,
+    retrieved_at: Option<String>,
+}
+
+#[derive(Serialize, ToSchema)]
+struct DocumentContentBodyResponse {
+    id: i64,
+    selected_source_url: String,
+    selected_source_content_type: Option<String>,
+    selected_source_content_length: Option<i64>,
+    official_source: bool,
+    source_rank: i32,
+    extraction_status: String,
+    validation_status: String,
+    extraction_tool: String,
+    extraction_tool_version: String,
+    source_hash: String,
+    output_hash: Option<String>,
+    extraction_error: Option<String>,
+    extracted_text: Option<String>,
+    extracted_html: Option<String>,
+    extracted_at: String,
+}
+
+#[derive(Serialize, ToSchema)]
 struct RelationLookupResponse {
     items: Vec<RelationResponse>,
 }
@@ -281,6 +335,7 @@ pub fn router(pool: PgPool) -> Router {
         .route("/changes/{category}", get(changes))
         .route("/entities/{category}/{source_id}", get(entity_detail))
         .route("/documents/{source_id}", get(document_detail))
+        .route("/documents/{source_id}/content", get(document_content))
         .route("/activities/{source_id}", get(activity_detail))
         .route("/persons/{source_id}", get(person_detail))
         .route("/relations/{category}/{source_id}", get(relations))
@@ -398,6 +453,10 @@ fn typed_detail_paths(paths: PathsBuilder) -> PathsBuilder {
             ),
         )
         .path(
+            "/documents/{source_id}/content",
+            PathItem::new(HttpMethod::Get, document_content_operation()),
+        )
+        .path(
             "/activities/{source_id}",
             PathItem::new(
                 HttpMethod::Get,
@@ -464,6 +523,26 @@ fn detail_operation(operation_id: &'static str, description: &str) -> OperationB
     )
 }
 
+fn document_content_operation() -> OperationBuilder {
+    get_operation(
+        "document_content",
+        "Document content",
+        DocumentContentResponse::name().as_ref(),
+    )
+    .parameters(Some([path_parameter("source_id", "Document source UUID")]))
+    .response(
+        "400",
+        json_response("Invalid ID", ErrorResponse::name().as_ref()),
+    )
+    .response(
+        "404",
+        json_response(
+            "Missing document or document content",
+            ErrorResponse::name().as_ref(),
+        ),
+    )
+}
+
 fn relation_lookup_operation() -> OperationBuilder {
     get_operation(
         "relations",
@@ -506,6 +585,10 @@ fn api_components() -> Components {
         .schema_from::<ChangePageResponse>()
         .schema_from::<EntityChangeResponse>()
         .schema_from::<EntityDetailResponse>()
+        .schema_from::<DocumentContentResponse>()
+        .schema_from::<DocumentIdentityResponse>()
+        .schema_from::<DocumentAssetResponse>()
+        .schema_from::<DocumentContentBodyResponse>()
         .schema_from::<RelationLookupResponse>()
         .schema_from::<RelationResponse>()
         .build()
@@ -622,6 +705,15 @@ async fn document_detail(
     Ok(Json(detail_response(detail, relations)))
 }
 
+async fn document_content(
+    State(state): State<ApiState>,
+    Path(source_id): Path<String>,
+) -> Result<Json<DocumentContentResponse>, ApiError> {
+    let source_id = parse_uuid(&source_id)?;
+    let detail = read_model::get_document_content(&state.pool, source_id).await?;
+    Ok(Json(document_content_response(detail)))
+}
+
 async fn activity_detail(
     State(state): State<ApiState>,
     Path(source_id): Path<String>,
@@ -697,6 +789,44 @@ fn detail_response(
         metadata: change_response(detail.metadata),
         fields: detail.fields,
         relations,
+    }
+}
+
+fn document_content_response(detail: DocumentContentDetail) -> DocumentContentResponse {
+    DocumentContentResponse {
+        document: DocumentIdentityResponse {
+            source_category: detail.document_source_category,
+            source_id: detail.document_source_id.to_string(),
+        },
+        asset: DocumentAssetResponse {
+            id: detail.asset.id,
+            asset_url: detail.asset.asset_url,
+            upstream_url: detail.asset.upstream_url,
+            upstream_content_type: detail.asset.upstream_content_type,
+            upstream_content_length: detail.asset.upstream_content_length,
+            upstream_last_modified_at: detail.asset.upstream_last_modified_at,
+            retrieval_status: detail.asset.retrieval_status,
+            retrieval_error: detail.asset.retrieval_error,
+            retrieved_at: detail.asset.retrieved_at,
+        },
+        content: DocumentContentBodyResponse {
+            id: detail.content.id,
+            selected_source_url: detail.content.selected_source_url,
+            selected_source_content_type: detail.content.selected_source_content_type,
+            selected_source_content_length: detail.content.selected_source_content_length,
+            official_source: detail.content.official_source,
+            source_rank: detail.content.source_rank,
+            extraction_status: detail.content.extraction_status,
+            validation_status: detail.content.validation_status,
+            extraction_tool: detail.content.extraction_tool,
+            extraction_tool_version: detail.content.extraction_tool_version,
+            source_hash: detail.content.source_hash,
+            output_hash: detail.content.output_hash,
+            extraction_error: detail.content.extraction_error,
+            extracted_text: detail.content.extracted_text,
+            extracted_html: detail.content.extracted_html,
+            extracted_at: detail.content.extracted_at,
+        },
     }
 }
 

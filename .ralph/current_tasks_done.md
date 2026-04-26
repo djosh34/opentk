@@ -1,6 +1,6 @@
 # Done Tasks Summary
 
-Generated: Sun Apr 26 04:54:51 CEST 2026
+Generated: Sun Apr 26 05:11:55 AM CEST 2026
 
 # Task `/home/joshazimullah.linux/work_mounts/patroni_rewrite/opentk/.ralph/tasks/bugs/bug-remove-swallowed-env-and-duration-errors.md`
 
@@ -139,6 +139,17 @@ Must use tdd skill to complete
 
 ```
 ## Task: Story 4 Task 3 - Extract Document Text and HTML <status>done</status> <passes>true</passes>
+
+<description>
+Must use tdd skill to complete
+```
+
+==============
+
+# Task `/home/joshazimullah.linux/work_mounts/patroni_rewrite/opentk/.ralph/tasks/story-4-document-text-support/task-4-expose-document-content-api.md`
+
+```
+## Task: Story 4 Task 4 - Expose Document Content API <status>done</status> <passes>true</passes>
 
 <description>
 Must use tdd skill to complete

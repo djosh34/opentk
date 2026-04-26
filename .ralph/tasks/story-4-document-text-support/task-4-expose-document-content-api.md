@@ -1,4 +1,4 @@
-## Task: Story 4 Task 4 - Expose Document Content API <status>not_started</status> <passes>false</passes>
+## Task: Story 4 Task 4 - Expose Document Content API <status>done</status> <passes>true</passes>
 
 <description>
 Must use tdd skill to complete
@@ -12,14 +12,20 @@ In scope: endpoints, response models, OpenAPI updates, authorization-free local 
 
 
 <acceptance_criteria>
-- [ ] Red/green TDD: HTTP tests for document content endpoints fail before implementation, then pass.
-- [ ] API returns extracted text for documents with completed extraction.
-- [ ] API returns stored HTML for HTML assets.
-- [ ] API returns content source type, official-source indicator, extraction status, and provenance.
-- [ ] API returns clear errors/status for missing or failed extraction.
-- [ ] OpenAPI spec includes document content endpoints and schemas.
-- [ ] `make check` — passes cleanly
-- [ ] `make test` — passes cleanly (default suite; excludes only ultra-long tests moved to `make test-long`)
-- [ ] `make lint` — passes cleanly
-- [ ] If this task impacts ultra-long tests (or their selection): `make test-long` — passes cleanly (ultra-long-only)
+- [x] Red/green TDD: HTTP tests for document content endpoints fail before implementation, then pass.
+- [x] API returns extracted text for documents with completed extraction.
+- [x] API returns stored HTML for HTML assets.
+- [x] API returns content source type, official-source indicator, extraction status, and provenance.
+- [x] API returns clear errors/status for missing or failed extraction.
+- [x] OpenAPI spec includes document content endpoints and schemas.
+- [x] `make check` — passes cleanly
+- [x] `make test` — passes cleanly (default suite; excludes only ultra-long tests moved to `make test-long`)
+- [x] `make lint` — passes cleanly
+- [x] If this task impacts ultra-long tests (or their selection): `make test-long` — passes cleanly (ultra-long-only) — not impacted; not run per task instructions.
 </acceptance_criteria>
+
+<plan>
+.ralph/tasks/story-4-document-text-support/task-4-expose-document-content-api_plans/document-content-api-plan.md
+</plan>
+
+DONE

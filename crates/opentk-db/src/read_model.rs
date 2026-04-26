@@ -57,6 +57,47 @@ pub type DocumentDetail = EntityDetail;
 pub type ActivityDetail = EntityDetail;
 pub type PersonDetail = EntityDetail;
 
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct DocumentContentDetail {
+    pub document_source_category: String,
+    pub document_source_id: Uuid,
+    pub asset: DocumentAssetDetail,
+    pub content: DocumentContentRow,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct DocumentAssetDetail {
+    pub id: i64,
+    pub asset_url: String,
+    pub upstream_url: String,
+    pub upstream_content_type: Option<String>,
+    pub upstream_content_length: Option<i64>,
+    pub upstream_last_modified_at: Option<String>,
+    pub retrieval_status: String,
+    pub retrieval_error: Option<String>,
+    pub retrieved_at: Option<String>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct DocumentContentRow {
+    pub id: i64,
+    pub selected_source_url: String,
+    pub selected_source_content_type: Option<String>,
+    pub selected_source_content_length: Option<i64>,
+    pub official_source: bool,
+    pub source_rank: i32,
+    pub extraction_status: String,
+    pub validation_status: String,
+    pub extraction_tool: String,
+    pub extraction_tool_version: String,
+    pub source_hash: String,
+    pub output_hash: Option<String>,
+    pub extraction_error: Option<String>,
+    pub extracted_text: Option<String>,
+    pub extracted_html: Option<String>,
+    pub extracted_at: String,
+}
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum RelationDirection {
     Outgoing,
@@ -81,6 +122,8 @@ pub enum ReadModelError {
     UnknownCategory(String),
     #[error("entity not found")]
     NotFound,
+    #[error("document content not found")]
+    DocumentContentNotFound,
     #[error("limit must be between {MIN_LIMIT} and {MAX_LIMIT}")]
     InvalidLimit,
     #[error("database read failed")]
@@ -237,6 +280,71 @@ pub async fn get_document_detail(
     source_id: Uuid,
 ) -> Result<DocumentDetail, ReadModelError> {
     get_detail(pool, "Document", source_id).await
+}
+
+/// Loads the selected content row and its source asset for one document.
+///
+/// # Errors
+///
+/// Returns [`ReadModelError::NotFound`] when the document row does not exist,
+/// [`ReadModelError::DocumentContentNotFound`] when the document exists without
+/// extracted content, and [`ReadModelError::Sql`] when `PostgreSQL` cannot be
+/// queried.
+pub async fn get_document_content(
+    pool: &PgPool,
+    source_id: Uuid,
+) -> Result<DocumentContentDetail, ReadModelError> {
+    let row = sqlx::query(
+        "SELECT
+            d.source_category AS document_source_category,
+            d.source_id AS document_source_id,
+            a.id AS asset_id,
+            a.asset_url,
+            a.upstream_url,
+            a.upstream_content_type,
+            a.upstream_content_length,
+            a.upstream_last_modified_at,
+            a.retrieval_status,
+            a.retrieval_error,
+            a.retrieved_at,
+            c.id AS content_id,
+            c.selected_source_url,
+            c.selected_source_content_type,
+            c.selected_source_content_length,
+            c.official_source,
+            c.source_rank,
+            c.extraction_status,
+            c.validation_status,
+            c.extraction_tool,
+            c.extraction_tool_version,
+            c.source_hash,
+            c.output_hash,
+            c.extraction_error,
+            c.extracted_text,
+            c.extracted_html,
+            c.extracted_at
+         FROM document d
+         LEFT JOIN document_content c
+           ON c.document_source_category = d.source_category
+          AND c.document_source_id = d.source_id
+         LEFT JOIN document_asset a ON a.id = c.document_asset_id
+         WHERE d.source_category = 'Document' AND d.source_id = $1
+         ORDER BY c.official_source DESC NULLS LAST,
+                  c.source_rank ASC NULLS LAST,
+                  c.extracted_at DESC NULLS LAST,
+                  c.id DESC NULLS LAST
+         LIMIT 1",
+    )
+    .bind(source_id)
+    .fetch_optional(pool)
+    .await?
+    .ok_or(ReadModelError::NotFound)?;
+
+    if row.get::<Option<i64>, _>("content_id").is_none() {
+        return Err(ReadModelError::DocumentContentNotFound);
+    }
+
+    Ok(document_content_detail(&row))
 }
 
 /// Loads one activity detail row.
@@ -484,6 +592,42 @@ fn relation_row(row: &PgRow) -> RelationRow {
         target_id: row.get("target_id"),
         ordinal: row.get("ordinal"),
         source_updated_at: timestamp_cell(row, "source_updated_at").expect("non-null timestamp"),
+    }
+}
+
+fn document_content_detail(row: &PgRow) -> DocumentContentDetail {
+    DocumentContentDetail {
+        document_source_category: row.get("document_source_category"),
+        document_source_id: row.get("document_source_id"),
+        asset: DocumentAssetDetail {
+            id: row.get("asset_id"),
+            asset_url: row.get("asset_url"),
+            upstream_url: row.get("upstream_url"),
+            upstream_content_type: row.get("upstream_content_type"),
+            upstream_content_length: row.get("upstream_content_length"),
+            upstream_last_modified_at: timestamp_cell(row, "upstream_last_modified_at"),
+            retrieval_status: row.get("retrieval_status"),
+            retrieval_error: row.get("retrieval_error"),
+            retrieved_at: timestamp_cell(row, "retrieved_at"),
+        },
+        content: DocumentContentRow {
+            id: row.get("content_id"),
+            selected_source_url: row.get("selected_source_url"),
+            selected_source_content_type: row.get("selected_source_content_type"),
+            selected_source_content_length: row.get("selected_source_content_length"),
+            official_source: row.get("official_source"),
+            source_rank: row.get("source_rank"),
+            extraction_status: row.get("extraction_status"),
+            validation_status: row.get("validation_status"),
+            extraction_tool: row.get("extraction_tool"),
+            extraction_tool_version: row.get("extraction_tool_version"),
+            source_hash: row.get("source_hash"),
+            output_hash: row.get("output_hash"),
+            extraction_error: row.get("extraction_error"),
+            extracted_text: row.get("extracted_text"),
+            extracted_html: row.get("extracted_html"),
+            extracted_at: timestamp_cell(row, "extracted_at").expect("non-null timestamp"),
+        },
     }
 }
 

@@ -1,5 +1,6 @@
 use axum::http::StatusCode;
 use serde_json::Value;
+use sqlx::PgPool;
 
 use crate::support::{
     activity_id, category, document_id, insert_activity, insert_document, insert_person,
@@ -142,6 +143,209 @@ async fn entity_and_typed_details_return_database_rows() -> Result<(), Box<dyn s
 }
 
 #[tokio::test]
+async fn document_content_returns_extracted_text_and_source_metadata(
+) -> Result<(), Box<dyn std::error::Error>> {
+    let pool = migrated_pool("api_document_content_text").await?;
+    insert_document(&pool).await?;
+    insert_document_content(
+        &pool,
+        DocumentContentSeed {
+            asset_url: "https://example.test/document.pdf",
+            upstream_content_type: Some("application/pdf"),
+            upstream_content_length: Some(12345),
+            selected_source_url: "https://example.test/document.pdf",
+            selected_source_content_type: Some("application/pdf"),
+            selected_source_content_length: Some(12345),
+            official_source: false,
+            source_rank: 20,
+            extraction_status: "extracted",
+            validation_status: "valid",
+            extraction_tool: "pdf-extract",
+            extraction_tool_version: "0.10.0",
+            source_hash: "sha256-source",
+            output_hash: Some("sha256-output"),
+            extraction_error: None,
+            extracted_text: Some("Stored document text"),
+            extracted_html: None,
+        },
+    )
+    .await?;
+
+    let body = router_json(
+        pool,
+        &format!("/documents/{}/content", document_id()),
+        StatusCode::OK,
+    )
+    .await?;
+
+    assert_eq!(body["document"]["source_category"], "Document");
+    assert_eq!(body["document"]["source_id"], document_id().to_string());
+    assert_eq!(
+        body["asset"]["asset_url"],
+        "https://example.test/document.pdf"
+    );
+    assert_eq!(
+        body["asset"]["upstream_url"],
+        "https://example.test/document.pdf"
+    );
+    assert_eq!(body["asset"]["upstream_content_type"], "application/pdf");
+    assert_eq!(body["asset"]["upstream_content_length"], 12345);
+    assert_eq!(body["asset"]["retrieval_status"], "fetched");
+    assert_eq!(body["asset"]["retrieval_error"], Value::Null);
+    assert_eq!(body["asset"]["retrieved_at"], "2026-04-26T12:02:00+00:00");
+    assert_eq!(
+        body["content"]["selected_source_url"],
+        "https://example.test/document.pdf"
+    );
+    assert_eq!(
+        body["content"]["selected_source_content_type"],
+        "application/pdf"
+    );
+    assert_eq!(body["content"]["selected_source_content_length"], 12345);
+    assert_eq!(body["content"]["official_source"], false);
+    assert_eq!(body["content"]["source_rank"], 20);
+    assert_eq!(body["content"]["extraction_status"], "extracted");
+    assert_eq!(body["content"]["validation_status"], "valid");
+    assert_eq!(body["content"]["extraction_tool"], "pdf-extract");
+    assert_eq!(body["content"]["extraction_tool_version"], "0.10.0");
+    assert_eq!(body["content"]["source_hash"], "sha256-source");
+    assert_eq!(body["content"]["output_hash"], "sha256-output");
+    assert_eq!(body["content"]["extraction_error"], Value::Null);
+    assert_eq!(body["content"]["extracted_text"], "Stored document text");
+    assert_eq!(body["content"]["extracted_html"], Value::Null);
+    assert_eq!(body["content"]["extracted_at"], "2026-04-26T12:03:00+00:00");
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn document_content_returns_stored_html_for_official_html_source(
+) -> Result<(), Box<dyn std::error::Error>> {
+    let pool = migrated_pool("api_document_content_html").await?;
+    insert_document(&pool).await?;
+    insert_document_content(
+        &pool,
+        DocumentContentSeed {
+            asset_url: "https://example.test/document.html",
+            upstream_content_type: Some("text/html"),
+            upstream_content_length: Some(82),
+            selected_source_url: "https://example.test/document.html",
+            selected_source_content_type: Some("text/html"),
+            selected_source_content_length: Some(82),
+            official_source: true,
+            source_rank: 0,
+            extraction_status: "extracted",
+            validation_status: "valid",
+            extraction_tool: "official-source",
+            extraction_tool_version: "1",
+            source_hash: "sha256-html-source",
+            output_hash: Some("sha256-html-output"),
+            extraction_error: None,
+            extracted_text: Some("Stored HTML text"),
+            extracted_html: Some("<main><p>Stored HTML text</p></main>"),
+        },
+    )
+    .await?;
+
+    let body = router_json(
+        pool,
+        &format!("/documents/{}/content", document_id()),
+        StatusCode::OK,
+    )
+    .await?;
+
+    assert_eq!(body["asset"]["upstream_content_type"], "text/html");
+    assert_eq!(body["content"]["selected_source_content_type"], "text/html");
+    assert_eq!(body["content"]["official_source"], true);
+    assert_eq!(body["content"]["source_rank"], 0);
+    assert_eq!(body["content"]["extraction_tool"], "official-source");
+    assert_eq!(body["content"]["extracted_text"], "Stored HTML text");
+    assert_eq!(
+        body["content"]["extracted_html"],
+        "<main><p>Stored HTML text</p></main>"
+    );
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn document_content_returns_failed_extraction_as_durable_content_state(
+) -> Result<(), Box<dyn std::error::Error>> {
+    let pool = migrated_pool("api_document_content_failed").await?;
+    insert_document(&pool).await?;
+    insert_document_content(
+        &pool,
+        DocumentContentSeed {
+            asset_url: "https://example.test/document.pdf",
+            upstream_content_type: Some("application/pdf"),
+            upstream_content_length: Some(12345),
+            selected_source_url: "https://example.test/document.pdf",
+            selected_source_content_type: Some("application/pdf"),
+            selected_source_content_length: Some(12345),
+            official_source: false,
+            source_rank: 20,
+            extraction_status: "failed",
+            validation_status: "invalid",
+            extraction_tool: "pdf-extract",
+            extraction_tool_version: "0.10.0",
+            source_hash: "sha256-failed-source",
+            output_hash: None,
+            extraction_error: Some("unsupported PDF encryption"),
+            extracted_text: None,
+            extracted_html: None,
+        },
+    )
+    .await?;
+
+    let body = router_json(
+        pool,
+        &format!("/documents/{}/content", document_id()),
+        StatusCode::OK,
+    )
+    .await?;
+
+    assert_eq!(body["content"]["extraction_status"], "failed");
+    assert_eq!(body["content"]["validation_status"], "invalid");
+    assert_eq!(body["content"]["source_hash"], "sha256-failed-source");
+    assert_eq!(body["content"]["output_hash"], Value::Null);
+    assert_eq!(
+        body["content"]["extraction_error"],
+        "unsupported PDF encryption"
+    );
+    assert_eq!(body["content"]["extracted_text"], Value::Null);
+    assert_eq!(body["content"]["extracted_html"], Value::Null);
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn document_content_distinguishes_missing_content_from_missing_document(
+) -> Result<(), Box<dyn std::error::Error>> {
+    let pool = migrated_pool("api_document_content_missing").await?;
+    insert_document(&pool).await?;
+
+    let missing_content = router_json(
+        pool.clone(),
+        &format!("/documents/{}/content", document_id()),
+        StatusCode::NOT_FOUND,
+    )
+    .await?;
+    assert_eq!(missing_content["code"], "document_content_not_found");
+    assert_eq!(missing_content["message"], "document content not found");
+
+    let missing_document = router_json(
+        pool,
+        "/documents/99999999-9999-4999-8999-999999999999/content",
+        StatusCode::NOT_FOUND,
+    )
+    .await?;
+    assert_eq!(missing_document["code"], "not_found");
+    assert_eq!(missing_document["message"], "resource not found");
+
+    Ok(())
+}
+
+#[tokio::test]
 async fn relations_support_direction_and_detail_expansion() -> Result<(), Box<dyn std::error::Error>>
 {
     let pool = migrated_pool("api_relations").await?;
@@ -199,6 +403,81 @@ async fn relations_support_direction_and_detail_expansion() -> Result<(), Box<dy
     Ok(())
 }
 
+struct DocumentContentSeed {
+    asset_url: &'static str,
+    upstream_content_type: Option<&'static str>,
+    upstream_content_length: Option<i64>,
+    selected_source_url: &'static str,
+    selected_source_content_type: Option<&'static str>,
+    selected_source_content_length: Option<i64>,
+    official_source: bool,
+    source_rank: i32,
+    extraction_status: &'static str,
+    validation_status: &'static str,
+    extraction_tool: &'static str,
+    extraction_tool_version: &'static str,
+    source_hash: &'static str,
+    output_hash: Option<&'static str>,
+    extraction_error: Option<&'static str>,
+    extracted_text: Option<&'static str>,
+    extracted_html: Option<&'static str>,
+}
+
+async fn insert_document_content(
+    pool: &PgPool,
+    seed: DocumentContentSeed,
+) -> Result<(), sqlx::Error> {
+    let asset_id: i64 = sqlx::query_scalar(
+        "INSERT INTO document_asset
+         (document_source_category, document_source_id, asset_url, upstream_url,
+          upstream_content_type, upstream_content_length, upstream_last_modified_at,
+          retrieval_status, retrieval_error, retrieved_at, created_at, updated_at)
+         VALUES
+         ('Document', $1, $2, $2, $3, $4, NULL, 'fetched', NULL,
+          '2026-04-26T12:02:00Z', '2026-04-26T12:02:00Z', '2026-04-26T12:02:00Z')
+         RETURNING id",
+    )
+    .bind(document_id())
+    .bind(seed.asset_url)
+    .bind(seed.upstream_content_type)
+    .bind(seed.upstream_content_length)
+    .fetch_one(pool)
+    .await?;
+
+    sqlx::query(
+        "INSERT INTO document_content
+         (document_asset_id, document_source_category, document_source_id,
+          selected_source_url, selected_source_content_type, selected_source_content_length,
+          official_source, source_rank, extraction_status, validation_status,
+          extraction_tool, extraction_tool_version, source_hash, output_hash,
+          extraction_error, extracted_text, extracted_html, extracted_at, created_at, updated_at)
+         VALUES
+         ($1, 'Document', $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13,
+          $14, $15, $16, '2026-04-26T12:03:00Z', '2026-04-26T12:03:00Z',
+          '2026-04-26T12:03:00Z')",
+    )
+    .bind(asset_id)
+    .bind(document_id())
+    .bind(seed.selected_source_url)
+    .bind(seed.selected_source_content_type)
+    .bind(seed.selected_source_content_length)
+    .bind(seed.official_source)
+    .bind(seed.source_rank)
+    .bind(seed.extraction_status)
+    .bind(seed.validation_status)
+    .bind(seed.extraction_tool)
+    .bind(seed.extraction_tool_version)
+    .bind(seed.source_hash)
+    .bind(seed.output_hash)
+    .bind(seed.extraction_error)
+    .bind(seed.extracted_text)
+    .bind(seed.extracted_html)
+    .execute(pool)
+    .await?;
+
+    Ok(())
+}
+
 #[tokio::test]
 async fn openapi_includes_core_read_endpoints() -> Result<(), Box<dyn std::error::Error>> {
     let pool = migrated_pool("api_openapi").await?;
@@ -210,6 +489,7 @@ async fn openapi_includes_core_read_endpoints() -> Result<(), Box<dyn std::error
         "/paths/~1changes~1{category}",
         "/paths/~1entities~1{category}~1{source_id}",
         "/paths/~1documents~1{source_id}",
+        "/paths/~1documents~1{source_id}~1content",
         "/paths/~1activities~1{source_id}",
         "/paths/~1persons~1{source_id}",
         "/paths/~1relations~1{category}~1{source_id}",
@@ -221,6 +501,9 @@ async fn openapi_includes_core_read_endpoints() -> Result<(), Box<dyn std::error
         "SyncStatusResponse",
         "ChangePageResponse",
         "EntityDetailResponse",
+        "DocumentContentResponse",
+        "DocumentAssetResponse",
+        "DocumentContentBodyResponse",
         "RelationLookupResponse",
     ] {
         assert!(
