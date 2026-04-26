@@ -1,14 +1,14 @@
 # Current Tasks Summary
 
-Generated: Sun Apr 26 02:30:02 AM CEST 2026
+Generated: Sun Apr 26 02:54:44 AM CEST 2026
 
-# Task `/home/joshazimullah.linux/work_mounts/patroni_rewrite/opentk/.ralph/tasks/story-3-http-api/task-1-add-http-server-and-openapi.md`
+# Task `/home/joshazimullah.linux/work_mounts/patroni_rewrite/opentk/.ralph/tasks/bugs/bug-remove-swallowed-env-and-duration-errors.md`
 
 ```
-## Task: Story 3 Task 1 - Add HTTP Server and OpenAPI Spec <status>not_started</status> <passes>false</passes>
+## Bug: Remove Swallowed Env And Duration Errors <status>not_started</status> <passes>false</passes> <priority>high</priority>
 
 <description>
-Must use tdd skill to complete
+Final boundary review for Story 3 Task 1 detected pre-existing swallowed errors outside the new API path:
 ```
 
 ==============
