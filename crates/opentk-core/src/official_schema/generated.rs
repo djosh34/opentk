@@ -2720,6 +2720,15 @@ const TOEZEGGING_FIELDS: &[Field] = &[
         xsd_type: "stringType",
         order: 22,
     },
+    Field {
+        name: "toegezegdAan",
+        kind: FieldKind::Relation,
+        min_occurs: 0,
+        max_occurs: Occurs::Exactly(1),
+        nillable: true,
+        xsd_type: "referentieLiteral",
+        order: 23,
+    },
 ];
 
 const TOEZEGGING: EntityType = EntityType {

@@ -30,3 +30,5 @@
 .ralph/tasks/bugs/full-sync-deadlocks-writing-persoon-nevenfunctie.md
 .ralph/tasks/bugs/startup-validation-swallowing-response-body-errors.md
 .ralph/tasks/bugs/database-url-redaction-ignores-set-password-error.md
+.ralph/tasks/story-10-full-sync-backup/task-1-run-one-time-clean-full-sync-report.md
+.ralph/tasks/bugs/full-sync-fails-on-unknown-toezegging-toegezegd-aan.md

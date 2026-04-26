@@ -37,9 +37,34 @@ pub const TASK_DOCUMENTED_SOURCE_GAPS: &[SourceGap] = &[
     },
 ];
 
+pub const TASK_DOCUMENTED_LIVE_FIELD_DRIFTS: &[LiveFieldDrift] = &[LiveFieldDrift {
+    category: "Toezegging",
+    field_name: "toegezegdAan",
+    kind: FieldKind::Relation,
+    min_occurs: 0,
+    max_occurs: Occurs::Exactly(1),
+    nillable: true,
+    xsd_type: "referentieLiteral",
+    order: 23,
+    reason: "live SyncFeed payload exposes this relation although the pinned official XSD only lists toegezegdAanFractie and toegezegdAanPersoon",
+}];
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct SourceGap {
     pub category: &'static str,
+    pub reason: &'static str,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct LiveFieldDrift {
+    pub category: &'static str,
+    pub field_name: &'static str,
+    pub kind: FieldKind,
+    pub min_occurs: u32,
+    pub max_occurs: Occurs,
+    pub nillable: bool,
+    pub xsd_type: &'static str,
+    pub order: u32,
     pub reason: &'static str,
 }
 
@@ -198,11 +223,18 @@ pub fn verify_model_against_dir(path: &Path) -> Result<Vec<SchemaMismatch>, Sche
 
 #[must_use]
 pub fn source_gap_report() -> String {
-    TASK_DOCUMENTED_SOURCE_GAPS
+    let mut lines = TASK_DOCUMENTED_SOURCE_GAPS
         .iter()
         .map(|gap| format!("{}: {}", gap.category, gap.reason))
-        .collect::<Vec<_>>()
-        .join("\n")
+        .collect::<Vec<_>>();
+
+    lines.extend(
+        TASK_DOCUMENTED_LIVE_FIELD_DRIFTS
+            .iter()
+            .map(|drift| format!("{}.{}: {}", drift.category, drift.field_name, drift.reason)),
+    );
+
+    lines.join("\n")
 }
 
 fn is_entity_xsd(file_name: &str) -> bool {
@@ -348,11 +380,17 @@ fn compare_fields(
     mismatches: &mut Vec<SchemaMismatch>,
 ) {
     let model_fields = model.fields.iter().map(field_key).collect::<Vec<_>>();
-    let source_fields = source
+    let mut source_fields = source
         .fields
         .iter()
         .map(extracted_field_key)
         .collect::<Vec<_>>();
+    source_fields.extend(
+        TASK_DOCUMENTED_LIVE_FIELD_DRIFTS
+            .iter()
+            .filter(|drift| drift.category == source.category)
+            .map(live_field_drift_key),
+    );
 
     if model_fields != source_fields {
         mismatches.push(SchemaMismatch {
@@ -395,6 +433,18 @@ fn extracted_field_key(field: &ExtractedField) -> (&str, FieldKind, u32, Occurs,
         field.max_occurs,
         field.nillable,
         &field.xsd_type,
+        field.order,
+    )
+}
+
+fn live_field_drift_key(field: &LiveFieldDrift) -> (&str, FieldKind, u32, Occurs, bool, &str, u32) {
+    (
+        field.field_name,
+        field.kind,
+        field.min_occurs,
+        field.max_occurs,
+        field.nillable,
+        field.xsd_type,
         field.order,
     )
 }

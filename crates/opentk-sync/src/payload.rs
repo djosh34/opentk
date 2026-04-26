@@ -268,14 +268,16 @@ fn parse_child(
             });
         }
         FieldKind::Relation => {
-            let relation = parse_relation(entity, field, child, ordinal)?;
+            let relation = parse_relation_or_absent(entity, field, child, ordinal)?;
             reader
                 .read_to_end(child.name())
                 .map_err(|source| PayloadParseError::Xml {
                     category: entity.category.to_owned(),
                     message: source.to_string(),
                 })?;
-            parsed.relations.push(relation);
+            if let Some(relation) = relation {
+                parsed.relations.push(relation);
+            }
         }
     }
     Ok(())
@@ -312,9 +314,9 @@ fn parse_empty_child(
             ordinal,
         }),
         FieldKind::Relation => {
-            parsed
-                .relations
-                .push(parse_relation(entity, field, child, ordinal)?);
+            if let Some(relation) = parse_relation_or_absent(entity, field, child, ordinal)? {
+                parsed.relations.push(relation);
+            }
         }
     }
     Ok(())
@@ -399,6 +401,19 @@ fn parse_relation(
         target_updated_at,
         ordinal,
     })
+}
+
+fn parse_relation_or_absent(
+    entity: &'static EntityType,
+    field: &'static Field,
+    child: &BytesStart<'_>,
+    ordinal: i32,
+) -> Result<Option<ParsedRelation>, PayloadParseError> {
+    match parse_relation(entity, field, child, ordinal) {
+        Ok(relation) => Ok(Some(relation)),
+        Err(PayloadParseError::MissingRelationRef { .. }) if field.nillable => Ok(None),
+        Err(error) => Err(error),
+    }
 }
 
 fn parse_value(

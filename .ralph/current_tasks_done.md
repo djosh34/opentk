@@ -1,6 +1,6 @@
 # Done Tasks Summary
 
-Generated: Sun Apr 26 20:51:15 CEST 2026
+Generated: Sun Apr 26 21:36:00 CEST 2026
 
 # Task `/home/joshazimullah.linux/work_mounts/patroni_rewrite/opentk/.ralph/tasks/bugs/bug-remove-swallowed-env-and-duration-errors.md`
 
@@ -45,6 +45,18 @@ While manually verifying
 <description>
 Story 10 Task 1 attempted one clean full SyncFeed-to-PostgreSQL sync from an
 empty dedicated database:
+```
+
+==============
+
+# Task `/home/joshazimullah.linux/work_mounts/patroni_rewrite/opentk/.ralph/tasks/bugs/full-sync-fails-on-unknown-toezegging-toegezegd-aan.md`
+
+```
+## Bug: Full sync fails on unknown Toezegging toegezegdAan field <status>done</status> <passes>true</passes> <priority>high</priority>
+
+<description>
+Story 10 Task 1 attempted one clean full SyncFeed-to-PostgreSQL sync from an
+empty dedicated database after the previous PersoonNevenfunctie deleted-body
 ```
 
 ==============

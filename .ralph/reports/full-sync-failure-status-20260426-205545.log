@@ -1,0 +1,38 @@
+$ CARGO_INCREMENTAL=0 cargo run -p opentk-db --bin opentk-sync -- --config .ralph/reports/full-sync-config-20260426-205545.toml status
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.58s
+     Running `target/debug/opentk-sync --config .ralph/reports/full-sync-config-20260426-205545.toml status`
+Activiteit	state=running	latest_skiptoken=6950032	lag_seconds=95	last_fetch_at=2026-04-26T18:56:45.210391+00:00	last_error=none
+ActiviteitActor	state=running	latest_skiptoken=5521930	lag_seconds=74	last_fetch_at=2026-04-26T18:57:05.616491+00:00	last_error=none
+Agendapunt	state=running	latest_skiptoken=52988	lag_seconds=95	last_fetch_at=2026-04-26T18:56:45.236593+00:00	last_error=none
+Besluit	state=running	latest_skiptoken=53390	lag_seconds=60	last_fetch_at=2026-04-26T18:57:19.972005+00:00	last_error=none
+Commissie	state=not_started	latest_skiptoken=null	lag_seconds=null	last_fetch_at=null	last_error=none
+CommissieContactinformatie	state=not_started	latest_skiptoken=null	lag_seconds=null	last_fetch_at=null	last_error=none
+CommissieZetel	state=running	latest_skiptoken=16671851	lag_seconds=80	last_fetch_at=2026-04-26T18:56:59.590531+00:00	last_error=none
+CommissieZetelVastPersoon	state=not_started	latest_skiptoken=null	lag_seconds=null	last_fetch_at=null	last_error=none
+CommissieZetelVastVacature	state=not_started	latest_skiptoken=null	lag_seconds=null	last_fetch_at=null	last_error=none
+CommissieZetelVervangerPersoon	state=not_started	latest_skiptoken=null	lag_seconds=null	last_fetch_at=null	last_error=none
+CommissieZetelVervangerVacature	state=running	latest_skiptoken=16696724	lag_seconds=46	last_fetch_at=2026-04-26T18:57:33.766887+00:00	last_error=none
+Document	state=not_started	latest_skiptoken=null	lag_seconds=null	last_fetch_at=null	last_error=none
+DocumentActor	state=not_started	latest_skiptoken=null	lag_seconds=null	last_fetch_at=null	last_error=none
+DocumentVersie	state=running	latest_skiptoken=3474594	lag_seconds=91	last_fetch_at=2026-04-26T18:56:48.704031+00:00	last_error=none
+Fractie	state=not_started	latest_skiptoken=null	lag_seconds=null	last_fetch_at=null	last_error=none
+FractieZetel	state=running	latest_skiptoken=16687980	lag_seconds=64	last_fetch_at=2026-04-26T18:57:15.624114+00:00	last_error=none
+FractieZetelPersoon	state=running	latest_skiptoken=16687913	lag_seconds=81	last_fetch_at=2026-04-26T18:56:58.757127+00:00	last_error=none
+FractieZetelVacature	state=not_started	latest_skiptoken=null	lag_seconds=null	last_fetch_at=null	last_error=none
+Kamerstukdossier	state=not_started	latest_skiptoken=null	lag_seconds=null	last_fetch_at=null	last_error=none
+Persoon	state=running	latest_skiptoken=16659437	lag_seconds=95	last_fetch_at=2026-04-26T18:56:45.057556+00:00	last_error=none
+PersoonContactinformatie	state=running	latest_skiptoken=16692662	lag_seconds=95	last_fetch_at=2026-04-26T18:56:44.956086+00:00	last_error=none
+PersoonGeschenk	state=running	latest_skiptoken=16663665	lag_seconds=82	last_fetch_at=2026-04-26T18:56:57.894559+00:00	last_error=none
+PersoonLoopbaan	state=not_started	latest_skiptoken=null	lag_seconds=null	last_fetch_at=null	last_error=none
+PersoonNevenfunctie	state=not_started	latest_skiptoken=null	lag_seconds=null	last_fetch_at=null	last_error=none
+PersoonNevenfunctieInkomsten	state=running	latest_skiptoken=16690959	lag_seconds=62	last_fetch_at=2026-04-26T18:57:17.827455+00:00	last_error=none
+PersoonOnderwijs	state=running	latest_skiptoken=16670941	lag_seconds=47	last_fetch_at=2026-04-26T18:57:33.089518+00:00	last_error=none
+PersoonReis	state=running	latest_skiptoken=16667464	lag_seconds=65	last_fetch_at=2026-04-26T18:57:15.037189+00:00	last_error=none
+Reservering	state=running	latest_skiptoken=5375594	lag_seconds=60	last_fetch_at=2026-04-26T18:57:19.786077+00:00	last_error=none
+Stemming	state=running	latest_skiptoken=3560496	lag_seconds=63	last_fetch_at=2026-04-26T18:57:16.947583+00:00	last_error=none
+Toezegging	state=error	latest_skiptoken=null	lag_seconds=null	last_fetch_at=null	last_error=parse skiptoken=24757218 entity=null Toezegging.toegezegdAan is unknown
+Vergadering	state=running	latest_skiptoken=33692	lag_seconds=64	last_fetch_at=2026-04-26T18:57:15.755265+00:00	last_error=none
+Verslag	state=running	latest_skiptoken=32541	lag_seconds=62	last_fetch_at=2026-04-26T18:57:18.020613+00:00	last_error=none
+Zaak	state=not_started	latest_skiptoken=null	lag_seconds=null	last_fetch_at=null	last_error=none
+ZaakActor	state=not_started	latest_skiptoken=null	lag_seconds=null	last_fetch_at=null	last_error=none
+Zaal	state=not_started	latest_skiptoken=null	lag_seconds=null	last_fetch_at=null	last_error=none

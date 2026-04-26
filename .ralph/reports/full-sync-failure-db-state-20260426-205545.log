@@ -1,0 +1,68 @@
+$ psql postgres://postgres@127.0.0.1:55432/opentk_full_sync_20260426_205545 -v ON_ERROR_STOP=1 <<SQL failure evidence
+Pager usage is off.
+         current_database         | current_user | inet_server_addr | inet_server_port 
+----------------------------------+--------------+------------------+------------------
+ opentk_full_sync_20260426_205545 | postgres     | 127.0.0.1        |            55432
+(1 row)
+
+ database_bytes | pretty_size 
+----------------+-------------
+       23777763 | 23 MB
+(1 row)
+
+         source_category         | latest_skiptoken |  state  |         last_fetch_at         | caught_up_at 
+---------------------------------+------------------+---------+-------------------------------+--------------
+ Activiteit                      |          6950032 | running | 2026-04-26 20:56:45.210391+02 | 
+ ActiviteitActor                 |          5521930 | running | 2026-04-26 20:57:05.616491+02 | 
+ Agendapunt                      |            52988 | running | 2026-04-26 20:56:45.236593+02 | 
+ Besluit                         |            53390 | running | 2026-04-26 20:57:19.972005+02 | 
+ CommissieZetel                  |         16671851 | running | 2026-04-26 20:56:59.590531+02 | 
+ CommissieZetelVervangerVacature |         16696724 | running | 2026-04-26 20:57:33.766887+02 | 
+ DocumentVersie                  |          3474594 | running | 2026-04-26 20:56:48.704031+02 | 
+ FractieZetel                    |         16687980 | running | 2026-04-26 20:57:15.624114+02 | 
+ FractieZetelPersoon             |         16687913 | running | 2026-04-26 20:56:58.757127+02 | 
+ Persoon                         |         16659437 | running | 2026-04-26 20:56:45.057556+02 | 
+ PersoonContactinformatie        |         16692662 | running | 2026-04-26 20:56:44.956086+02 | 
+ PersoonGeschenk                 |         16663665 | running | 2026-04-26 20:56:57.894559+02 | 
+ PersoonNevenfunctieInkomsten    |         16690959 | running | 2026-04-26 20:57:17.827455+02 | 
+ PersoonOnderwijs                |         16670941 | running | 2026-04-26 20:57:33.089518+02 | 
+ PersoonReis                     |         16667464 | running | 2026-04-26 20:57:15.037189+02 | 
+ Reservering                     |          5375594 | running | 2026-04-26 20:57:19.786077+02 | 
+ Stemming                        |          3560496 | running | 2026-04-26 20:57:16.947583+02 | 
+ Vergadering                     |            33692 | running | 2026-04-26 20:57:15.755265+02 | 
+ Verslag                         |            32541 | running | 2026-04-26 20:57:18.020613+02 | 
+(19 rows)
+
+ phase | source_category | source_id | latest_skiptoken |              message               |          created_at          
+-------+-----------------+-----------+------------------+------------------------------------+------------------------------
+ parse | Toezegging      |           |         24757218 | Toezegging.toegezegdAan is unknown | 2026-04-26 20:57:43.64229+02
+(1 row)
+
+         source_category         | registry_rows 
+---------------------------------+---------------
+ Activiteit                      |           497
+ ActiviteitActor                 |           250
+ Agendapunt                      |           252
+ Besluit                         |           309
+ Commissie                       |             2
+ CommissieZetel                  |           440
+ CommissieZetelVervangerVacature |           250
+ DocumentVersie                  |           250
+ Fractie                         |            21
+ FractieZetel                    |           285
+ FractieZetelPersoon             |           250
+ Persoon                         |           572
+ PersoonContactinformatie        |           250
+ PersoonGeschenk                 |           250
+ PersoonNevenfunctie             |            55
+ PersoonNevenfunctieInkomsten    |           250
+ PersoonOnderwijs                |           250
+ PersoonReis                     |           250
+ Reservering                     |           250
+ Stemming                        |           250
+ Vergadering                     |           259
+ Verslag                         |           250
+ Zaak                            |           249
+ Zaal                            |             9
+(24 rows)
+

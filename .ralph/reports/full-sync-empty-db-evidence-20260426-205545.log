@@ -1,0 +1,130 @@
+$ psql postgres://postgres@127.0.0.1:55432/opentk_full_sync_20260426_205545 -v ON_ERROR_STOP=1 <<SQL empty database evidence
+Pager usage is off.
+         current_database         | current_user | inet_server_addr | inet_server_port |                                                     version                                                     
+----------------------------------+--------------+------------------+------------------+-----------------------------------------------------------------------------------------------------------------
+ opentk_full_sync_20260426_205545 | postgres     | 127.0.0.1        |            55432 | PostgreSQL 16.11 on aarch64-redhat-linux-gnu, compiled by gcc (GCC) 11.5.0 20240719 (Red Hat 11.5.0-11), 64-bit
+(1 row)
+
+ database_bytes | pretty_size 
+----------------+-------------
+       15446499 | 15 MB
+(1 row)
+
+    table_name    | rows 
+------------------+------
+ document_asset   |    0
+ document_content |    0
+ ingest_error     |    0
+ sync_category    |    0
+ sync_entity      |    0
+(5 rows)
+
+ schemaname |                      tablename                       
+------------+------------------------------------------------------
+ public     | activiteit
+ public     | activiteit__vervangen_vanuit
+ public     | activiteit__voortgezet_vanuit
+ public     | activiteit__voortouwcommissie
+ public     | activiteit_actor
+ public     | activiteit_actor__activiteit
+ public     | activiteit_actor__commissie
+ public     | activiteit_actor__fractie
+ public     | activiteit_actor__persoon
+ public     | agendapunt
+ public     | agendapunt__activiteit
+ public     | besluit
+ public     | besluit__agendapunt
+ public     | besluit__zaak
+ public     | commissie
+ public     | commissie_contactinformatie
+ public     | commissie_contactinformatie__commissie
+ public     | commissie_zetel
+ public     | commissie_zetel__commissie
+ public     | commissie_zetel_vast_persoon
+ public     | commissie_zetel_vast_persoon__commissie_zetel
+ public     | commissie_zetel_vast_persoon__persoon
+ public     | commissie_zetel_vast_vacature
+ public     | commissie_zetel_vast_vacature__commissie_zetel
+ public     | commissie_zetel_vast_vacature__fractie
+ public     | commissie_zetel_vervanger_persoon
+ public     | commissie_zetel_vervanger_persoon__commissie_zetel
+ public     | commissie_zetel_vervanger_persoon__persoon
+ public     | commissie_zetel_vervanger_vacature
+ public     | commissie_zetel_vervanger_vacature__commissie_zetel
+ public     | commissie_zetel_vervanger_vacature__fractie
+ public     | document
+ public     | document__activiteit
+ public     | document__agendapunt
+ public     | document__bron_document
+ public     | document__huidige_document_versie
+ public     | document__kamerstukdossier
+ public     | document__zaak
+ public     | document_actor
+ public     | document_actor__commissie
+ public     | document_actor__document
+ public     | document_actor__fractie
+ public     | document_actor__persoon
+ public     | document_asset
+ public     | document_content
+ public     | document_versie
+ public     | document_versie__document
+ public     | fractie
+ public     | fractie_zetel
+ public     | fractie_zetel__fractie
+ public     | fractie_zetel_persoon
+ public     | fractie_zetel_persoon__fractie_zetel
+ public     | fractie_zetel_persoon__persoon
+ public     | fractie_zetel_vacature
+ public     | fractie_zetel_vacature__fractie_zetel
+ public     | ingest_error
+ public     | kamerstukdossier
+ public     | persoon
+ public     | persoon_contactinformatie
+ public     | persoon_contactinformatie__persoon
+ public     | persoon_geschenk
+ public     | persoon_geschenk__persoon
+ public     | persoon_loopbaan
+ public     | persoon_loopbaan__persoon
+ public     | persoon_nevenfunctie
+ public     | persoon_nevenfunctie__persoon
+ public     | persoon_nevenfunctie_inkomsten
+ public     | persoon_nevenfunctie_inkomsten__persoon_nevenfunctie
+ public     | persoon_onderwijs
+ public     | persoon_onderwijs__persoon
+ public     | persoon_reis
+ public     | persoon_reis__persoon
+ public     | reservering
+ public     | reservering__activiteit
+ public     | reservering__zaal
+ public     | search_index_cursor
+ public     | search_index_failure
+ public     | stemming
+ public     | stemming__besluit
+ public     | stemming__fractie
+ public     | stemming__persoon
+ public     | sync_category
+ public     | sync_entity
+ public     | toezegging
+ public     | toezegging__activiteit
+ public     | toezegging__is_aanvulling_op
+ public     | toezegging__is_herhaling_van
+ public     | toezegging__is_wijziging_van
+ public     | toezegging__toegezegd_aan_fractie
+ public     | toezegging__toegezegd_aan_persoon
+ public     | vergadering
+ public     | verslag
+ public     | verslag__vergadering
+ public     | zaak
+ public     | zaak__activiteit
+ public     | zaak__agendapunt
+ public     | zaak__gerelateerd_vanuit
+ public     | zaak__kamerstukdossier
+ public     | zaak__vervangen_vanuit
+ public     | zaak_actor
+ public     | zaak_actor__commissie
+ public     | zaak_actor__fractie
+ public     | zaak_actor__persoon
+ public     | zaak_actor__zaak
+ public     | zaal
+(105 rows)
+

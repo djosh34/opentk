@@ -1336,6 +1336,20 @@ CREATE TABLE "toezegging__activiteit" (
     FOREIGN KEY ("target_category", "target_id") REFERENCES "sync_entity" ("source_category", "source_id") ON DELETE RESTRICT
 );
 
+CREATE TABLE "toezegging__toegezegd_aan" (
+    "source_category" text NOT NULL,
+    "source_id" uuid NOT NULL,
+    "relation_name" text NOT NULL,
+    "target_category" text NOT NULL,
+    "target_id" uuid NOT NULL,
+    "ordinal" integer NOT NULL,
+    "source_updated_at" timestamptz NOT NULL,
+    PRIMARY KEY ("source_category", "source_id", "relation_name", "target_category", "target_id", "ordinal"),
+    UNIQUE ("source_category", "source_id", "relation_name"),
+    FOREIGN KEY ("source_category", "source_id") REFERENCES "toezegging" ("source_category", "source_id") ON DELETE CASCADE,
+    FOREIGN KEY ("target_category", "target_id") REFERENCES "sync_entity" ("source_category", "source_id") ON DELETE RESTRICT
+);
+
 CREATE TABLE "vergadering" (
     "source_category" text NOT NULL,
     "source_id" uuid NOT NULL,
@@ -1966,6 +1980,9 @@ CREATE INDEX "idx_toezegging__is_wijziging_van_foreignkeypat_5ca3650ad35be806" O
 CREATE INDEX "idx_toezegging__activiteit_relationsource_sour_83465279b2411e07" ON "toezegging__activiteit" ("source_category", "source_id", "relation_name");
 CREATE INDEX "idx_toezegging__activiteit_relationtarget_targ_31a45dd210d6515c" ON "toezegging__activiteit" ("target_category", "target_id");
 CREATE INDEX "idx_toezegging__activiteit_foreignkeypath_sour_16de79f66325646f" ON "toezegging__activiteit" ("source_category", "source_id");
+CREATE INDEX "idx_toezegging__toegezegd_aan_relationsource_s_6ecb571c9ef6ab66" ON "toezegging__toegezegd_aan" ("source_category", "source_id", "relation_name");
+CREATE INDEX "idx_toezegging__toegezegd_aan_relationtarget_t_a18ecc1c08e07f49" ON "toezegging__toegezegd_aan" ("target_category", "target_id");
+CREATE INDEX "idx_toezegging__toegezegd_aan_foreignkeypath_s_0d46b72d74545b6a" ON "toezegging__toegezegd_aan" ("source_category", "source_id");
 CREATE INDEX "idx_vergadering_primaryuuidlookup_source_id" ON "vergadering" ("source_id");
 CREATE INDEX "idx_vergadering_entityupdatedat_source_categor_3f1472ef6a1c581b" ON "vergadering" ("source_category", "source_updated_at");
 CREATE INDEX "idx_vergadering_foreignkeypath_source_category_source_id" ON "vergadering" ("source_category", "source_id");

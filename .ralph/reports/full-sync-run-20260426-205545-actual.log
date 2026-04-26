@@ -1,0 +1,16 @@
+$ psql postgres://postgres@127.0.0.1:55432/opentk_full_sync_20260426_205545 -v ON_ERROR_STOP=1 -c "SELECT count(*) FROM sync_category UNION ALL SELECT count(*) FROM ingest_error;"
+  table_name   | rows 
+---------------+------
+ ingest_error  |    0
+ sync_category |    0
+(2 rows)
+
+$ date -Is # sync start
+2026-04-26T20:56:30+02:00
+$ time -p env CARGO_INCREMENTAL=0 cargo run -p opentk-db --bin opentk-sync -- --config .ralph/reports/full-sync-config-20260426-205545.toml run
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.62s
+     Running `target/debug/opentk-sync --config .ralph/reports/full-sync-config-20260426-205545.toml run`
+Error: Parse { category: "Toezegging", source: UnknownField { category: "Toezegging", field: "toegezegdAan" } }
+real 72.77
+user 2.68
+sys 0.67

@@ -126,6 +126,92 @@ fn live_syncfeed_naive_fractional_datetimes_parse_as_utc() {
 }
 
 #[test]
+fn toezegging_live_toegezegd_aan_relation_parses() {
+    let parsed = parse_entity_xml(
+        "Toezegging",
+        r#"<toezegging xmlns="http://www.tweedekamer.nl/xsd/tkData/v1-0"
+            id="66666666-6666-4666-8666-666666666666"
+            verwijderd="false"
+            bijgewerkt="2026-04-26T00:00:00Z">
+            <toegezegdAan ref="77777777-7777-4777-8777-777777777777"/>
+            <tekst>De toezeggingstekst blijft als scalar beschikbaar.</tekst>
+        </toezegging>"#,
+    )
+    .expect("live Toezegging payload parses");
+
+    assert_eq!(parsed.category, "Toezegging");
+    assert_eq!(parsed.xml_element, "toezegging");
+    assert!(parsed.relations.iter().any(|relation| {
+        relation.name == "toegezegdAan"
+            && relation.target_id
+                == Uuid::parse_str("77777777-7777-4777-8777-777777777777").expect("valid uuid")
+    }));
+    assert!(parsed.scalars.iter().any(|scalar| {
+        scalar.name == "tekst"
+            && scalar.value
+                == ParsedValue::Text(
+                    "De toezeggingstekst blijft als scalar beschikbaar.".to_owned(),
+                )
+    }));
+}
+
+#[test]
+fn toezegging_live_empty_toegezegd_aan_relation_is_absent() {
+    let parsed = parse_entity_xml(
+        "Toezegging",
+        r#"<toezegging xmlns="http://www.tweedekamer.nl/xsd/tkData/v1-0"
+            id="88888888-8888-4888-8888-888888888888"
+            verwijderd="false"
+            bijgewerkt="2026-04-26T00:00:00Z">
+            <toegezegdAan/>
+            <tekst>Een lege toegezegdAan uit de live feed blokkeert parsing niet.</tekst>
+        </toezegging>"#,
+    )
+    .expect("live Toezegging payload with empty toegezegdAan parses");
+
+    assert_eq!(parsed.category, "Toezegging");
+    assert!(!parsed
+        .relations
+        .iter()
+        .any(|relation| relation.name == "toegezegdAan"));
+    assert!(parsed.scalars.iter().any(|scalar| {
+        scalar.name == "tekst"
+            && scalar.value
+                == ParsedValue::Text(
+                    "Een lege toegezegdAan uit de live feed blokkeert parsing niet.".to_owned(),
+                )
+    }));
+}
+
+#[test]
+fn toezegging_live_expanded_empty_toegezegd_aan_relation_is_absent() {
+    let parsed = parse_entity_xml(
+        "Toezegging",
+        r#"<toezegging xmlns="http://www.tweedekamer.nl/xsd/tkData/v1-0"
+            id="99999999-9999-4999-8999-999999999999"
+            verwijderd="false"
+            bijgewerkt="2026-04-26T00:00:00Z">
+            <toegezegdAan></toegezegdAan>
+            <tekst>Een uitgebreid lege toegezegdAan blokkeert parsing niet.</tekst>
+        </toezegging>"#,
+    )
+    .expect("live Toezegging payload with expanded empty toegezegdAan parses");
+
+    assert_eq!(parsed.category, "Toezegging");
+    assert!(!parsed
+        .relations
+        .iter()
+        .any(|relation| relation.name == "toegezegdAan"));
+    assert!(parsed.scalars.iter().any(|scalar| {
+        scalar.name == "tekst"
+            && scalar.value
+                == ParsedValue::Text(
+                    "Een uitgebreid lege toegezegdAan blokkeert parsing niet.".to_owned(),
+                )
+    }));
+}
+
+#[test]
 fn scalar_datatypes_are_validated_and_typed() {
     let activiteit = parse_entity_xml(
         "Activiteit",
