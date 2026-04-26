@@ -14,7 +14,7 @@ use opentk_sync::{
 };
 
 #[derive(Debug, Parser)]
-#[command(name = "complete-sync")]
+#[command(name = "opentk-sync")]
 #[command(about = "Run or inspect durable Tweede Kamer SyncFeed ingestion")]
 struct Cli {
     #[arg(long, global = true)]
@@ -44,24 +44,27 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         Some(path) => ConfigLoader::with_path(path).load()?,
         None => ConfigLoader::new().load()?,
     };
+    let config = loaded.config;
+    tracing_subscriber::fmt::init();
+    tracing::info!(config = ?config.redacted(), "loaded effective config");
     match cli.command {
         Command::Run => {
-            run_once(&loaded.config).await?;
+            run_once(&config).await?;
         }
         Command::Poll => {
             let runner = build_runner(
-                &loaded.config,
+                &config,
                 SyncRunMode::Continuous,
-                Duration::from_secs(loaded.config.sync.poll_interval_secs),
+                Duration::from_secs(config.sync.poll_interval_secs),
             )
             .await?;
             runner.run_forever().await?;
         }
         Command::Status => {
-            print_status(&loaded.config).await?;
+            print_status(&config).await?;
         }
         Command::Verify(args) => {
-            print_verification(&loaded.config, args).await?;
+            print_verification(&config, args).await?;
         }
     }
     Ok(())
@@ -219,13 +222,9 @@ mod tests {
 
     #[test]
     fn run_command_accepts_config_path_only() {
-        let cli = Cli::try_parse_from([
-            "complete-sync",
-            "--config",
-            "/etc/opentk/config.toml",
-            "run",
-        ])
-        .expect("run command parses");
+        let cli =
+            Cli::try_parse_from(["opentk-sync", "--config", "/etc/opentk/config.toml", "run"])
+                .expect("run command parses");
 
         let Command::Run = cli.command else {
             panic!("expected run command");
@@ -240,19 +239,19 @@ mod tests {
     fn old_application_setting_flags_are_rejected() {
         for args in [
             [
-                "complete-sync",
+                "opentk-sync",
                 "run",
                 "--database-url",
                 "postgres://example.test/db",
             ],
             [
-                "complete-sync",
+                "opentk-sync",
                 "run",
                 "--base-url",
                 "https://sync.example.test",
             ],
-            ["complete-sync", "run", "--category", "Document"],
-            ["complete-sync", "poll", "--poll-interval-seconds", "5"],
+            ["opentk-sync", "run", "--category", "Document"],
+            ["opentk-sync", "poll", "--poll-interval-seconds", "5"],
         ] {
             assert!(Cli::try_parse_from(args).is_err(), "{args:?} must fail");
         }
@@ -260,7 +259,7 @@ mod tests {
 
     #[test]
     fn status_command_has_no_application_setting_args() {
-        let cli = Cli::try_parse_from(["complete-sync", "status"]).expect("status command parses");
+        let cli = Cli::try_parse_from(["opentk-sync", "status"]).expect("status command parses");
         let Command::Status = cli.command else {
             panic!("expected status command");
         };
@@ -268,13 +267,9 @@ mod tests {
 
     #[test]
     fn verify_command_accepts_only_relation_sample_requirement() {
-        let cli = Cli::try_parse_from([
-            "complete-sync",
-            "verify",
-            "--required-relation-samples",
-            "1",
-        ])
-        .expect("verify command parses");
+        let cli =
+            Cli::try_parse_from(["opentk-sync", "verify", "--required-relation-samples", "1"])
+                .expect("verify command parses");
 
         let Command::Verify(args) = cli.command else {
             panic!("expected verify command");

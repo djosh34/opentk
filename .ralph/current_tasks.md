@@ -1,6 +1,6 @@
 # Current Tasks Summary
 
-Generated: Sun Apr 26 17:00:26 CEST 2026
+Generated: Sun Apr 26 17:34:17 CEST 2026
 
 # Task `/home/joshazimullah.linux/work_mounts/patroni_rewrite/opentk/.ralph/tasks/story-10-full-sync-backup/task-1-run-one-time-clean-full-sync-report.md`
 
@@ -39,17 +39,6 @@ Must use tdd skill to complete
 
 ```
 ## Task: Story 11 Task 2 - Structured Logging, Metrics, and JSON Log Format <status>not_started</status> <passes>false</passes>
-
-<description>
-Must use tdd skill to complete
-```
-
-==============
-
-# Task `/home/joshazimullah.linux/work_mounts/patroni_rewrite/opentk/.ralph/tasks/story-6-config-unification/task-2-refactor-binaries-to-config.md`
-
-```
-## Task: Story 6 Task 2 - Refactor All Binaries to Use Unified Config <status>not_started</status> <passes>false</passes>
 
 <description>
 Must use tdd skill to complete

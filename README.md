@@ -52,10 +52,10 @@ cargo clippy --workspace --all-targets -- -D warnings
 `make test-long` is reserved for story-ending or explicitly requested long/e2e
 validation. Do not run it as the default end-of-task check.
 
-The durable SyncFeed runner is exposed by the `complete-sync` binary from
+The durable SyncFeed runner is exposed by the `opentk-sync` binary from
 `opentk-db`:
 
 ```bash
-cargo run -p opentk-db --bin complete-sync -- status --database-url "$DATABASE_URL"
-cargo run -p opentk-db --bin complete-sync -- run --database-url "$DATABASE_URL" --category Document
+cargo run -p opentk-db --bin opentk-sync -- --config ./opentk.toml status
+cargo run -p opentk-db --bin opentk-sync -- --config ./opentk.toml run
 ```

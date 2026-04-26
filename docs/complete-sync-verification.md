@@ -7,20 +7,17 @@ official entities, fields, or relations.
 
 ## Deterministic Verification
 
-Use `complete-sync verify` against a migrated database:
+Use `opentk-sync verify` against a migrated database:
 
 ```bash
-complete-sync verify --database-url "$OPENTK_DATABASE_URL"
+opentk-sync --config ./opentk.toml verify
 ```
 
-With no `--category` flags, the command expands to every official category from
-`opentk-core::official_schema`. With explicit `--category` flags, verification
-is limited to those categories:
+The categories come from the unified config. With no configured override, the
+command expands to every official category from `opentk-core::official_schema`:
 
 ```bash
-complete-sync verify \
-  --database-url "$OPENTK_DATABASE_URL" \
-  --category Document \
+opentk-sync --config ./opentk.toml verify \
   --required-relation-samples 1
 ```
 

@@ -34,17 +34,20 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         Some(path) => ConfigLoader::with_path(path).load()?,
         None => ConfigLoader::new().load()?,
     };
+    let config = loaded.config;
+    tracing_subscriber::fmt::init();
+    tracing::info!(config = ?config.redacted(), "loaded effective config");
     match cli.command {
         Command::FullReindex => {
-            let report = run_sync(&loaded.config, true).await?;
+            let report = run_sync(&config, true).await?;
             print_report(&report);
         }
         Command::Incremental | Command::RetryFailures => {
-            let report = run_sync(&loaded.config, false).await?;
+            let report = run_sync(&config, false).await?;
             print_report(&report);
         }
         Command::Failures => {
-            let pool = connect(&database_config(&loaded.config)).await?;
+            let pool = connect(&database_config(&config)).await?;
             for failure in list_failures(&pool).await? {
                 println!(
                     "{}\t{}\t{}\t{}\tattempts={}\tnext_retry_at={}\terror={}",

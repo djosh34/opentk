@@ -1,9 +1,8 @@
 use clap::Parser;
 use opentk_api::{serve, ApiConfig, SearchBackendConfig};
-use opentk_config::{ConfigLoader, LogFormat};
+use opentk_config::ConfigLoader;
 use opentk_db::DatabaseConfig;
 use std::path::PathBuf;
-use tracing_subscriber::{filter::ParseError, EnvFilter};
 
 #[derive(Parser)]
 struct Args {
@@ -18,34 +17,24 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         Some(path) => ConfigLoader::with_path(path).load()?,
         None => ConfigLoader::new().load()?,
     };
-    init_logging(loaded.config.log.format, &loaded.config.log.level)?;
+    let config = loaded.config;
+    tracing_subscriber::fmt::init();
+    tracing::info!(config = ?config.redacted(), "loaded effective config");
 
     serve(ApiConfig {
-        bind_address: loaded.config.api.bind_address,
+        bind_address: config.api.bind_address,
         database: DatabaseConfig {
-            url: loaded.config.database.url,
-            max_connections: loaded.config.database.max_connections,
+            url: config.database.url,
+            max_connections: config.database.max_connections,
         },
         search: SearchBackendConfig {
-            url: loaded.config.search.url,
-            api_key: loaded.config.search.api_key,
-            index_name: loaded.config.search.index_name,
+            url: config.search.url,
+            api_key: config.search.api_key,
+            index_name: config.search.index_name,
         },
     })
     .await?;
 
-    Ok(())
-}
-
-fn init_logging(format: LogFormat, level: &str) -> Result<(), ParseError> {
-    let filter = EnvFilter::try_new(level)?;
-    match format {
-        LogFormat::Json => tracing_subscriber::fmt()
-            .json()
-            .with_env_filter(filter)
-            .init(),
-        LogFormat::Pretty => tracing_subscriber::fmt().with_env_filter(filter).init(),
-    }
     Ok(())
 }
 

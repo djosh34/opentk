@@ -5,6 +5,7 @@ use std::{
 };
 
 use opentk_config::{Config, ConfigLoader, LogFormat};
+use serde_json::Value;
 
 #[test]
 fn required_database_url_loads_with_compiled_defaults() {
@@ -174,6 +175,68 @@ fn explicit_values_override_defaults() {
     assert_eq!(config.api.cors_origins, ["https://app.example.test"]);
     assert_eq!(config.log.format, LogFormat::Json);
     assert_eq!(config.log.level, "debug");
+}
+
+#[test]
+fn redacted_config_masks_secrets_and_keeps_operational_settings() {
+    let config = Config::from_toml_str(
+        r#"
+        [database]
+        url = "postgres://postgres:secret@db:5432/opentk"
+        max_connections = 9
+
+        [sync]
+        base_url = "https://sync.example.test"
+        request_timeout_secs = 11
+        connect_timeout_secs = 12
+        max_retries = 13
+        max_concurrent_requests = 14
+        poll_interval_secs = 15
+        categories = ["Document"]
+
+        [search]
+        url = "http://search.example.test:7700"
+        api_key = "search-secret"
+        index_name = "custom_index"
+        batch_size = 16
+        retry_limit = 17
+
+        [api]
+        bind_address = "127.0.0.1:3001"
+        cors_origins = ["https://app.example.test"]
+
+        [log]
+        format = "json"
+        level = "debug"
+        "#,
+    )
+    .expect("full config loads");
+
+    let redacted = serde_json::to_value(config.redacted()).expect("redacted config serializes");
+
+    assert_eq!(
+        redacted["database"],
+        serde_json::json!({ "max_connections": 9 })
+    );
+    assert_eq!(
+        redacted["search"]["api_key"],
+        Value::String("***".to_owned())
+    );
+    assert_eq!(redacted["search"]["url"], "http://search.example.test:7700");
+    assert_eq!(redacted["search"]["index_name"], "custom_index");
+    assert_eq!(redacted["search"]["batch_size"], 16);
+    assert_eq!(redacted["search"]["retry_limit"], 17);
+    assert_eq!(redacted["sync"]["base_url"], "https://sync.example.test/");
+    assert_eq!(redacted["api"]["bind_address"], "127.0.0.1:3001");
+    assert_eq!(redacted["log"]["level"], "debug");
+    assert!(
+        !redacted.to_string().contains("postgres://"),
+        "database URL must not be present in redacted config"
+    );
+    assert!(
+        !redacted.to_string().contains("search-secret"),
+        "search API key must not be present in redacted config"
+    );
 }
 
 struct TempDir {

@@ -1,9 +1,13 @@
 use axum::{
     body::{to_bytes, Body},
     http::{Request, StatusCode},
+    Router,
 };
 use opentk_db::{connect, DatabaseConfig};
+use opentk_search::{SearchIndexError, SearchQueryClient, SearchRequest, SearchResponse};
 use serde_json::Value;
+use sqlx::PgPool;
+use std::{future::Future, pin::Pin, sync::Arc};
 use tower::ServiceExt;
 
 #[tokio::test]
@@ -17,7 +21,7 @@ async fn openapi_document_is_served_from_router() -> Result<(), Box<dyn std::err
     })
     .await?;
 
-    let response = opentk_api::router(pool)
+    let response = router_without_search(pool)
         .oneshot(Request::get("/openapi.json").body(Body::empty())?)
         .await?;
 
@@ -48,4 +52,24 @@ async fn openapi_document_is_served_from_router() -> Result<(), Box<dyn std::err
         .is_some());
 
     Ok(())
+}
+
+fn router_without_search(pool: PgPool) -> Router {
+    opentk_api::router_with_search(pool, Arc::new(UnavailableSearchClient))
+}
+
+struct UnavailableSearchClient;
+
+impl SearchQueryClient for UnavailableSearchClient {
+    fn search<'a>(
+        &'a self,
+        _request: SearchRequest,
+    ) -> Pin<Box<dyn Future<Output = Result<SearchResponse, SearchIndexError>> + Send + 'a>> {
+        Box::pin(async {
+            Err(SearchIndexError::Http {
+                status: None,
+                message: "search unavailable in OpenAPI tests".to_owned(),
+            })
+        })
+    }
 }

@@ -1436,6 +1436,7 @@ dependencies = [
  "thiserror",
  "tokio",
  "tower",
+ "tracing",
  "tracing-subscriber",
  "utoipa",
  "uuid",
@@ -1448,6 +1449,7 @@ dependencies = [
  "opentk-core",
  "reqwest",
  "serde",
+ "serde_json",
  "thiserror",
  "toml",
 ]
@@ -1472,6 +1474,8 @@ dependencies = [
  "sqlx",
  "thiserror",
  "tokio",
+ "tracing",
+ "tracing-subscriber",
  "uuid",
 ]
 

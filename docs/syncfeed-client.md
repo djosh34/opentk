@@ -88,7 +88,7 @@ Crash behavior follows the committed cursor:
 
 The PostgreSQL implementation lives in `opentk-db::sync_state`. It records
 durable errors with phase, category, skiptoken, entity id when known, and
-message. The `complete-sync status` command reports category state, cursor,
+message. The `opentk-sync status` command reports category state, cursor,
 lag, last fetch time, and last error from that store.
 
 ## Testing

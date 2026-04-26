@@ -1,4 +1,10 @@
-## Task: Story 6 Task 2 - Refactor All Binaries to Use Unified Config <status>not_started</status> <passes>false</passes>
+## Task: Story 6 Task 2 - Refactor All Binaries to Use Unified Config <status>done</status> <passes>true</passes>
+
+<plan>
+.ralph/tasks/story-6-config-unification/task-2-refactor-binaries-to-config_plans/refactor-binaries-to-config-plan.md
+</plan>
+
+NOW EXECUTE
 
 <description>
 Must use tdd skill to complete
@@ -32,14 +38,14 @@ In scope: refactoring all binaries, updating tests, updating README, removing ol
 
 
 <acceptance_criteria>
-- [ ] `complete-sync` (to be renamed) uses unified config for all settings
-- [ ] `opentk-api` uses unified config for all settings
-- [ ] `search-sync` uses unified config for all settings
-- [ ] `opentk-api` starts and serves non-search endpoints when Meilisearch is unavailable
-- [ ] No hardcoded `127.0.0.1` defaults remain
-- [ ] Old env var names (`OPENTK_MEILISEARCH_URL`) and all replacement single-setting env vars are completely removed
-- [ ] All binaries log effective config at startup with secrets redacted
-- [ ] `make check` — passes cleanly
-- [ ] `make test` — passes cleanly (default suite)
-- [ ] `make lint` — passes cleanly
+- [x] `complete-sync` (to be renamed) uses unified config for all settings
+- [x] `opentk-api` uses unified config for all settings
+- [x] `search-sync` uses unified config for all settings
+- [x] `opentk-api` starts and serves non-search endpoints when Meilisearch is unavailable
+- [x] No hardcoded `127.0.0.1` defaults remain
+- [x] Old env var names (`OPENTK_MEILISEARCH_URL`) and all replacement single-setting env vars are completely removed
+- [x] All binaries log effective config at startup with secrets redacted
+- [x] `make check` — passes cleanly
+- [x] `make test` — passes cleanly (default suite)
+- [x] `make lint` — passes cleanly
 </acceptance_criteria>

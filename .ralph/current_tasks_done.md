@@ -1,6 +1,6 @@
 # Done Tasks Summary
 
-Generated: Sun Apr 26 17:00:26 CEST 2026
+Generated: Sun Apr 26 17:34:17 CEST 2026
 
 # Task `/home/joshazimullah.linux/work_mounts/patroni_rewrite/opentk/.ralph/tasks/bugs/bug-remove-swallowed-env-and-duration-errors.md`
 
@@ -232,6 +232,18 @@ Must use tdd skill to complete
 
 <plan>
 .ralph/tasks/story-6-config-unification/task-1-create-config-crate_plans/centralized-config-crate-plan.md
+</plan>
+```
+
+==============
+
+# Task `/home/joshazimullah.linux/work_mounts/patroni_rewrite/opentk/.ralph/tasks/story-6-config-unification/task-2-refactor-binaries-to-config.md`
+
+```
+## Task: Story 6 Task 2 - Refactor All Binaries to Use Unified Config <status>done</status> <passes>true</passes>
+
+<plan>
+.ralph/tasks/story-6-config-unification/task-2-refactor-binaries-to-config_plans/refactor-binaries-to-config-plan.md
 </plan>
 ```
 

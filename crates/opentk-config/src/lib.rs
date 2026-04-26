@@ -9,7 +9,7 @@ use std::{
 
 use opentk_core::official_schema;
 use reqwest::Url;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 const LOCAL_CONFIG_PATH: &str = "./opentk.toml";
@@ -62,7 +62,7 @@ pub struct LogConfig {
     pub level: String,
 }
 
-#[derive(Clone, Copy, Debug, Deserialize, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
 pub enum LogFormat {
     Json,
@@ -73,6 +73,52 @@ pub enum LogFormat {
 pub struct LoadedConfig {
     pub path: PathBuf,
     pub config: Config,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+pub struct RedactedConfig {
+    pub database: RedactedDatabaseConfig,
+    pub sync: RedactedSyncConfig,
+    pub search: RedactedSearchConfig,
+    pub api: RedactedApiConfig,
+    pub log: RedactedLogConfig,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+pub struct RedactedDatabaseConfig {
+    pub max_connections: u32,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+pub struct RedactedSyncConfig {
+    pub base_url: String,
+    pub request_timeout_secs: u64,
+    pub connect_timeout_secs: u64,
+    pub max_retries: u32,
+    pub max_concurrent_requests: usize,
+    pub poll_interval_secs: u64,
+    pub categories: Vec<String>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+pub struct RedactedSearchConfig {
+    pub url: String,
+    pub api_key: Option<&'static str>,
+    pub index_name: String,
+    pub batch_size: i64,
+    pub retry_limit: i32,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+pub struct RedactedApiConfig {
+    pub bind_address: String,
+    pub cors_origins: Vec<String>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+pub struct RedactedLogConfig {
+    pub format: LogFormat,
+    pub level: String,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
@@ -170,6 +216,39 @@ impl Config {
     /// config.
     pub fn from_toml_str(source: &str) -> Result<Self, ConfigError> {
         RawConfig::from_toml_str(source)?.try_into()
+    }
+
+    #[must_use]
+    pub fn redacted(&self) -> RedactedConfig {
+        RedactedConfig {
+            database: RedactedDatabaseConfig {
+                max_connections: self.database.max_connections,
+            },
+            sync: RedactedSyncConfig {
+                base_url: self.sync.base_url.to_string(),
+                request_timeout_secs: self.sync.request_timeout_secs,
+                connect_timeout_secs: self.sync.connect_timeout_secs,
+                max_retries: self.sync.max_retries,
+                max_concurrent_requests: self.sync.max_concurrent_requests.get(),
+                poll_interval_secs: self.sync.poll_interval_secs,
+                categories: self.sync.categories.clone(),
+            },
+            search: RedactedSearchConfig {
+                url: self.search.url.clone(),
+                api_key: self.search.api_key.as_ref().map(|_| "***"),
+                index_name: self.search.index_name.clone(),
+                batch_size: self.search.batch_size,
+                retry_limit: self.search.retry_limit,
+            },
+            api: RedactedApiConfig {
+                bind_address: self.api.bind_address.to_string(),
+                cors_origins: self.api.cors_origins.clone(),
+            },
+            log: RedactedLogConfig {
+                format: self.log.format,
+                level: self.log.level.clone(),
+            },
+        }
     }
 }
 

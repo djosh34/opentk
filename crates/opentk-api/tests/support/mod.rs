@@ -1,11 +1,13 @@
 use axum::{
     body::{to_bytes, Body},
     http::{Request, StatusCode},
+    Router,
 };
 use opentk_db::{connect, DatabaseConfig};
+use opentk_search::{SearchIndexError, SearchQueryClient, SearchRequest, SearchResponse};
 use serde_json::Value;
 use sqlx::{postgres::PgPoolOptions, PgPool, Row};
-use std::{collections::VecDeque, sync::Arc};
+use std::{collections::VecDeque, future::Future, pin::Pin, sync::Arc};
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
     net::TcpListener,
@@ -149,7 +151,8 @@ impl Drop for TestServer {
 pub async fn start_server(pool: PgPool) -> Result<TestServer, Box<dyn std::error::Error>> {
     let listener = TcpListener::bind("127.0.0.1:0").await?;
     let address = listener.local_addr()?;
-    let task = tokio::spawn(async move { axum::serve(listener, opentk_api::router(pool)).await });
+    let task =
+        tokio::spawn(async move { axum::serve(listener, router_without_search(pool)).await });
 
     Ok(TestServer {
         base_url: format!("http://{address}"),
@@ -163,11 +166,31 @@ pub async fn router_json(
     path: &str,
     expected_status: StatusCode,
 ) -> Result<Value, Box<dyn std::error::Error>> {
-    let response = opentk_api::router(pool)
+    let response = router_without_search(pool)
         .oneshot(Request::get(path).body(Body::empty())?)
         .await?;
     assert_eq!(response.status(), expected_status);
     response_json(response).await
+}
+
+pub fn router_without_search(pool: PgPool) -> Router {
+    opentk_api::router_with_search(pool, Arc::new(UnavailableSearchClient))
+}
+
+struct UnavailableSearchClient;
+
+impl SearchQueryClient for UnavailableSearchClient {
+    fn search<'a>(
+        &'a self,
+        _request: SearchRequest,
+    ) -> Pin<Box<dyn Future<Output = Result<SearchResponse, SearchIndexError>> + Send + 'a>> {
+        Box::pin(async {
+            Err(SearchIndexError::Http {
+                status: None,
+                message: "search unavailable in this test".to_owned(),
+            })
+        })
+    }
 }
 
 pub async fn migrated_pool(test_name: &str) -> Result<PgPool, Box<dyn std::error::Error>> {

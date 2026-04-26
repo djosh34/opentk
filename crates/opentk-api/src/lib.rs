@@ -17,11 +17,13 @@ use opentk_db::{
     },
     DatabaseConfig, DatabaseError,
 };
-use opentk_search::{MeilisearchClient, SearchIndexError, SearchQueryClient};
+use opentk_search::{
+    MeilisearchClient, SearchIndexError, SearchQueryClient, SearchRequest, SearchResponse,
+};
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 use sqlx::PgPool;
-use std::{net::SocketAddr, sync::Arc};
+use std::{future::Future, net::SocketAddr, pin::Pin, sync::Arc};
 use thiserror::Error;
 use tokio::net::TcpListener;
 use utoipa::{
@@ -37,9 +39,6 @@ use utoipa::{
     },
     ToSchema,
 };
-
-const DEFAULT_SEARCH_URL: &str = "http://meilisearch:7700";
-const DEFAULT_SEARCH_INDEX: &str = "opentk_entities";
 
 #[derive(Clone)]
 struct ApiState {
@@ -316,16 +315,32 @@ struct RelationResponse {
 /// initialized.
 pub async fn build_app(config: ApiConfig) -> Result<ApiServer, ApiError> {
     let pool = connect(&config.database).await?;
-    let search = Arc::new(MeilisearchClient::new(
-        config.search.url,
-        config.search.api_key,
-        config.search.index_name,
-    ));
+    let search = configured_search_client(SearchBackendConfig {
+        url: config.search.url,
+        api_key: config.search.api_key,
+        index_name: config.search.index_name,
+    })
+    .await;
 
     Ok(ApiServer {
         bind_address: config.bind_address,
         router: router_with_search(pool, search),
     })
+}
+
+async fn configured_search_client(
+    config: SearchBackendConfig,
+) -> Arc<dyn SearchQueryClient + Send + Sync> {
+    let search = Arc::new(MeilisearchClient::new(
+        config.url,
+        config.api_key,
+        config.index_name,
+    ));
+    if let Err(error) = search.search(startup_probe_request()).await {
+        tracing::error!(%error, "search backend unavailable at startup");
+        return Arc::new(UnavailableSearchClient);
+    }
+    search
 }
 
 /// Starts the HTTP API server and serves requests until the listener exits.
@@ -347,10 +362,6 @@ pub async fn serve(config: ApiConfig) -> Result<(), ApiError> {
     axum::serve(listener, server.router)
         .await
         .map_err(ApiError::Serve)
-}
-
-pub fn router(pool: PgPool) -> Router {
-    router_with_search(pool, default_search_client_without_env())
 }
 
 pub fn router_with_search(
@@ -376,12 +387,29 @@ pub fn router_with_search(
         })
 }
 
-fn default_search_client_without_env() -> Arc<dyn SearchQueryClient + Send + Sync> {
-    Arc::new(MeilisearchClient::new(
-        DEFAULT_SEARCH_URL.to_owned(),
-        None,
-        DEFAULT_SEARCH_INDEX.to_owned(),
-    ))
+fn startup_probe_request() -> SearchRequest {
+    SearchRequest {
+        query: "startup".to_owned(),
+        limit: 1,
+        offset: 0,
+        filter: None,
+    }
+}
+
+struct UnavailableSearchClient;
+
+impl SearchQueryClient for UnavailableSearchClient {
+    fn search<'a>(
+        &'a self,
+        _request: SearchRequest,
+    ) -> Pin<Box<dyn Future<Output = Result<SearchResponse, SearchIndexError>> + Send + 'a>> {
+        Box::pin(async {
+            Err(SearchIndexError::Http {
+                status: None,
+                message: "search backend unavailable at startup".to_owned(),
+            })
+        })
+    }
 }
 
 #[must_use]
