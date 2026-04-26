@@ -15,6 +15,9 @@ use opentk_db::{
         self, DocumentContentDetail, EntityChange, EntityDetail, ReadModelError, RelationDirection,
         RelationRow,
     },
+    startup_validation::{
+        validate_database_config, validate_meilisearch_config, DependencyValidationError,
+    },
     DatabaseConfig, DatabaseError,
 };
 use opentk_search::{
@@ -69,6 +72,8 @@ pub struct ApiServer {
 pub enum ApiError {
     #[error("database initialization failed")]
     Database(#[from] DatabaseError),
+    #[error("startup dependency validation failed")]
+    StartupValidation(#[from] DependencyValidationError),
     #[error("database unavailable")]
     DatabaseUnavailable(#[source] sqlx::Error),
     #[error("read model request failed")]
@@ -126,6 +131,7 @@ impl IntoResponse for ApiError {
                 },
             ),
             Self::Database(_)
+            | Self::StartupValidation(_)
             | Self::ReadModel(ReadModelError::Sql(_))
             | Self::Bind { .. }
             | Self::Serve(_) => (
@@ -314,6 +320,7 @@ struct RelationResponse {
 /// Returns [`ApiError::Database`] when the configured `PostgreSQL` pool cannot be
 /// initialized.
 pub async fn build_app(config: ApiConfig) -> Result<ApiServer, ApiError> {
+    validate_database_config(&config.database).await?;
     let pool = connect(&config.database).await?;
     let search = configured_search_client(SearchBackendConfig {
         url: config.search.url,
@@ -332,11 +339,13 @@ async fn configured_search_client(
     config: SearchBackendConfig,
 ) -> Arc<dyn SearchQueryClient + Send + Sync> {
     let search = Arc::new(MeilisearchClient::new(
-        config.url,
-        config.api_key,
-        config.index_name,
+        config.url.clone(),
+        config.api_key.clone(),
+        config.index_name.clone(),
     ));
-    if let Err(error) = search.search(startup_probe_request()).await {
+    if let Err(error) =
+        validate_meilisearch_config(config.url, config.api_key, config.index_name).await
+    {
         tracing::error!(%error, "search backend unavailable at startup");
         return Arc::new(UnavailableSearchClient);
     }
@@ -385,15 +394,6 @@ pub fn router_with_search(
             pool,
             search: search_client,
         })
-}
-
-fn startup_probe_request() -> SearchRequest {
-    SearchRequest {
-        query: "startup".to_owned(),
-        limit: 1,
-        offset: 0,
-        filter: None,
-    }
 }
 
 struct UnavailableSearchClient;

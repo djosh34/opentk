@@ -1,6 +1,6 @@
 # Done Tasks Summary
 
-Generated: Sun Apr 26 17:34:17 CEST 2026
+Generated: Sun Apr 26 06:03:17 PM CEST 2026
 
 # Task `/home/joshazimullah.linux/work_mounts/patroni_rewrite/opentk/.ralph/tasks/bugs/bug-remove-swallowed-env-and-duration-errors.md`
 
@@ -245,5 +245,16 @@ Must use tdd skill to complete
 <plan>
 .ralph/tasks/story-6-config-unification/task-2-refactor-binaries-to-config_plans/refactor-binaries-to-config-plan.md
 </plan>
+```
+
+==============
+
+# Task `/home/joshazimullah.linux/work_mounts/patroni_rewrite/opentk/.ralph/tasks/story-6-config-unification/task-3-startup-validation.md`
+
+```
+## Task: Story 6 Task 3 - Add Startup Dependency Validation <status>done</status> <passes>true</passes>
+
+<description>
+Must use tdd skill to complete
 ```
 

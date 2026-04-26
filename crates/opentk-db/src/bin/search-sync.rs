@@ -6,6 +6,7 @@ use opentk_db::connect;
 use opentk_db::search_sync::{
     full_reindex, incremental_index, list_failures, SearchSyncConfig, SearchSyncReport,
 };
+use opentk_db::startup_validation::validate_search_sync_dependencies;
 use opentk_db::DatabaseConfig;
 use opentk_search::MeilisearchClient;
 
@@ -15,8 +16,10 @@ use opentk_search::MeilisearchClient;
 struct Cli {
     #[arg(long, global = true)]
     config: Option<PathBuf>,
+    #[arg(long, global = true)]
+    validate_config: bool,
     #[command(subcommand)]
-    command: Command,
+    command: Option<Command>,
 }
 
 #[derive(Debug, Subcommand)]
@@ -37,7 +40,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let config = loaded.config;
     tracing_subscriber::fmt::init();
     tracing::info!(config = ?config.redacted(), "loaded effective config");
-    match cli.command {
+    if cli.validate_config {
+        let report = validate_search_sync_dependencies(&config).await?;
+        print!("{report}");
+        return Ok(());
+    }
+
+    let command = cli
+        .command
+        .ok_or("command is required unless --validate-config is set")?;
+    match command {
         Command::FullReindex => {
             let report = run_sync(&config, true).await?;
             print_report(&report);
@@ -131,9 +143,18 @@ mod tests {
             cli.config.as_deref(),
             Some(std::path::Path::new("/etc/opentk/config.toml"))
         );
-        let Command::FullReindex = cli.command else {
+        let Some(Command::FullReindex) = cli.command else {
             panic!("expected full reindex");
         };
+        assert!(!cli.validate_config);
+    }
+
+    #[test]
+    fn search_sync_cli_accepts_validation_without_subcommand() {
+        let cli = Cli::try_parse_from(["search-sync", "--validate-config"])
+            .expect("validation mode parses without command");
+        assert!(cli.validate_config);
+        assert!(cli.command.is_none());
     }
 
     #[test]

@@ -4,6 +4,7 @@ use clap::{Parser, Subcommand};
 use opentk_config::{Config, ConfigLoader};
 use opentk_db::{
     connect,
+    startup_validation::validate_sync_dependencies,
     sync_state::PostgresSyncStore,
     sync_verification::{verify_sync_database, SyncVerificationConfig},
     DatabaseConfig,
@@ -19,8 +20,10 @@ use opentk_sync::{
 struct Cli {
     #[arg(long, global = true)]
     config: Option<PathBuf>,
+    #[arg(long, global = true)]
+    validate_config: bool,
     #[command(subcommand)]
-    command: Command,
+    command: Option<Command>,
 }
 
 #[derive(Debug, Subcommand)]
@@ -47,7 +50,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let config = loaded.config;
     tracing_subscriber::fmt::init();
     tracing::info!(config = ?config.redacted(), "loaded effective config");
-    match cli.command {
+    if cli.validate_config {
+        let report = validate_sync_dependencies(&config).await?;
+        print!("{report}");
+        return Ok(());
+    }
+
+    let command = cli
+        .command
+        .ok_or("command is required unless --validate-config is set")?;
+    match command {
         Command::Run => {
             run_once(&config).await?;
         }
@@ -226,13 +238,21 @@ mod tests {
             Cli::try_parse_from(["opentk-sync", "--config", "/etc/opentk/config.toml", "run"])
                 .expect("run command parses");
 
-        let Command::Run = cli.command else {
+        let Some(Command::Run) = cli.command else {
             panic!("expected run command");
         };
         assert_eq!(
             cli.config.as_deref(),
             Some(std::path::Path::new("/etc/opentk/config.toml"))
         );
+    }
+
+    #[test]
+    fn sync_cli_accepts_validation_without_subcommand() {
+        let cli = Cli::try_parse_from(["opentk-sync", "--validate-config"])
+            .expect("validation mode parses");
+        assert!(cli.validate_config);
+        assert!(cli.command.is_none());
     }
 
     #[test]
@@ -260,7 +280,7 @@ mod tests {
     #[test]
     fn status_command_has_no_application_setting_args() {
         let cli = Cli::try_parse_from(["opentk-sync", "status"]).expect("status command parses");
-        let Command::Status = cli.command else {
+        let Some(Command::Status) = cli.command else {
             panic!("expected status command");
         };
     }
@@ -271,7 +291,7 @@ mod tests {
             Cli::try_parse_from(["opentk-sync", "verify", "--required-relation-samples", "1"])
                 .expect("verify command parses");
 
-        let Command::Verify(args) = cli.command else {
+        let Some(Command::Verify(args)) = cli.command else {
             panic!("expected verify command");
         };
         assert_eq!(args.required_relation_samples, 1);

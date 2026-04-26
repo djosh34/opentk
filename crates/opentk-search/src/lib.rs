@@ -472,6 +472,29 @@ impl MeilisearchClient {
         Ok(response.into_search_response(request))
     }
 
+    /// Check that Meilisearch accepts authenticated lightweight requests.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`SearchIndexError`] when the stats request fails, returns a
+    /// non-success status, or cannot be read.
+    pub async fn validate_reachable(&self) -> Result<(), SearchIndexError> {
+        let response = self
+            .request(reqwest::Method::GET, "/stats")
+            .send()
+            .await
+            .map_err(request_error)?;
+        let status = response.status();
+        let body = response.text().await.map_err(request_error)?;
+        if !status.is_success() {
+            return Err(SearchIndexError::Http {
+                status: Some(status.as_u16()),
+                message: body,
+            });
+        }
+        Ok(())
+    }
+
     fn request(&self, method: reqwest::Method, path: &str) -> reqwest::RequestBuilder {
         let url = format!("{}{}", self.base_url.trim_end_matches('/'), path);
         let mut request = self.http.request(method, url);

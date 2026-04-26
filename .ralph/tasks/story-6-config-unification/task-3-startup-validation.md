@@ -1,4 +1,4 @@
-## Task: Story 6 Task 3 - Add Startup Dependency Validation <status>not_started</status> <passes>false</passes>
+## Task: Story 6 Task 3 - Add Startup Dependency Validation <status>done</status> <passes>true</passes>
 
 <description>
 Must use tdd skill to complete
@@ -23,13 +23,13 @@ In scope: startup validation, typed errors, `--validate-config`, tests. Out of s
 
 
 <acceptance_criteria>
-- [ ] `opentk-api --validate-config` exits 0 when DB is reachable, including when search is unavailable
-- [ ] `opentk-api --validate-config --require-search` exits non-zero when search is unavailable
-- [ ] `complete-sync --validate-config` exits 0 when DB and SyncFeed reachable
-- [ ] `search-sync --validate-config` exits 0 when DB and Meilisearch reachable
-- [ ] All binaries produce clear dependency errors on startup, with optional API search reported as degraded instead of fatal
-- [ ] Validation uses 5s timeout for fast failure
-- [ ] `make check` — passes cleanly
-- [ ] `make test` — passes cleanly (default suite)
-- [ ] `make lint` — passes cleanly
+- [x] `opentk-api --validate-config` exits 0 when DB is reachable, including when search is unavailable
+- [x] `opentk-api --validate-config --require-search` exits non-zero when search is unavailable
+- [x] `complete-sync --validate-config` exits 0 when DB and SyncFeed reachable
+- [x] `search-sync --validate-config` exits 0 when DB and Meilisearch reachable
+- [x] All binaries produce clear dependency errors on startup, with optional API search reported as degraded instead of fatal
+- [x] Validation uses 5s timeout for fast failure
+- [x] `make check` — passes cleanly
+- [x] `make test` — passes cleanly (default suite)
+- [x] `make lint` — passes cleanly
 </acceptance_criteria>

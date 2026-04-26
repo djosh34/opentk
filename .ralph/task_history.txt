@@ -22,3 +22,4 @@
 .ralph/tasks/story-5-search/task-5-deep-verify-search-quality.md
 .ralph/tasks/story-6-config-unification/task-1-create-config-crate.md
 .ralph/tasks/story-6-config-unification/task-2-refactor-binaries-to-config.md
+.ralph/tasks/story-6-config-unification/task-3-startup-validation.md

@@ -8,7 +8,7 @@ use std::{
     str::FromStr,
     sync::{
         atomic::{AtomicUsize, Ordering},
-        Arc,
+        Arc, Mutex,
     },
 };
 use tokio::{
@@ -75,6 +75,11 @@ async fn api_startup_marks_search_unavailable_when_probe_fails(
     .await?;
 
     assert_eq!(search.request_count(), 1, "startup must probe search once");
+    assert!(
+        search.first_request().starts_with("GET /stats "),
+        "{}",
+        search.first_request()
+    );
 
     let health = server
         .router
@@ -109,6 +114,7 @@ async fn api_startup_marks_search_unavailable_when_probe_fails(
 struct FailingSearchServer {
     base_url: String,
     requests: Arc<AtomicUsize>,
+    first_request: Arc<Mutex<Option<String>>>,
 }
 
 impl FailingSearchServer {
@@ -116,16 +122,26 @@ impl FailingSearchServer {
         let listener = TcpListener::bind("127.0.0.1:0").await?;
         let address = listener.local_addr()?;
         let requests = Arc::new(AtomicUsize::new(0));
+        let first_request = Arc::new(Mutex::new(None));
         let server_requests = Arc::clone(&requests);
+        let server_first_request = Arc::clone(&first_request);
         tokio::spawn(async move {
             loop {
                 let Ok((mut stream, _peer)) = listener.accept().await else {
                     return;
                 };
                 server_requests.fetch_add(1, Ordering::SeqCst);
+                let first_request = Arc::clone(&server_first_request);
                 tokio::spawn(async move {
                     let mut buffer = [0_u8; 4096];
-                    let _bytes_read = stream.read(&mut buffer).await.expect("read request");
+                    let bytes_read = stream.read(&mut buffer).await.expect("read request");
+                    let request = String::from_utf8_lossy(&buffer[..bytes_read]).to_string();
+                    {
+                        let mut first = first_request.lock().expect("first request mutex");
+                        if first.is_none() {
+                            *first = Some(request);
+                        }
+                    }
                     stream
                         .write_all(
                             b"HTTP/1.1 503 Service Unavailable\r\ncontent-type: text/plain\r\ncontent-length: 18\r\nconnection: close\r\n\r\nsearch unavailable",
@@ -139,10 +155,19 @@ impl FailingSearchServer {
         Ok(Self {
             base_url: format!("http://{address}"),
             requests,
+            first_request,
         })
     }
 
     fn request_count(&self) -> usize {
         self.requests.load(Ordering::SeqCst)
+    }
+
+    fn first_request(&self) -> String {
+        self.first_request
+            .lock()
+            .expect("first request mutex")
+            .clone()
+            .unwrap_or_default()
     }
 }

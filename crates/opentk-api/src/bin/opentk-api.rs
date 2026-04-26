@@ -1,13 +1,20 @@
 use clap::Parser;
 use opentk_api::{serve, ApiConfig, SearchBackendConfig};
-use opentk_config::ConfigLoader;
-use opentk_db::DatabaseConfig;
+use opentk_config::{Config, ConfigLoader};
+use opentk_db::{
+    startup_validation::{validate_api_dependencies, SearchRequirement},
+    DatabaseConfig,
+};
 use std::path::PathBuf;
 
 #[derive(Parser)]
 struct Args {
     #[arg(long)]
     config: Option<PathBuf>,
+    #[arg(long)]
+    validate_config: bool,
+    #[arg(long, requires = "validate_config")]
+    require_search: bool,
 }
 
 #[tokio::main]
@@ -21,7 +28,24 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     tracing_subscriber::fmt::init();
     tracing::info!(config = ?config.redacted(), "loaded effective config");
 
-    serve(ApiConfig {
+    if args.validate_config {
+        let requirement = if args.require_search {
+            SearchRequirement::Required
+        } else {
+            SearchRequirement::Optional
+        };
+        let report = validate_api_dependencies(&config, requirement).await?;
+        print!("{report}");
+        return Ok(());
+    }
+
+    serve(api_config(config)).await?;
+
+    Ok(())
+}
+
+fn api_config(config: Config) -> ApiConfig {
+    ApiConfig {
         bind_address: config.api.bind_address,
         database: DatabaseConfig {
             url: config.database.url,
@@ -32,10 +56,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             api_key: config.search.api_key,
             index_name: config.search.index_name,
         },
-    })
-    .await?;
-
-    Ok(())
+    }
 }
 
 #[cfg(test)]
@@ -44,13 +65,22 @@ mod tests {
     use clap::Parser;
 
     #[test]
-    fn api_cli_accepts_only_config_path_for_application_settings() {
+    fn api_cli_accepts_config_path_and_validation_flags() {
         let args = Args::try_parse_from(["opentk-api", "--config", "/etc/opentk/config.toml"])
             .expect("config path parses");
         assert_eq!(
             args.config.as_deref(),
             Some(std::path::Path::new("/etc/opentk/config.toml"))
         );
+        assert!(!args.validate_config);
+        assert!(!args.require_search);
+
+        let args = Args::try_parse_from(["opentk-api", "--validate-config", "--require-search"])
+            .expect("validation flags parse");
+        assert!(args.validate_config);
+        assert!(args.require_search);
+
+        assert!(Args::try_parse_from(["opentk-api", "--require-search"]).is_err());
 
         for forbidden in ["--database-url", "--bind-address"] {
             let result = Args::try_parse_from(["opentk-api", forbidden, "value"]);
