@@ -2,6 +2,7 @@ use opentk_core::official_schema;
 use opentk_sync::runner::CategorySyncState;
 use sqlx::{PgPool, Row};
 use thiserror::Error;
+use uuid::Uuid;
 
 use crate::postgres_schema::{self, IndexPurpose, TableKind};
 
@@ -56,8 +57,30 @@ pub struct TableSnapshot {
 pub struct StorageVerification {
     pub table_bytes: i64,
     pub index_bytes: i64,
-    pub html_asset_bytes: i64,
+    pub link_metadata_bytes: i64,
+    pub extracted_text_bytes: i64,
+    pub stored_html_bytes: i64,
+    pub constraint_count: i64,
     pub binary_asset_metadata_rows: i64,
+    pub document_content_rows: i64,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct DocumentContentVerification {
+    pub document_source_id: Uuid,
+    pub selected_source_url: String,
+    pub upstream_content_type: Option<String>,
+    pub selected_source_content_type: Option<String>,
+    pub official_source: bool,
+    pub source_rank: i32,
+    pub extraction_status: String,
+    pub validation_status: String,
+    pub extraction_tool: String,
+    pub extraction_tool_version: String,
+    pub source_hash: String,
+    pub output_hash: Option<String>,
+    pub extracted_text_bytes: i64,
+    pub extracted_html_bytes: i64,
 }
 
 #[derive(Debug, Error)]
@@ -70,6 +93,8 @@ pub enum SyncVerificationError {
     UnknownState { category: String, state: String },
     #[error("expected at least {required} relation sample rows, found {found}")]
     MissingRelationSamples { required: usize, found: i64 },
+    #[error("document content not found for {document_source_id}")]
+    DocumentContentNotFound { document_source_id: Uuid },
     #[error("database verification failed: {0}")]
     Sql(#[from] sqlx::Error),
 }
@@ -114,6 +139,67 @@ pub async fn verify_sync_database(
         direct_queries,
         table_snapshots,
         storage,
+    })
+}
+
+/// Verify row-backed document-content provenance for one stored document.
+///
+/// # Errors
+///
+/// Returns [`SyncVerificationError::DocumentContentNotFound`] when the
+/// document has no stored content row, or [`SyncVerificationError::Sql`] when
+/// `PostgreSQL` rejects the read.
+pub async fn verify_document_content(
+    pool: &PgPool,
+    document_source_id: Uuid,
+) -> Result<DocumentContentVerification, SyncVerificationError> {
+    let row = sqlx::query(
+        r"
+        SELECT c.document_source_id,
+               c.selected_source_url,
+               a.upstream_content_type,
+               c.selected_source_content_type,
+               c.official_source,
+               c.source_rank,
+               c.extraction_status,
+               c.validation_status,
+               c.extraction_tool,
+               c.extraction_tool_version,
+               c.source_hash,
+               c.output_hash,
+               COALESCE(octet_length(c.extracted_text), 0)::bigint AS extracted_text_bytes,
+               COALESCE(octet_length(c.extracted_html), 0)::bigint AS extracted_html_bytes
+        FROM document_content c
+        JOIN document_asset a ON a.id = c.document_asset_id
+        WHERE c.document_source_category = 'Document'
+          AND c.document_source_id = $1
+        ORDER BY c.official_source DESC,
+                 c.source_rank ASC,
+                 c.extracted_at DESC,
+                 c.id DESC
+        LIMIT 1
+        ",
+    )
+    .bind(document_source_id)
+    .fetch_optional(pool)
+    .await?
+    .ok_or(SyncVerificationError::DocumentContentNotFound { document_source_id })?;
+
+    Ok(DocumentContentVerification {
+        document_source_id: row.get("document_source_id"),
+        selected_source_url: row.get("selected_source_url"),
+        upstream_content_type: row.get("upstream_content_type"),
+        selected_source_content_type: row.get("selected_source_content_type"),
+        official_source: row.get("official_source"),
+        source_rank: row.get("source_rank"),
+        extraction_status: row.get("extraction_status"),
+        validation_status: row.get("validation_status"),
+        extraction_tool: row.get("extraction_tool"),
+        extraction_tool_version: row.get("extraction_tool_version"),
+        source_hash: row.get("source_hash"),
+        output_hash: row.get("output_hash"),
+        extracted_text_bytes: row.get("extracted_text_bytes"),
+        extracted_html_bytes: row.get("extracted_html_bytes"),
     })
 }
 
@@ -317,12 +403,56 @@ async fn verify_storage(
     )
     .fetch_one(pool)
     .await?;
+    let link_metadata_bytes: i64 = sqlx::query_scalar(
+        r"
+        SELECT COALESCE(sum(
+            COALESCE(pg_column_size(asset_url), 0)
+          + COALESCE(pg_column_size(upstream_url), 0)
+          + COALESCE(pg_column_size(upstream_content_type), 0)
+          + COALESCE(pg_column_size(upstream_content_length), 0)
+          + COALESCE(pg_column_size(retrieval_status), 0)
+          + COALESCE(pg_column_size(retrieval_error), 0)
+        ), 0)::bigint
+        FROM document_asset
+        ",
+    )
+    .fetch_one(pool)
+    .await?;
+    let extracted_text_bytes: i64 = sqlx::query_scalar(
+        "SELECT COALESCE(sum(octet_length(extracted_text)), 0)::bigint FROM document_content",
+    )
+    .fetch_one(pool)
+    .await?;
+    let stored_html_bytes: i64 = sqlx::query_scalar(
+        "SELECT COALESCE(sum(octet_length(extracted_html)), 0)::bigint FROM document_content",
+    )
+    .fetch_one(pool)
+    .await?;
+    let constraint_count: i64 = sqlx::query_scalar(
+        r"
+        SELECT count(*)::bigint
+        FROM pg_constraint constraint_row
+        JOIN pg_class table_row ON table_row.oid = constraint_row.conrelid
+        WHERE table_row.relname = ANY($1::text[])
+        ",
+    )
+    .bind(&table_names)
+    .fetch_one(pool)
+    .await?;
+    let document_content_rows: i64 =
+        sqlx::query_scalar("SELECT count(*)::bigint FROM document_content")
+            .fetch_one(pool)
+            .await?;
 
     Ok(StorageVerification {
         table_bytes,
         index_bytes,
-        html_asset_bytes: 0,
+        link_metadata_bytes,
+        extracted_text_bytes,
+        stored_html_bytes,
+        constraint_count,
         binary_asset_metadata_rows,
+        document_content_rows,
     })
 }
 

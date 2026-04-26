@@ -19,6 +19,8 @@ utoipa.workspace = true
 uuid.workspace = true
 
 [dev-dependencies]
+chrono.workspace = true
+opentk-sync.workspace = true
 reqwest.workspace = true
 tower.workspace = true
 

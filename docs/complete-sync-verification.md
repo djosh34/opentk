@@ -65,16 +65,34 @@ keeps the representative run deliberately bounded.
 The live smoke is intentionally not part of `make test`; normal tests remain
 deterministic and fixture-backed.
 
+Document-content verification is also fixture-backed by default. The deep HTTP
+API tests fetch controlled PDF, DOCX, HTML, and official-text alternative
+fixtures through the same asset fetcher used in production, persist the
+`document_asset` and `document_content` rows, and compare PostgreSQL row values
+to `GET /documents/{source_id}/content`. Supported fixture output is exact:
+one word mismatch changes the extraction report to `failed`/`invalid`.
+
+`make test-long` includes an ignored controlled document-content smoke. When
+`OPENTK_LIVE_DOCUMENT_ASSET_URL` is set, it fetches that live asset and records
+the selected source URL, content types, official-source rank, source/output
+hashes, extraction tool/version, and extracted byte counts. Without the
+environment variable it uses a deterministic local text fallback so the long
+lane remains selectable in isolated environments.
+
 ## Storage Metrics
 
 `StorageVerification` records:
 
 - `table_bytes`: total relation bytes for generated tables;
 - `index_bytes`: total index bytes for generated tables;
-- `html_asset_bytes`: currently `0`, because Story 2 stores linked binary
-  metadata rather than fetched HTML bodies;
+- `link_metadata_bytes`: approximate bytes used by durable document asset link
+  and retrieval metadata;
+- `extracted_text_bytes`: stored extracted text bytes in `document_content`;
+- `stored_html_bytes`: stored extracted HTML bytes in `document_content`;
+- `constraint_count`: generated table constraints present in PostgreSQL;
 - `binary_asset_metadata_rows`: rows with linked download metadata such as
-  enclosure URL, content type, or content length.
+  enclosure URL, content type, or content length;
+- `document_content_rows`: stored content extraction/provenance rows.
 
 The metrics are evidence for read-model footprint and asset metadata coverage,
 not a quota or performance budget.

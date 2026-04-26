@@ -1,10 +1,41 @@
 use axum::http::StatusCode;
+use opentk_db::document_assets::{
+    record_document_asset_fetches, record_document_content_extractions,
+};
+use opentk_sync::{
+    document_asset::{
+        DocumentAssetFetchConfig, DocumentAssetFetchRequest, DocumentAssetFetcher, RetrievalStatus,
+    },
+    document_content::{
+        DocumentContentExtractionInput, DocumentContentExtractor, DocumentExtractionFixture,
+    },
+};
+use reqwest::Url;
 use serde_json::Value;
+use sqlx::{PgPool, Row};
+use std::{num::NonZeroUsize, time::Duration};
+use uuid::Uuid;
 
 use crate::support::{
-    activity_id, category, document_id, document_source_row, migrated_pool, seed_deep_fixture,
-    start_server, third_document_id,
+    activity_id, category, document_id, document_source_row, insert_document_with_asset_metadata,
+    migrated_pool, seed_deep_fixture, start_server, third_document_id, FixtureAssetServer,
+    FixtureResponse,
 };
+
+const HTML_FIXTURE: &[u8] =
+    include_bytes!("../../../opentk-sync/tests/fixtures/document_content/fixture.html");
+const HTML_EXPECTED_HTML: &str =
+    include_str!("../../../opentk-sync/tests/fixtures/document_content/fixture.html.expected.html");
+const HTML_EXPECTED_TEXT: &str =
+    include_str!("../../../opentk-sync/tests/fixtures/document_content/fixture.html.expected.txt");
+const DOCX_FIXTURE: &[u8] =
+    include_bytes!("../../../opentk-sync/tests/fixtures/document_content/fixture.docx");
+const DOCX_EXPECTED_TEXT: &str =
+    include_str!("../../../opentk-sync/tests/fixtures/document_content/fixture.docx.expected.txt");
+const PDF_FIXTURE: &[u8] =
+    include_bytes!("../../../opentk-sync/tests/fixtures/document_content/fixture.pdf");
+const PDF_EXPECTED_TEXT: &str =
+    include_str!("../../../opentk-sync/tests/fixtures/document_content/fixture.pdf.expected.txt");
 
 #[tokio::test]
 async fn real_http_server_reports_health() -> Result<(), Box<dyn std::error::Error>> {
@@ -325,6 +356,247 @@ async fn server_handles_concurrent_representative_reads() -> Result<(), Box<dyn 
     Ok(())
 }
 
+#[tokio::test]
+async fn official_text_source_wins_over_binary_fallback_and_is_served_exactly(
+) -> Result<(), Box<dyn std::error::Error>> {
+    let pool = migrated_pool("deep_content_official").await?;
+    let document_id = fixture_document_id(1);
+    let landing = r#"<html><head><link rel="alternate" type="text/plain" href="/official.txt"></head><body><a href="/fallback.pdf">PDF</a></body></html>"#;
+    let official_text = "Official fixture text.\n\nThis body must win.";
+    let asset_server = FixtureAssetServer::start(vec![
+        FixtureResponse::ok("/landing", "text/html", landing),
+        FixtureResponse::ok("/official.txt", "text/plain", official_text),
+    ])
+    .await?;
+    let asset_url = Url::parse(&format!("{}/landing", asset_server.base_url))?;
+    insert_document_with_asset_metadata(
+        &pool,
+        document_id,
+        60,
+        "text/html",
+        i32::try_from(landing.len())?,
+        asset_url.as_str(),
+    )
+    .await?;
+
+    let response = fetch_extract_store_and_serve(
+        &pool,
+        document_id,
+        asset_url,
+        Some("text/html"),
+        Some(official_text),
+        None,
+    )
+    .await?;
+
+    assert_eq!(response["content"]["official_source"], true);
+    assert_eq!(response["content"]["source_rank"], 0);
+    assert_eq!(response["content"]["extracted_text"], official_text);
+    assert_eq!(response["content"]["extracted_html"], Value::Null);
+    assert!(!response["content"]["selected_source_url"]
+        .as_str()
+        .expect("selected url")
+        .ends_with("fallback.pdf"));
+    asset_server.assert_consumed().await;
+    Ok(())
+}
+
+#[tokio::test]
+async fn pdf_fixture_is_fetched_extracted_stored_and_served_exactly(
+) -> Result<(), Box<dyn std::error::Error>> {
+    let pool = migrated_pool("deep_content_pdf").await?;
+    let document_id = fixture_document_id(2);
+    let asset_server = FixtureAssetServer::start(vec![FixtureResponse::ok(
+        "/fixture.pdf",
+        "application/pdf",
+        PDF_FIXTURE,
+    )])
+    .await?;
+    let asset_url = Url::parse(&format!("{}/fixture.pdf", asset_server.base_url))?;
+    insert_document_with_asset_metadata(
+        &pool,
+        document_id,
+        61,
+        "application/pdf",
+        i32::try_from(PDF_FIXTURE.len())?,
+        asset_url.as_str(),
+    )
+    .await?;
+
+    let response = fetch_extract_store_and_serve(
+        &pool,
+        document_id,
+        asset_url,
+        Some("application/pdf"),
+        Some(expected(PDF_EXPECTED_TEXT)),
+        None,
+    )
+    .await?;
+
+    assert_eq!(response["content"]["official_source"], false);
+    assert_eq!(response["content"]["source_rank"], 10);
+    assert_eq!(
+        response["content"]["extracted_text"],
+        expected(PDF_EXPECTED_TEXT)
+    );
+    assert_eq!(response["content"]["extracted_html"], Value::Null);
+    asset_server.assert_consumed().await;
+    Ok(())
+}
+
+#[tokio::test]
+async fn docx_fixture_is_fetched_extracted_stored_and_served_exactly(
+) -> Result<(), Box<dyn std::error::Error>> {
+    let pool = migrated_pool("deep_content_docx").await?;
+    let document_id = fixture_document_id(3);
+    let content_type = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+    let asset_server = FixtureAssetServer::start(vec![FixtureResponse::ok(
+        "/fixture.docx",
+        content_type,
+        DOCX_FIXTURE,
+    )])
+    .await?;
+    let asset_url = Url::parse(&format!("{}/fixture.docx", asset_server.base_url))?;
+    insert_document_with_asset_metadata(
+        &pool,
+        document_id,
+        62,
+        content_type,
+        i32::try_from(DOCX_FIXTURE.len())?,
+        asset_url.as_str(),
+    )
+    .await?;
+
+    let response = fetch_extract_store_and_serve(
+        &pool,
+        document_id,
+        asset_url,
+        Some(content_type),
+        Some(expected(DOCX_EXPECTED_TEXT)),
+        None,
+    )
+    .await?;
+
+    assert_eq!(response["content"]["official_source"], false);
+    assert_eq!(
+        response["content"]["extracted_text"],
+        expected(DOCX_EXPECTED_TEXT)
+    );
+    assert_eq!(response["content"]["extracted_html"], Value::Null);
+    asset_server.assert_consumed().await;
+    Ok(())
+}
+
+#[tokio::test]
+async fn html_fixture_is_fetched_stored_and_served_exactly(
+) -> Result<(), Box<dyn std::error::Error>> {
+    let pool = migrated_pool("deep_content_html").await?;
+    let document_id = fixture_document_id(4);
+    let asset_server = FixtureAssetServer::start(vec![FixtureResponse::ok(
+        "/fixture.html",
+        "text/html",
+        HTML_FIXTURE,
+    )])
+    .await?;
+    let asset_url = Url::parse(&format!("{}/fixture.html", asset_server.base_url))?;
+    insert_document_with_asset_metadata(
+        &pool,
+        document_id,
+        63,
+        "text/html",
+        i32::try_from(HTML_FIXTURE.len())?,
+        asset_url.as_str(),
+    )
+    .await?;
+
+    let response = fetch_extract_store_and_serve(
+        &pool,
+        document_id,
+        asset_url,
+        Some("text/html"),
+        Some(expected(HTML_EXPECTED_TEXT)),
+        Some(HTML_EXPECTED_HTML),
+    )
+    .await?;
+
+    assert_eq!(response["content"]["official_source"], true);
+    assert_eq!(
+        response["content"]["extracted_text"],
+        expected(HTML_EXPECTED_TEXT)
+    );
+    assert_eq!(response["content"]["extracted_html"], HTML_EXPECTED_HTML);
+    asset_server.assert_consumed().await;
+    Ok(())
+}
+
+#[tokio::test]
+async fn retry_exhaustion_persists_failed_asset_without_fake_content(
+) -> Result<(), Box<dyn std::error::Error>> {
+    let pool = migrated_pool("deep_content_retry").await?;
+    let document_id = fixture_document_id(5);
+    let asset_server = FixtureAssetServer::start(vec![
+        FixtureResponse::status("/busy.pdf", 503, "busy"),
+        FixtureResponse::status("/busy.pdf", 503, "still busy"),
+    ])
+    .await?;
+    let asset_url = Url::parse(&format!("{}/busy.pdf", asset_server.base_url))?;
+    insert_document_with_asset_metadata(
+        &pool,
+        document_id,
+        64,
+        "application/pdf",
+        4,
+        asset_url.as_str(),
+    )
+    .await?;
+
+    let mut config = fetch_config();
+    config.max_retries = 1;
+    let fetcher = DocumentAssetFetcher::new(config)?;
+    let report = fetcher
+        .fetch_one(DocumentAssetFetchRequest {
+            document_source_category: "Document".to_owned(),
+            document_source_id: document_id,
+            asset_url,
+            expected_content_type: Some("application/pdf".to_owned()),
+            expected_content_length: None,
+        })
+        .await;
+    assert_eq!(report.retrieval_status, RetrievalStatus::Failed);
+    record_document_asset_fetches(&pool, &[report]).await?;
+
+    let content_rows: i64 = sqlx::query_scalar(
+        "SELECT count(*)::bigint FROM document_content WHERE document_source_id = $1",
+    )
+    .bind(document_id)
+    .fetch_one(&pool)
+    .await?;
+    assert_eq!(content_rows, 0);
+    let asset_error: Option<String> = sqlx::query_scalar(
+        "SELECT retrieval_error FROM document_asset WHERE document_source_id = $1",
+    )
+    .bind(document_id)
+    .fetch_one(&pool)
+    .await?;
+    assert!(
+        asset_error
+            .as_deref()
+            .is_some_and(|error| error.contains("503")),
+        "retry exhaustion must preserve the HTTP error, got {asset_error:?}"
+    );
+
+    let api = start_server(pool).await?;
+    let body = api
+        .get_json(
+            &format!("/documents/{document_id}/content"),
+            StatusCode::NOT_FOUND,
+        )
+        .await?;
+    assert_eq!(body["code"], "document_content_not_found");
+    assert_eq!(asset_server.requests().await.len(), 2);
+    Ok(())
+}
+
 fn assert_parameters(body: &Value, operation_pointer: &str, expected: &[&str]) {
     let parameters = body
         .pointer(&format!("{operation_pointer}/parameters"))
@@ -370,4 +642,156 @@ fn assert_invalid_request(body: &Value) {
 fn assert_not_found(body: &Value) {
     assert_eq!(body["code"], "not_found");
     assert_eq!(body["message"], "resource not found");
+}
+
+async fn fetch_extract_store_and_serve(
+    pool: &PgPool,
+    document_id: Uuid,
+    asset_url: Url,
+    expected_content_type: Option<&str>,
+    expected_text: Option<&str>,
+    expected_html: Option<&str>,
+) -> Result<Value, Box<dyn std::error::Error>> {
+    let fetcher = DocumentAssetFetcher::new(fetch_config())?;
+    let fetch_report = fetcher
+        .fetch_one(DocumentAssetFetchRequest {
+            document_source_category: "Document".to_owned(),
+            document_source_id: document_id,
+            asset_url,
+            expected_content_type: expected_content_type.map(str::to_owned),
+            expected_content_length: None,
+        })
+        .await;
+    assert_eq!(fetch_report.retrieval_status, RetrievalStatus::Fetched);
+    record_document_asset_fetches(pool, std::slice::from_ref(&fetch_report)).await?;
+    let document_asset_id: i64 = sqlx::query_scalar(
+        "SELECT id FROM document_asset WHERE document_source_id = $1 ORDER BY id DESC LIMIT 1",
+    )
+    .bind(document_id)
+    .fetch_one(pool)
+    .await?;
+    let source_hash = fetch_report
+        .source_hash
+        .clone()
+        .expect("fetched report has source hash");
+    let input =
+        DocumentContentExtractionInput::from_fetch_report(document_asset_id, &fetch_report)?;
+    let extractor = DocumentContentExtractor::new(vec![DocumentExtractionFixture {
+        source_hash,
+        expected_text: expected_text.map(str::to_owned),
+        expected_html: expected_html.map(str::to_owned),
+    }]);
+    let extraction = extractor.extract(input);
+    assert_eq!(
+        extraction.validation_status,
+        opentk_sync::document_content::ValidationStatus::Valid,
+        "{extraction:?}"
+    );
+    record_document_content_extractions(pool, &[extraction]).await?;
+
+    let row = stored_content_row(pool, document_id).await?;
+    assert_stored_content_matches_expected(&row, expected_text, expected_html);
+    let api = start_server(pool.clone()).await?;
+    let body = api
+        .get_json(&format!("/documents/{document_id}/content"), StatusCode::OK)
+        .await?;
+    assert_eq!(body["document"]["source_category"], "Document");
+    assert_eq!(body["document"]["source_id"], document_id.to_string());
+    assert_eq!(
+        body["asset"]["retrieval_status"],
+        row.get::<String, _>("retrieval_status")
+    );
+    assert_api_content_matches_row(&body, &row);
+    Ok(body)
+}
+
+async fn stored_content_row(
+    pool: &PgPool,
+    document_id: Uuid,
+) -> Result<sqlx::postgres::PgRow, sqlx::Error> {
+    sqlx::query(
+        "SELECT c.selected_source_url, c.selected_source_content_type,
+                c.official_source, c.source_rank, c.extraction_status,
+                c.validation_status, c.extraction_tool, c.extraction_tool_version,
+                c.source_hash, c.output_hash, c.extraction_error,
+                c.extracted_text, c.extracted_html, a.retrieval_status
+         FROM document_content c
+         JOIN document_asset a ON a.id = c.document_asset_id
+         WHERE c.document_source_id = $1
+         ORDER BY c.validation_status = 'valid' DESC, c.id DESC
+         LIMIT 1",
+    )
+    .bind(document_id)
+    .fetch_one(pool)
+    .await
+}
+
+fn assert_stored_content_matches_expected(
+    row: &sqlx::postgres::PgRow,
+    expected_text: Option<&str>,
+    expected_html: Option<&str>,
+) {
+    assert_eq!(row.get::<String, _>("retrieval_status"), "fetched");
+    assert_eq!(row.get::<String, _>("extraction_status"), "extracted");
+    assert_eq!(row.get::<String, _>("validation_status"), "valid");
+    assert_eq!(row.get::<Option<String>, _>("extraction_error"), None);
+    assert_eq!(
+        row.get::<Option<String>, _>("extracted_text").as_deref(),
+        expected_text
+    );
+    assert_eq!(
+        row.get::<Option<String>, _>("extracted_html").as_deref(),
+        expected_html
+    );
+}
+
+fn assert_api_content_matches_row(body: &Value, row: &sqlx::postgres::PgRow) {
+    for key in [
+        "selected_source_url",
+        "selected_source_content_type",
+        "official_source",
+        "source_rank",
+        "extraction_status",
+        "validation_status",
+        "extraction_tool",
+        "extraction_tool_version",
+        "source_hash",
+        "output_hash",
+        "extraction_error",
+        "extracted_text",
+        "extracted_html",
+    ] {
+        let api_value = &body["content"][key];
+        let row_value = match key {
+            "official_source" => Value::Bool(row.get(key)),
+            "source_rank" => Value::from(row.get::<i32, _>(key)),
+            _ => row
+                .get::<Option<String>, _>(key)
+                .map_or(Value::Null, Value::String),
+        };
+        assert_eq!(
+            *api_value, row_value,
+            "API field {key} must match PostgreSQL"
+        );
+    }
+}
+
+fn fetch_config() -> DocumentAssetFetchConfig {
+    DocumentAssetFetchConfig {
+        request_timeout: Duration::from_secs(2),
+        connect_timeout: Duration::from_secs(2),
+        max_retries: 0,
+        initial_retry_delay: Duration::from_millis(1),
+        max_retry_delay: Duration::from_millis(1),
+        max_concurrent_requests: NonZeroUsize::new(4).expect("non-zero"),
+        max_asset_bytes: 1024 * 1024,
+    }
+}
+
+fn fixture_document_id(index: u128) -> Uuid {
+    Uuid::from_u128(0x55555555_5555_4555_8555_000000000000 + index)
+}
+
+fn expected(value: &str) -> &str {
+    value.trim_end_matches('\n')
 }

@@ -5,7 +5,13 @@ use axum::{
 use opentk_db::{connect, DatabaseConfig};
 use serde_json::Value;
 use sqlx::{postgres::PgPoolOptions, PgPool, Row};
-use tokio::{net::TcpListener, task::JoinHandle};
+use std::{collections::VecDeque, sync::Arc};
+use tokio::{
+    io::{AsyncReadExt, AsyncWriteExt},
+    net::TcpListener,
+    sync::Mutex,
+    task::JoinHandle,
+};
 use tower::ServiceExt;
 use uuid::Uuid;
 
@@ -13,6 +19,109 @@ pub struct TestServer {
     pub base_url: String,
     pub client: reqwest::Client,
     task: JoinHandle<Result<(), std::io::Error>>,
+}
+
+#[derive(Clone, Debug)]
+pub struct FixtureResponse {
+    target: String,
+    status: u16,
+    content_type: &'static str,
+    body: Vec<u8>,
+}
+
+impl FixtureResponse {
+    pub fn ok(target: &str, content_type: &'static str, body: impl Into<Vec<u8>>) -> Self {
+        Self {
+            target: target.to_owned(),
+            status: 200,
+            content_type,
+            body: body.into(),
+        }
+    }
+
+    pub fn status(target: &str, status: u16, body: impl Into<Vec<u8>>) -> Self {
+        Self {
+            target: target.to_owned(),
+            status,
+            content_type: "text/plain",
+            body: body.into(),
+        }
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct FixtureAssetServer {
+    pub base_url: String,
+    responses: Arc<Mutex<VecDeque<FixtureResponse>>>,
+    requests: Arc<Mutex<Vec<String>>>,
+}
+
+impl FixtureAssetServer {
+    pub async fn start(responses: Vec<FixtureResponse>) -> Result<Self, std::io::Error> {
+        let listener = TcpListener::bind("127.0.0.1:0").await?;
+        let address = listener.local_addr()?;
+        let responses = Arc::new(Mutex::new(VecDeque::from(responses)));
+        let requests = Arc::new(Mutex::new(Vec::new()));
+        let server_responses = Arc::clone(&responses);
+        let server_requests = Arc::clone(&requests);
+        tokio::spawn(async move {
+            loop {
+                let Ok((mut stream, _peer)) = listener.accept().await else {
+                    return;
+                };
+                let responses = Arc::clone(&server_responses);
+                let requests = Arc::clone(&server_requests);
+                tokio::spawn(async move {
+                    let mut buffer = [0_u8; 4096];
+                    let bytes_read = stream.read(&mut buffer).await.expect("read request");
+                    let request = String::from_utf8_lossy(&buffer[..bytes_read]);
+                    let target = request
+                        .lines()
+                        .next()
+                        .and_then(|line| line.split_whitespace().nth(1))
+                        .expect("request target")
+                        .to_owned();
+                    requests.lock().await.push(target.clone());
+                    let response = {
+                        let mut responses = responses.lock().await;
+                        let index = responses
+                            .iter()
+                            .position(|response| response.target == target)
+                            .expect("matching fixture response");
+                        responses.remove(index).expect("response exists")
+                    };
+                    let header = format!(
+                        "HTTP/1.1 {status} OK\r\ncontent-type: {content_type}\r\ncontent-length: {content_length}\r\nconnection: close\r\n\r\n",
+                        status = response.status,
+                        content_type = response.content_type,
+                        content_length = response.body.len(),
+                    );
+                    stream
+                        .write_all(header.as_bytes())
+                        .await
+                        .expect("write response header");
+                    stream
+                        .write_all(&response.body)
+                        .await
+                        .expect("write response body");
+                });
+            }
+        });
+        Ok(Self {
+            base_url: format!("http://{address}"),
+            responses,
+            requests,
+        })
+    }
+
+    pub async fn requests(&self) -> Vec<String> {
+        self.requests.lock().await.clone()
+    }
+
+    pub async fn assert_consumed(&self) {
+        let remaining = self.responses.lock().await.len();
+        assert_eq!(remaining, 0, "all fixture responses must be consumed");
+    }
 }
 
 impl TestServer {
@@ -110,6 +219,34 @@ pub async fn seed_deep_fixture(pool: &PgPool) -> Result<(), sqlx::Error> {
     insert_document_version(pool).await?;
     insert_document_activity_relation(pool).await?;
     insert_document_version_relation(pool).await?;
+    Ok(())
+}
+
+pub async fn insert_document_with_asset_metadata(
+    pool: &PgPool,
+    source_id: Uuid,
+    skiptoken: i64,
+    content_type: &str,
+    content_length: i32,
+    enclosure_url: &str,
+) -> Result<(), sqlx::Error> {
+    insert_sync_entity(pool, "Document", source_id, skiptoken).await?;
+    sqlx::query(
+        "INSERT INTO document
+         (source_category, source_id, latest_skiptoken, deleted, source_updated_at, atom_updated_at,
+          content_type, content_length, enclosure_url, document_nummer, titel)
+         VALUES
+         ('Document', $1, $2, false, '2026-04-26T12:00:00Z', '2026-04-26T12:01:00Z',
+          $3, $4, $5, $6, 'Deep content fixture')",
+    )
+    .bind(source_id)
+    .bind(skiptoken)
+    .bind(content_type)
+    .bind(content_length)
+    .bind(enclosure_url)
+    .bind(format!("2026D{skiptoken:05}"))
+    .execute(pool)
+    .await?;
     Ok(())
 }
 

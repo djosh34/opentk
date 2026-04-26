@@ -184,14 +184,18 @@ async fn print_verification(args: VerifyArgs) -> Result<(), Box<dyn std::error::
     )
     .await?;
     println!(
-        "categories={}\trelations={}\tdirect_queries={}\ttable_bytes={}\tindex_bytes={}\thtml_asset_bytes={}\tbinary_asset_metadata_rows={}",
+        "categories={}\trelations={}\tdirect_queries={}\ttable_bytes={}\tindex_bytes={}\tlink_metadata_bytes={}\textracted_text_bytes={}\tstored_html_bytes={}\tconstraint_count={}\tbinary_asset_metadata_rows={}\tdocument_content_rows={}",
         report.categories.len(),
         report.relation_tables.len(),
         report.direct_queries.len(),
         report.storage.table_bytes,
         report.storage.index_bytes,
-        report.storage.html_asset_bytes,
-        report.storage.binary_asset_metadata_rows
+        report.storage.link_metadata_bytes,
+        report.storage.extracted_text_bytes,
+        report.storage.stored_html_bytes,
+        report.storage.constraint_count,
+        report.storage.binary_asset_metadata_rows,
+        report.storage.document_content_rows
     );
     for category in report.categories {
         println!(

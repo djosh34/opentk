@@ -122,6 +122,14 @@ source metadata queryable independently from extraction attempts while letting
 readers prefer official text/HTML rows through `official_source` and
 `source_rank`.
 
+Storage verification reports document-content footprint separately from base
+relation size. `link_metadata_bytes` measures durable fetch/link metadata in
+`document_asset`, `extracted_text_bytes` measures stored text bodies,
+`stored_html_bytes` measures stored HTML bodies, and `index_bytes` plus
+`constraint_count` show the database structures that keep the owner and
+provenance reads enforceable. The older aggregate HTML placeholder is not kept;
+HTML is now measured from actual `document_content.extracted_html` bytes.
+
 ## Relations
 
 Each official relation field has a generated table named:
