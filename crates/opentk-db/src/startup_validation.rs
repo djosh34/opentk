@@ -290,8 +290,16 @@ async fn validate_syncfeed(
         message: source.to_string(),
     })?;
     let status = response.status();
-    let body = response.text().await.unwrap_or_default();
     if !status.is_success() {
+        let body =
+            response
+                .text()
+                .await
+                .map_err(|source| DependencyValidationError::SyncFeedStatus {
+                    target: target.clone(),
+                    status,
+                    message: format!("failed to read response body: {source}"),
+                })?;
         return Err(DependencyValidationError::SyncFeedStatus {
             target,
             status,

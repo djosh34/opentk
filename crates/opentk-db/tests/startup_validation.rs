@@ -181,6 +181,41 @@ async fn sync_validation_formats_syncfeed_unreachable_error(
     Ok(())
 }
 
+#[tokio::test]
+async fn sync_validation_reports_syncfeed_error_body_read_failures(
+) -> Result<(), Box<dyn std::error::Error>> {
+    let syncfeed = HttpFixture::start(vec![ResponseSpec::truncated(
+        "503 Service Unavailable",
+        "main",
+    )])
+    .await?;
+    let config = config_with_syncfeed(test_database_url()?, &syncfeed.base_url)?;
+
+    let error = validate_sync_dependencies(&config)
+        .await
+        .expect_err("syncfeed failure is fatal");
+    let error_text = error.to_string();
+
+    assert!(
+        error_text.starts_with(&format!(
+            "SyncFeed base URL {}/ returned 503 Service Unavailable: ",
+            syncfeed.base_url
+        )),
+        "{error_text}"
+    );
+    assert!(
+        error_text.contains("body")
+            || error_text.contains("end of file")
+            || error_text.contains("content length"),
+        "{error_text}"
+    );
+    assert!(
+        !error_text.ends_with("503 Service Unavailable: "),
+        "{error_text}"
+    );
+    Ok(())
+}
+
 fn test_database_url() -> Result<String, std::env::VarError> {
     std::env::var("OPENTK_TEST_DATABASE_URL").or_else(|_| std::env::var("DATABASE_URL"))
 }
@@ -280,6 +315,7 @@ impl HttpFixture {
 struct ResponseSpec {
     status: &'static str,
     body: &'static str,
+    content_length: usize,
 }
 
 impl ResponseSpec {
@@ -287,18 +323,31 @@ impl ResponseSpec {
         Self {
             status: "200 OK",
             body,
+            content_length: body.len(),
         }
     }
 
     const fn status(status: &'static str, body: &'static str) -> Self {
-        Self { status, body }
+        Self {
+            status,
+            body,
+            content_length: body.len(),
+        }
+    }
+
+    const fn truncated(status: &'static str, body: &'static str) -> Self {
+        Self {
+            status,
+            body,
+            content_length: body.len() + 10,
+        }
     }
 
     fn render(&self) -> String {
         format!(
             "HTTP/1.1 {}\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
             self.status,
-            self.body.len(),
+            self.content_length,
             self.body
         )
     }

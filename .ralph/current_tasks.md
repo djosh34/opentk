@@ -1,15 +1,15 @@
 # Current Tasks Summary
 
-Generated: Sun Apr 26 20:17:11 CEST 2026
+Generated: Sun Apr 26 20:29:58 CEST 2026
 
-# Task `/home/joshazimullah.linux/work_mounts/patroni_rewrite/opentk/.ralph/tasks/bugs/startup-validation-swallowing-response-body-errors.md`
+# Task `/home/joshazimullah.linux/work_mounts/patroni_rewrite/opentk/.ralph/tasks/bugs/database-url-redaction-ignores-set-password-error.md`
 
 ```
-## Bug: Startup validation swallows response body errors <status>not_started</status> <passes>false</passes> <priority>medium</priority>
+## Bug: Database URL redaction ignores set_password error <status>not_started</status> <passes>false</passes> <priority>medium</priority>
 
 <description>
-During Story 10 Task 1 operational sync preparation, inspection found
-`crates/opentk-db/src/startup_validation.rs` using
+During the boundary review for the SyncFeed startup validation body-read fix,
+inspection found `crates/opentk-db/src/startup_validation.rs` ignoring the
 ```
 
 ==============

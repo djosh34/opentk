@@ -1,6 +1,6 @@
 # Done Tasks Summary
 
-Generated: Sun Apr 26 20:17:11 CEST 2026
+Generated: Sun Apr 26 20:29:58 CEST 2026
 
 # Task `/home/joshazimullah.linux/work_mounts/patroni_rewrite/opentk/.ralph/tasks/bugs/bug-remove-swallowed-env-and-duration-errors.md`
 
@@ -33,6 +33,18 @@ While manually verifying
 <description>
 Story 10 Task 1 attempted one clean full SyncFeed-to-PostgreSQL sync from an
 empty dedicated database:
+```
+
+==============
+
+# Task `/home/joshazimullah.linux/work_mounts/patroni_rewrite/opentk/.ralph/tasks/bugs/startup-validation-swallowing-response-body-errors.md`
+
+```
+## Bug: Startup validation swallows response body errors <status>done</status> <passes>true</passes> <priority>medium</priority>
+
+<description>
+During Story 10 Task 1 operational sync preparation, inspection found
+`crates/opentk-db/src/startup_validation.rs` using
 ```
 
 ==============
