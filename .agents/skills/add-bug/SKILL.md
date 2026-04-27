@@ -10,6 +10,10 @@ description: Create a bug task file in .ralph/tasks/bugs/. Triggers on "add bug"
 
 ## Bug file format
 
+For any code related task TDD is mandatory. Preferred is to make a RED test that catches the same bug (as was found) first, and then continue with the TDD skill to solve it.
+For non-code tasks such as Dockerfiles, workflows, documentation, naming, or other file/text manipulation, do not require `make test` or Rust text-assert tests; require manual verification that the thing works instead, such as a successful Docker build or checking authenticated GitHub workflow logs with `github-api-curl`.
+For those tasks TDD is NOT allowed.
+
 ```markdown
 ## Bug: Bug Title <status>not_started</status> <passes>false</passes> <priority>optional: medium|high|ultra high</priority>
 

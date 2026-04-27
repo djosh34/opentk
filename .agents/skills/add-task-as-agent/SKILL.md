@@ -19,6 +19,10 @@ This skill creates **focused, tasks** from completed research. Use your extensiv
 
 ## Task file format
 
+For any code related task TDD is mandatory.
+For non-code tasks such as Dockerfiles, workflows, documentation, naming, or other file/text manipulation, do not require `make test` or Rust text-assert tests; require manual verification that the thing works instead, such as a successful Docker build or checking authenticated GitHub workflow logs with `github-api-curl`.
+For those tasks TDD is NOT allowed. And must not have make test/test-long as acceptance criterea and must have this manual verify step as criterium.
+
 ```markdown
 ## Task: [Clear Goal Description] <status>not_started</status> <passes>false</passes>
 
