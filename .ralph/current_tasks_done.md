@@ -1,6 +1,6 @@
 # Done Tasks Summary
 
-Generated: Mon Apr 27 04:46:35 AM CEST 2026
+Generated: Mon Apr 27 10:15:51 CEST 2026
 
 # Task `/home/joshazimullah.linux/work_mounts/patroni_rewrite/opentk/.ralph/tasks/bugs/bug-cargo-run-opentk-sync-linker-missing-objects.md`
 
@@ -164,6 +164,17 @@ empty dedicated database after the previous PersoonNevenfunctie deleted-body
 <description>
 During Story 10 Task 1 operational sync preparation, inspection found
 `crates/opentk-db/src/startup_validation.rs` using
+```
+
+==============
+
+# Task `/home/joshazimullah.linux/work_mounts/patroni_rewrite/opentk/.ralph/tasks/story-10-full-sync-backup/task-1-run-one-time-clean-full-sync-report.md`
+
+```
+## Task: Story 10 Task 1 - Run One-Time Clean Full Sync and Report Results <status>done</status> <passes>true</passes>
+
+<description>
+**Goal:** Run one clean full SyncFeed-to-PostgreSQL sync once, measure the result, write a human-readable report under `.ralph/reports/`, and email that report to the user.
 ```
 
 ==============

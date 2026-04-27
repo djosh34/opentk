@@ -1,0 +1,41 @@
+    Blocking waiting for file lock on package cache
+    Blocking waiting for file lock on package cache
+    Blocking waiting for file lock on package cache
+    Blocking waiting for file lock on artifact directory
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 2.18s
+     Running `target/debug/opentk-sync --config .ralph/reports/full-sync-config-20260427-044908.toml status`
+Activiteit	state=caught_up	latest_skiptoken=25403385	lag_seconds=18039	last_fetch_at=2026-04-27T03:05:35.680860+00:00	last_error=none
+ActiviteitActor	state=caught_up	latest_skiptoken=25403337	lag_seconds=6767	last_fetch_at=2026-04-27T06:13:27.226876+00:00	last_error=none
+Agendapunt	state=caught_up	latest_skiptoken=25403334	lag_seconds=16356	last_fetch_at=2026-04-27T03:33:38.664204+00:00	last_error=none
+Besluit	state=caught_up	latest_skiptoken=25403335	lag_seconds=9394	last_fetch_at=2026-04-27T05:29:39.924314+00:00	last_error=none
+Commissie	state=caught_up	latest_skiptoken=25211508	lag_seconds=18637	last_fetch_at=2026-04-27T02:55:37.551337+00:00	last_error=none
+CommissieContactinformatie	state=caught_up	latest_skiptoken=25391021	lag_seconds=18705	last_fetch_at=2026-04-27T02:54:29.034096+00:00	last_error=none
+CommissieZetel	state=caught_up	latest_skiptoken=25391065	lag_seconds=18481	last_fetch_at=2026-04-27T02:58:13.372031+00:00	last_error=none
+CommissieZetelVastPersoon	state=caught_up	latest_skiptoken=25391056	lag_seconds=18475	last_fetch_at=2026-04-27T02:58:19.311728+00:00	last_error=none
+CommissieZetelVastVacature	state=caught_up	latest_skiptoken=25391057	lag_seconds=18602	last_fetch_at=2026-04-27T02:56:12.037689+00:00	last_error=none
+CommissieZetelVervangerPersoon	state=caught_up	latest_skiptoken=25318331	lag_seconds=18504	last_fetch_at=2026-04-27T02:57:50.676696+00:00	last_error=none
+CommissieZetelVervangerVacature	state=caught_up	latest_skiptoken=25314931	lag_seconds=18606	last_fetch_at=2026-04-27T02:56:08.286659+00:00	last_error=none
+Document	state=caught_up	latest_skiptoken=25403360	lag_seconds=6742	last_fetch_at=2026-04-27T06:13:52.347186+00:00	last_error=none
+DocumentActor	state=caught_up	latest_skiptoken=25403264	lag_seconds=3577	last_fetch_at=2026-04-27T07:06:37.446034+00:00	last_error=none
+DocumentVersie	state=caught_up	latest_skiptoken=25403359	lag_seconds=10385	last_fetch_at=2026-04-27T05:13:08.757009+00:00	last_error=none
+Fractie	state=caught_up	latest_skiptoken=24971385	lag_seconds=18705	last_fetch_at=2026-04-27T02:54:29.534507+00:00	last_error=none
+FractieZetel	state=caught_up	latest_skiptoken=25174188	lag_seconds=18684	last_fetch_at=2026-04-27T02:54:50.093759+00:00	last_error=none
+FractieZetelPersoon	state=caught_up	latest_skiptoken=25174174	lag_seconds=18635	last_fetch_at=2026-04-27T02:55:38.931910+00:00	last_error=none
+FractieZetelVacature	state=caught_up	latest_skiptoken=25174173	lag_seconds=18781	last_fetch_at=2026-04-27T02:53:13.683428+00:00	last_error=none
+Kamerstukdossier	state=caught_up	latest_skiptoken=25403223	lag_seconds=18489	last_fetch_at=2026-04-27T02:58:05.388156+00:00	last_error=none
+Persoon	state=caught_up	latest_skiptoken=25362284	lag_seconds=18533	last_fetch_at=2026-04-27T02:57:20.883233+00:00	last_error=none
+PersoonContactinformatie	state=caught_up	latest_skiptoken=25386537	lag_seconds=18579	last_fetch_at=2026-04-27T02:56:35.528733+00:00	last_error=none
+PersoonGeschenk	state=caught_up	latest_skiptoken=25399096	lag_seconds=18487	last_fetch_at=2026-04-27T02:58:07.393047+00:00	last_error=none
+PersoonLoopbaan	state=caught_up	latest_skiptoken=24897468	lag_seconds=18617	last_fetch_at=2026-04-27T02:55:56.783755+00:00	last_error=none
+PersoonNevenfunctie	state=caught_up	latest_skiptoken=25402682	lag_seconds=18615	last_fetch_at=2026-04-27T02:55:59.689691+00:00	last_error=none
+PersoonNevenfunctieInkomsten	state=caught_up	latest_skiptoken=25228676	lag_seconds=18643	last_fetch_at=2026-04-27T02:55:31.366443+00:00	last_error=none
+PersoonOnderwijs	state=caught_up	latest_skiptoken=24897442	lag_seconds=18687	last_fetch_at=2026-04-27T02:54:47.548552+00:00	last_error=none
+PersoonReis	state=caught_up	latest_skiptoken=25386196	lag_seconds=18571	last_fetch_at=2026-04-27T02:56:43.574840+00:00	last_error=none
+Reservering	state=caught_up	latest_skiptoken=25403404	lag_seconds=18327	last_fetch_at=2026-04-27T03:00:47.334342+00:00	last_error=none
+Stemming	state=caught_up	latest_skiptoken=25393523	lag_seconds=15	last_fetch_at=2026-04-27T08:05:59.254431+00:00	last_error=none
+Toezegging	state=caught_up	latest_skiptoken=25401126	lag_seconds=18426	last_fetch_at=2026-04-27T02:59:07.931752+00:00	last_error=none
+Vergadering	state=caught_up	latest_skiptoken=25398924	lag_seconds=18483	last_fetch_at=2026-04-27T02:58:11.360486+00:00	last_error=none
+Verslag	state=caught_up	latest_skiptoken=25398923	lag_seconds=18408	last_fetch_at=2026-04-27T02:59:26.544415+00:00	last_error=none
+Zaak	state=caught_up	latest_skiptoken=25403408	lag_seconds=12221	last_fetch_at=2026-04-27T04:42:33.690224+00:00	last_error=none
+ZaakActor	state=caught_up	latest_skiptoken=25403326	lag_seconds=858	last_fetch_at=2026-04-27T07:51:55.826543+00:00	last_error=none
+Zaal	state=caught_up	latest_skiptoken=21354884	lag_seconds=18511	last_fetch_at=2026-04-27T02:57:42.874280+00:00	last_error=none

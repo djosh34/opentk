@@ -1,0 +1,621 @@
+COMMAND: post-sync database size and growth
+ pre_bytes | pre_pretty | post_bytes | post_pretty | growth_bytes | growth_pretty 
+-----------+------------+------------+-------------+--------------+---------------
+  15528419 | 15 MB      | 9450394083 | 9013 MB     |   9434865664 | 8998 MB
+(1 row)
+
+COMMAND: ingest_error count and rows
+ ingest_error_count 
+--------------------
+                  0
+(1 row)
+
+ERROR:  column "occurred_at" does not exist
+LINE 1: ...ingest_error; SELECT * FROM ingest_error ORDER BY occurred_a...
+                                                             ^
+COMMAND: final sync_category cursor state
+         source_category         |   state   | latest_skiptoken |         last_fetch_at         
+---------------------------------+-----------+------------------+-------------------------------
+ Activiteit                      | caught_up |         25403385 | 2026-04-27 05:05:35.68086+02
+ ActiviteitActor                 | caught_up |         25403337 | 2026-04-27 08:13:27.226876+02
+ Agendapunt                      | caught_up |         25403334 | 2026-04-27 05:33:38.664204+02
+ Besluit                         | caught_up |         25403335 | 2026-04-27 07:29:39.924314+02
+ Commissie                       | caught_up |         25211508 | 2026-04-27 04:55:37.551337+02
+ CommissieContactinformatie      | caught_up |         25391021 | 2026-04-27 04:54:29.034096+02
+ CommissieZetel                  | caught_up |         25391065 | 2026-04-27 04:58:13.372031+02
+ CommissieZetelVastPersoon       | caught_up |         25391056 | 2026-04-27 04:58:19.311728+02
+ CommissieZetelVastVacature      | caught_up |         25391057 | 2026-04-27 04:56:12.037689+02
+ CommissieZetelVervangerPersoon  | caught_up |         25318331 | 2026-04-27 04:57:50.676696+02
+ CommissieZetelVervangerVacature | caught_up |         25314931 | 2026-04-27 04:56:08.286659+02
+ Document                        | caught_up |         25403360 | 2026-04-27 08:13:52.347186+02
+ DocumentActor                   | caught_up |         25403264 | 2026-04-27 09:06:37.446034+02
+ DocumentVersie                  | caught_up |         25403359 | 2026-04-27 07:13:08.757009+02
+ Fractie                         | caught_up |         24971385 | 2026-04-27 04:54:29.534507+02
+ FractieZetel                    | caught_up |         25174188 | 2026-04-27 04:54:50.093759+02
+ FractieZetelPersoon             | caught_up |         25174174 | 2026-04-27 04:55:38.93191+02
+ FractieZetelVacature            | caught_up |         25174173 | 2026-04-27 04:53:13.683428+02
+ Kamerstukdossier                | caught_up |         25403223 | 2026-04-27 04:58:05.388156+02
+ Persoon                         | caught_up |         25362284 | 2026-04-27 04:57:20.883233+02
+ PersoonContactinformatie        | caught_up |         25386537 | 2026-04-27 04:56:35.528733+02
+ PersoonGeschenk                 | caught_up |         25399096 | 2026-04-27 04:58:07.393047+02
+ PersoonLoopbaan                 | caught_up |         24897468 | 2026-04-27 04:55:56.783755+02
+ PersoonNevenfunctie             | caught_up |         25402682 | 2026-04-27 04:55:59.689691+02
+ PersoonNevenfunctieInkomsten    | caught_up |         25228676 | 2026-04-27 04:55:31.366443+02
+ PersoonOnderwijs                | caught_up |         24897442 | 2026-04-27 04:54:47.548552+02
+ PersoonReis                     | caught_up |         25386196 | 2026-04-27 04:56:43.57484+02
+ Reservering                     | caught_up |         25403404 | 2026-04-27 05:00:47.334342+02
+ Stemming                        | caught_up |         25393523 | 2026-04-27 10:05:59.254431+02
+ Toezegging                      | caught_up |         25401126 | 2026-04-27 04:59:07.931752+02
+ Vergadering                     | caught_up |         25398924 | 2026-04-27 04:58:11.360486+02
+ Verslag                         | caught_up |         25398923 | 2026-04-27 04:59:26.544415+02
+ Zaak                            | caught_up |         25403408 | 2026-04-27 06:42:33.690224+02
+ ZaakActor                       | caught_up |         25403326 | 2026-04-27 09:51:55.826543+02
+ Zaal                            | caught_up |         21354884 | 2026-04-27 04:57:42.87428+02
+(35 rows)
+
+COMMAND: exact row counts for all public tables after sync
+    table_name     | rows  
+-------------------+-------
+ public.activiteit | 71539
+(1 row)
+
+             table_name              | rows 
+-------------------------------------+------
+ public.activiteit__vervangen_vanuit | 5836
+(1 row)
+
+              table_name              | rows 
+--------------------------------------+------
+ public.activiteit__voortgezet_vanuit |  604
+(1 row)
+
+              table_name              | rows  
+--------------------------------------+-------
+ public.activiteit__voortouwcommissie | 71539
+(1 row)
+
+       table_name        |  rows  
+-------------------------+--------
+ public.activiteit_actor | 292618
+(1 row)
+
+             table_name              |  rows  
+-------------------------------------+--------
+ public.activiteit_actor__activiteit | 292618
+(1 row)
+
+             table_name             | rows  
+------------------------------------+-------
+ public.activiteit_actor__commissie | 21036
+(1 row)
+
+            table_name            |  rows  
+----------------------------------+--------
+ public.activiteit_actor__fractie | 237884
+(1 row)
+
+            table_name            |  rows  
+----------------------------------+--------
+ public.activiteit_actor__persoon | 271510
+(1 row)
+
+    table_name     |  rows  
+-------------------+--------
+ public.agendapunt | 313422
+(1 row)
+
+          table_name           |  rows  
+-------------------------------+--------
+ public.agendapunt__activiteit | 313422
+(1 row)
+
+   table_name   |  rows  
+----------------+--------
+ public.besluit | 654018
+(1 row)
+
+         table_name         |  rows  
+----------------------------+--------
+ public.besluit__agendapunt | 654013
+(1 row)
+
+      table_name      |  rows  
+----------------------+--------
+ public.besluit__zaak | 654018
+(1 row)
+
+    table_name    | rows 
+------------------+------
+ public.commissie |  132
+(1 row)
+
+             table_name             | rows 
+------------------------------------+------
+ public.commissie_contactinformatie |  460
+(1 row)
+
+                  table_name                   | rows 
+-----------------------------------------------+------
+ public.commissie_contactinformatie__commissie |  460
+(1 row)
+
+       table_name       | rows 
+------------------------+------
+ public.commissie_zetel | 8756
+(1 row)
+
+            table_name             | rows 
+-----------------------------------+------
+ public.commissie_zetel__commissie | 8756
+(1 row)
+
+             table_name              | rows 
+-------------------------------------+------
+ public.commissie_zetel_vast_persoon | 8507
+(1 row)
+
+                      table_name                      | rows 
+------------------------------------------------------+------
+ public.commissie_zetel_vast_persoon__commissie_zetel | 8507
+(1 row)
+
+                  table_name                  | rows 
+----------------------------------------------+------
+ public.commissie_zetel_vast_persoon__persoon | 8507
+(1 row)
+
+              table_name              | rows 
+--------------------------------------+------
+ public.commissie_zetel_vast_vacature | 2261
+(1 row)
+
+                      table_name                       | rows 
+-------------------------------------------------------+------
+ public.commissie_zetel_vast_vacature__commissie_zetel | 2261
+(1 row)
+
+                  table_name                   | rows 
+-----------------------------------------------+------
+ public.commissie_zetel_vast_vacature__fractie | 2226
+(1 row)
+
+                table_name                | rows 
+------------------------------------------+------
+ public.commissie_zetel_vervanger_persoon | 6129
+(1 row)
+
+                        table_name                         | rows 
+-----------------------------------------------------------+------
+ public.commissie_zetel_vervanger_persoon__commissie_zetel | 6129
+(1 row)
+
+                    table_name                     | rows 
+---------------------------------------------------+------
+ public.commissie_zetel_vervanger_persoon__persoon | 6129
+(1 row)
+
+                table_name                 | rows 
+-------------------------------------------+------
+ public.commissie_zetel_vervanger_vacature | 1914
+(1 row)
+
+                         table_name                         | rows 
+------------------------------------------------------------+------
+ public.commissie_zetel_vervanger_vacature__commissie_zetel | 1914
+(1 row)
+
+                     table_name                     | rows 
+----------------------------------------------------+------
+ public.commissie_zetel_vervanger_vacature__fractie | 1889
+(1 row)
+
+   table_name    |  rows  
+-----------------+--------
+ public.document | 594708
+(1 row)
+
+         table_name          | rows  
+-----------------------------+-------
+ public.document__activiteit | 97920
+(1 row)
+
+         table_name          | rows 
+-----------------------------+------
+ public.document__agendapunt |  178
+(1 row)
+
+           table_name           |  rows  
+--------------------------------+--------
+ public.document__bron_document | 118531
+(1 row)
+
+                table_name                |  rows  
+------------------------------------------+--------
+ public.document__huidige_document_versie | 594708
+(1 row)
+
+            table_name             |  rows  
+-----------------------------------+--------
+ public.document__kamerstukdossier | 207678
+(1 row)
+
+      table_name       |  rows  
+-----------------------+--------
+ public.document__zaak | 408910
+(1 row)
+
+      table_name       |  rows  
+-----------------------+--------
+ public.document_actor | 579165
+(1 row)
+
+            table_name            | rows 
+----------------------------------+------
+ public.document_actor__commissie |    0
+(1 row)
+
+           table_name            |  rows  
+---------------------------------+--------
+ public.document_actor__document | 579165
+(1 row)
+
+           table_name           |  rows  
+--------------------------------+--------
+ public.document_actor__fractie | 279572
+(1 row)
+
+           table_name           |  rows  
+--------------------------------+--------
+ public.document_actor__persoon | 579165
+(1 row)
+
+      table_name       | rows 
+-----------------------+------
+ public.document_asset |    0
+(1 row)
+
+       table_name        | rows 
+-------------------------+------
+ public.document_content |    0
+(1 row)
+
+       table_name       |  rows  
+------------------------+--------
+ public.document_versie | 594708
+(1 row)
+
+            table_name            |  rows  
+----------------------------------+--------
+ public.document_versie__document | 594708
+(1 row)
+
+   table_name   | rows 
+----------------+------
+ public.fractie |   59
+(1 row)
+
+      table_name      | rows 
+----------------------+------
+ public.fractie_zetel |  925
+(1 row)
+
+          table_name           | rows 
+-------------------------------+------
+ public.fractie_zetel__fractie |  925
+(1 row)
+
+          table_name          | rows 
+------------------------------+------
+ public.fractie_zetel_persoon | 1201
+(1 row)
+
+                 table_name                  | rows 
+---------------------------------------------+------
+ public.fractie_zetel_persoon__fractie_zetel | 1201
+(1 row)
+
+              table_name               | rows 
+---------------------------------------+------
+ public.fractie_zetel_persoon__persoon | 1201
+(1 row)
+
+          table_name           | rows 
+-------------------------------+------
+ public.fractie_zetel_vacature |  202
+(1 row)
+
+                  table_name                  | rows 
+----------------------------------------------+------
+ public.fractie_zetel_vacature__fractie_zetel |  202
+(1 row)
+
+     table_name      | rows 
+---------------------+------
+ public.ingest_error |    0
+(1 row)
+
+       table_name        | rows 
+-------------------------+------
+ public.kamerstukdossier | 7650
+(1 row)
+
+   table_name   | rows 
+----------------+------
+ public.persoon | 3079
+(1 row)
+
+            table_name            | rows 
+----------------------------------+------
+ public.persoon_contactinformatie | 1639
+(1 row)
+
+                table_name                 | rows 
+-------------------------------------------+------
+ public.persoon_contactinformatie__persoon | 1639
+(1 row)
+
+       table_name        | rows 
+-------------------------+------
+ public.persoon_geschenk | 7399
+(1 row)
+
+            table_name            | rows 
+----------------------------------+------
+ public.persoon_geschenk__persoon | 7399
+(1 row)
+
+       table_name        | rows 
+-------------------------+------
+ public.persoon_loopbaan | 1966
+(1 row)
+
+            table_name            | rows 
+----------------------------------+------
+ public.persoon_loopbaan__persoon | 1966
+(1 row)
+
+         table_name          | rows 
+-----------------------------+------
+ public.persoon_nevenfunctie | 1906
+(1 row)
+
+              table_name              | rows 
+--------------------------------------+------
+ public.persoon_nevenfunctie__persoon | 1906
+(1 row)
+
+              table_name               | rows 
+---------------------------------------+------
+ public.persoon_nevenfunctie_inkomsten |  564
+(1 row)
+
+                         table_name                          | rows 
+-------------------------------------------------------------+------
+ public.persoon_nevenfunctie_inkomsten__persoon_nevenfunctie |  564
+(1 row)
+
+        table_name        | rows 
+--------------------------+------
+ public.persoon_onderwijs |  970
+(1 row)
+
+            table_name             | rows 
+-----------------------------------+------
+ public.persoon_onderwijs__persoon |  970
+(1 row)
+
+     table_name      | rows 
+---------------------+------
+ public.persoon_reis | 3311
+(1 row)
+
+          table_name          | rows 
+------------------------------+------
+ public.persoon_reis__persoon | 3311
+(1 row)
+
+     table_name     | rows  
+--------------------+-------
+ public.reservering | 24880
+(1 row)
+
+           table_name           | rows  
+--------------------------------+-------
+ public.reservering__activiteit | 24880
+(1 row)
+
+        table_name        | rows  
+--------------------------+-------
+ public.reservering__zaal | 24880
+(1 row)
+
+         table_name         | rows 
+----------------------------+------
+ public.search_index_cursor |    0
+(1 row)
+
+         table_name          | rows 
+-----------------------------+------
+ public.search_index_failure |    0
+(1 row)
+
+   table_name    |  rows  
+-----------------+--------
+ public.stemming | 975940
+(1 row)
+
+        table_name        |  rows  
+--------------------------+--------
+ public.stemming__besluit | 975940
+(1 row)
+
+        table_name        |  rows  
+--------------------------+--------
+ public.stemming__fractie | 975940
+(1 row)
+
+        table_name        | rows  
+--------------------------+-------
+ public.stemming__persoon | 76953
+(1 row)
+
+      table_name      | rows 
+----------------------+------
+ public.sync_category |   35
+(1 row)
+
+     table_name     |  rows   
+--------------------+---------
+ public.sync_entity | 7292555
+(1 row)
+
+    table_name     | rows 
+-------------------+------
+ public.toezegging | 5867
+(1 row)
+
+          table_name           | rows 
+-------------------------------+------
+ public.toezegging__activiteit | 5867
+(1 row)
+
+             table_name              | rows 
+-------------------------------------+------
+ public.toezegging__is_aanvulling_op |   25
+(1 row)
+
+             table_name              | rows 
+-------------------------------------+------
+ public.toezegging__is_herhaling_van |   14
+(1 row)
+
+             table_name              | rows 
+-------------------------------------+------
+ public.toezegging__is_wijziging_van |    8
+(1 row)
+
+               table_name               | rows 
+----------------------------------------+------
+ public.toezegging__kamerbrief_nakoming | 3061
+(1 row)
+
+            table_name            | rows 
+----------------------------------+------
+ public.toezegging__toegezegd_aan |    0
+(1 row)
+
+                table_name                | rows 
+------------------------------------------+------
+ public.toezegging__toegezegd_aan_fractie |    0
+(1 row)
+
+                table_name                | rows 
+------------------------------------------+------
+ public.toezegging__toegezegd_aan_persoon |    0
+(1 row)
+
+     table_name     | rows 
+--------------------+------
+ public.vergadering | 7317
+(1 row)
+
+   table_name   | rows  
+----------------+-------
+ public.verslag | 22822
+(1 row)
+
+         table_name          | rows  
+-----------------------------+-------
+ public.verslag__vergadering | 22822
+(1 row)
+
+ table_name  |  rows  
+-------------+--------
+ public.zaak | 295578
+(1 row)
+
+       table_name        | rows 
+-------------------------+------
+ public.zaak__activiteit | 7188
+(1 row)
+
+       table_name        |  rows  
+-------------------------+--------
+ public.zaak__agendapunt | 628238
+(1 row)
+
+           table_name            | rows  
+---------------------------------+-------
+ public.zaak__gerelateerd_vanuit | 78005
+(1 row)
+
+          table_name           |  rows  
+-------------------------------+--------
+ public.zaak__kamerstukdossier | 184865
+(1 row)
+
+          table_name           | rows  
+-------------------------------+-------
+ public.zaak__vervangen_vanuit | 11402
+(1 row)
+
+    table_name     |  rows  
+-------------------+--------
+ public.zaak_actor | 842993
+(1 row)
+
+          table_name          |  rows  
+------------------------------+--------
+ public.zaak_actor__commissie | 350166
+(1 row)
+
+         table_name         |  rows  
+----------------------------+--------
+ public.zaak_actor__fractie | 258660
+(1 row)
+
+         table_name         |  rows  
+----------------------------+--------
+ public.zaak_actor__persoon | 492827
+(1 row)
+
+       table_name        |  rows  
+-------------------------+--------
+ public.zaak_actor__zaak | 842993
+(1 row)
+
+ table_name  | rows 
+-------------+------
+ public.zaal |   64
+(1 row)
+
+COMMAND: document asset/content byte evidence
+ document_asset_rows 
+---------------------
+                   0
+(1 row)
+
+ERROR:  column "stored_html" does not exist
+LINE 1: ...S extracted_text_bytes, coalesce(sum(octet_length(stored_htm...
+                                                             ^
+COMMAND: schema evidence
+         applied_migration         |                            checksum_evidence                            
+-----------------------------------+-------------------------------------------------------------------------
+ 20260426000000_sync_schema.up.sql | sha256 403b2a1c89f8c11f61da5e12d622f5caf3cb8ec76388eefdef4423337a79f980
+(1 row)
+
+COMMAND: final git evidence
+git rev-parse HEAD: 8a5bf9bbfdbe555c9202174ef4d8d0121e2950ec
+git status --short:
+ M .ralph/current_tasks.md
+ M .ralph/current_tasks_done.md
+?? .ralph/current_task.txt
+?? .ralph/progress/48.jsonl
+?? .ralph/reports/full-sync-config-20260427-044908.toml
+?? .ralph/reports/full-sync-db-setup-20260427-044908.log
+?? .ralph/reports/full-sync-initial-metadata-20260427-044908.log
+?? .ralph/reports/full-sync-post-sync-evidence-20260427-044908.log
+?? .ralph/reports/full-sync-pre-sync-evidence-20260427-044908.log
+?? .ralph/reports/full-sync-run-20260427-044908.log
+?? .ralph/reports/full-sync-status-20260427-044908.log
+?? .ralph/reports/full-sync-verify-20260427-044908.log

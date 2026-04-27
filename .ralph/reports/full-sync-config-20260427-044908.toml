@@ -1,0 +1,25 @@
+[database]
+url = "postgres://postgres@127.0.0.1:55432/opentk_full_sync_20260427_044908"
+max_connections = 8
+
+[sync]
+base_url = "https://gegevensmagazijn.tweedekamer.nl"
+request_timeout_secs = 30
+connect_timeout_secs = 10
+max_retries = 3
+max_concurrent_requests = 4
+poll_interval_secs = 30
+
+[search]
+url = "http://127.0.0.1:7700"
+index_name = "opentk_entities"
+batch_size = 100
+retry_limit = 3
+
+[api]
+bind_address = "127.0.0.1:3000"
+cors_origins = []
+
+[log]
+format = "pretty"
+level = "info"

@@ -1,0 +1,21 @@
+COMMAND: corrected ingest_error rows using created_at
+ ingest_error_count 
+--------------------
+                  0
+(1 row)
+
+ id | phase | source_category | source_id | latest_skiptoken | message | created_at 
+----+-------+-----------------+-----------+------------------+---------+------------
+(0 rows)
+
+COMMAND: corrected document_asset/document_content byte evidence using extracted_html
+ document_asset_rows 
+---------------------
+                   0
+(1 row)
+
+ document_content_rows | extracted_text_bytes | extracted_html_bytes 
+-----------------------+----------------------+----------------------
+                     0 |                    0 |                    0
+(1 row)
+

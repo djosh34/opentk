@@ -1,14 +1,15 @@
 # Current Tasks Summary
 
-Generated: Mon Apr 27 04:46:35 AM CEST 2026
+Generated: Mon Apr 27 10:15:51 CEST 2026
 
-# Task `/home/joshazimullah.linux/work_mounts/patroni_rewrite/opentk/.ralph/tasks/story-10-full-sync-backup/task-1-run-one-time-clean-full-sync-report.md`
+# Task `/home/joshazimullah.linux/work_mounts/patroni_rewrite/opentk/.ralph/tasks/bugs/bug-full-sync-post-measurement-query-used-invalid-columns.md`
 
 ```
-## Task: Story 10 Task 1 - Run One-Time Clean Full Sync and Report Results <status>not_started</status> <passes>false</passes>
+## Bug: Full Sync Post-Measurement Query Used Invalid Columns <status>not_started</status> <passes>false</passes> <priority>medium</priority>
 
 <description>
-**Goal:** Run one clean full SyncFeed-to-PostgreSQL sync once, measure the result, write a human-readable report under `.ralph/reports/`, and email that report to the user.
+During Story 10 Task 1 full-sync post-run measurement for run `20260427-044908`,
+the first post-sync evidence command guessed two column names that do not exist
 ```
 
 ==============

@@ -1,0 +1,18 @@
+date -Is: 2026-04-27T04:49:27+02:00
+git rev-parse HEAD: 8a5bf9bbfdbe555c9202174ef4d8d0121e2950ec
+git status --short:
+ M .ralph/current_tasks.md
+ M .ralph/current_tasks_done.md
+?? .ralph/current_task.txt
+?? .ralph/progress/48.jsonl
+?? .ralph/reports/full-sync-config-20260427-044908.toml
+?? .ralph/reports/full-sync-initial-metadata-20260427-044908.log
+config: .ralph/reports/full-sync-config-20260427-044908.toml
+database target: postgres://postgres@127.0.0.1:55432/opentk_full_sync_20260427_044908
+redacted database target: postgres://postgres@127.0.0.1:55432/opentk_full_sync_20260427_044908
+COMMAND: cargo run -p opentk-db --bin opentk-sync -- --config .ralph/reports/full-sync-config-20260427-044908.toml --validate-config
+   Compiling opentk-sync v0.1.0 (/home/joshazimullah.linux/work_mounts/patroni_rewrite/opentk/crates/opentk-sync)
+   Compiling opentk-db v0.1.0 (/home/joshazimullah.linux/work_mounts/patroni_rewrite/opentk/crates/opentk-db)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 17.58s
+     Running `target/debug/opentk-sync --config .ralph/reports/full-sync-config-20260427-044908.toml --validate-config`
+Error: DatabaseUnreachable { target: "postgres://postgres@127.0.0.1:55432/opentk_full_sync_20260427_044908", message: "error returned from database: database \"opentk_full_sync_20260427_044908\" does not exist" }

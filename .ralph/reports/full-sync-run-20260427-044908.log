@@ -1,0 +1,42 @@
+SYNC_START=2026-04-27T04:50:45+02:00
+COMMAND: env CARGO_INCREMENTAL=0 cargo run -p opentk-db --bin opentk-sync -- --config .ralph/reports/full-sync-config-20260427-044908.toml run
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.82s
+     Running `target/debug/opentk-sync --config .ralph/reports/full-sync-config-20260427-044908.toml run`
+Activiteit	caught_up=true	latest_skiptoken=25403385	pages_written=389	entities_seen=97003
+ActiviteitActor	caught_up=true	latest_skiptoken=25403337	pages_written=1258	entities_seen=314472
+Agendapunt	caught_up=true	latest_skiptoken=25403334	pages_written=1347	entities_seen=336594
+Besluit	caught_up=true	latest_skiptoken=25403335	pages_written=2736	entities_seen=683755
+Commissie	caught_up=true	latest_skiptoken=25211508	pages_written=1	entities_seen=132
+CommissieContactinformatie	caught_up=true	latest_skiptoken=25391021	pages_written=2	entities_seen=493
+CommissieZetel	caught_up=true	latest_skiptoken=25391065	pages_written=36	entities_seen=8756
+CommissieZetelVastPersoon	caught_up=true	latest_skiptoken=25391056	pages_written=35	entities_seen=8600
+CommissieZetelVastVacature	caught_up=true	latest_skiptoken=25391057	pages_written=10	entities_seen=2409
+CommissieZetelVervangerPersoon	caught_up=true	latest_skiptoken=25318331	pages_written=25	entities_seen=6184
+CommissieZetelVervangerVacature	caught_up=true	latest_skiptoken=25314931	pages_written=9	entities_seen=2022
+Document	caught_up=true	latest_skiptoken=25403360	pages_written=2759	entities_seen=689565
+DocumentActor	caught_up=true	latest_skiptoken=25403264	pages_written=2456	entities_seen=613976
+DocumentVersie	caught_up=true	latest_skiptoken=25403359	pages_written=6138	entities_seen=1534449
+Fractie	caught_up=true	latest_skiptoken=24971385	pages_written=1	entities_seen=60
+FractieZetel	caught_up=true	latest_skiptoken=25174188	pages_written=4	entities_seen=925
+FractieZetelPersoon	caught_up=true	latest_skiptoken=25174174	pages_written=5	entities_seen=1208
+FractieZetelVacature	caught_up=true	latest_skiptoken=25174173	pages_written=1	entities_seen=231
+Kamerstukdossier	caught_up=true	latest_skiptoken=25403223	pages_written=31	entities_seen=7680
+Persoon	caught_up=true	latest_skiptoken=25362284	pages_written=13	entities_seen=3099
+PersoonContactinformatie	caught_up=true	latest_skiptoken=25386537	pages_written=8	entities_seen=1824
+PersoonGeschenk	caught_up=true	latest_skiptoken=25399096	pages_written=30	entities_seen=7433
+PersoonLoopbaan	caught_up=true	latest_skiptoken=24897468	pages_written=8	entities_seen=1979
+PersoonNevenfunctie	caught_up=true	latest_skiptoken=25402682	pages_written=8	entities_seen=1965
+PersoonNevenfunctieInkomsten	caught_up=true	latest_skiptoken=25228676	pages_written=3	entities_seen=605
+PersoonOnderwijs	caught_up=true	latest_skiptoken=24897442	pages_written=4	entities_seen=982
+PersoonReis	caught_up=true	latest_skiptoken=25386196	pages_written=14	entities_seen=3323
+Reservering	caught_up=true	latest_skiptoken=25403404	pages_written=233	entities_seen=58053
+Stemming	caught_up=true	latest_skiptoken=25393523	pages_written=3932	entities_seen=982975
+Toezegging	caught_up=true	latest_skiptoken=25401126	pages_written=24	entities_seen=5891
+Vergadering	caught_up=true	latest_skiptoken=25398924	pages_written=30	entities_seen=7319
+Verslag	caught_up=true	latest_skiptoken=25398923	pages_written=92	entities_seen=22826
+Zaak	caught_up=true	latest_skiptoken=25403408	pages_written=1192	entities_seen=297929
+ZaakActor	caught_up=true	latest_skiptoken=25403326	pages_written=3425	entities_seen=856076
+Zaal	caught_up=true	latest_skiptoken=21354884	pages_written=1	entities_seen=64
+SYNC_END=2026-04-27T10:05:59+02:00
+DURATION_SECONDS=18914
+COMMAND_STATUS=0

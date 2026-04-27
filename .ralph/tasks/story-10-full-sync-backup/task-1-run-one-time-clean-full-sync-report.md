@@ -1,4 +1,4 @@
-## Task: Story 10 Task 1 - Run One-Time Clean Full Sync and Report Results <status>not_started</status> <passes>false</passes>
+## Task: Story 10 Task 1 - Run One-Time Clean Full Sync and Report Results <status>done</status> <passes>true</passes>
 
 <description>
 **Goal:** Run one clean full SyncFeed-to-PostgreSQL sync once, measure the result, write a human-readable report under `.ralph/reports/`, and email that report to the user.
@@ -33,17 +33,17 @@ In scope: running the sync once, measuring the fully synced database, writing th
 </description>
 
 <acceptance_criteria>
-- [ ] Full sync was run once from an empty database to completion
-- [ ] Pre-sync empty database storage size was recorded
-- [ ] Post-sync fully synced database storage size was recorded
-- [ ] Sync start time, completion time, and wall-clock duration were recorded
-- [ ] Row counts for every synced category/table were recorded
-- [ ] Final skiptoken/cursor state for every synced category was recorded
-- [ ] Report file exists at `.ralph/reports/full-sync-report-YYYYMMDD-HHMMSS.md`
-- [ ] Report includes exact commands, database target, schema version, commit SHA, dirty/clean worktree state, measurements, and caveats
-- [ ] Report was emailed to the user using the `email-me` skill
-- [ ] Any failure or questionable result was immediately filed as an add-bug task
-- [ ] No application code, CLI command, script, or backup/restore product behavior was added
+- [x] Full sync was run once from an empty database to completion
+- [x] Pre-sync empty database storage size was recorded
+- [x] Post-sync fully synced database storage size was recorded
+- [x] Sync start time, completion time, and wall-clock duration were recorded
+- [x] Row counts for every synced category/table were recorded
+- [x] Final skiptoken/cursor state for every synced category was recorded
+- [x] Report file exists at `.ralph/reports/full-sync-report-YYYYMMDD-HHMMSS.md`
+- [x] Report includes exact commands, database target, schema version, commit SHA, dirty/clean worktree state, measurements, and caveats
+- [x] Report was emailed to the user using the `email-me` skill
+- [x] Any failure or questionable result was immediately filed as an add-bug task
+- [x] No application code, CLI command, script, or backup/restore product behavior was added
 </acceptance_criteria>
 
 <plan>
