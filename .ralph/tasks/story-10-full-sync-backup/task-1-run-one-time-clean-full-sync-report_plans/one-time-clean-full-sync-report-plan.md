@@ -115,6 +115,25 @@ nonzero after `305` seconds:
 Filed blocker bug:
 `.ralph/tasks/bugs/bug-full-sync-fails-on-duplicate-toezegging-kamerbrief-nakoming.md`
 
+Stopped again on `2026-04-27T03:06:48+02:00` after rerunning from a fresh
+empty database for run `20260427-030235`. The clean full sync exited nonzero
+after `178` seconds:
+
+`Error: Parse { category: "Toezegging", source: DuplicateSingleField { category: "Toezegging", field: "toegezegdAan" } }`
+
+Failure evidence:
+
+- Run log: `.ralph/reports/full-sync-run-20260427-030235.log`
+- Config: `.ralph/reports/full-sync-config-20260427-030235.toml`
+- Fresh database: `opentk_full_sync_20260427_030235`
+- Pre-sync size: `15544803` bytes / `15 MB`
+- Persisted ingest error: `phase=parse`, `source_category=Toezegging`,
+  `latest_skiptoken=24758003`, message
+  `Toezegging.toegezegdAan appeared more than once but is single-occurrence`
+
+Filed blocker bug:
+`.ralph/tasks/bugs/bug-full-sync-fails-on-duplicate-toezegging-toegezegd-aan.md`
+
 ## Boundary Notes
 
 - The public operational interface is already deep enough: the sync binary owns config loading, runner construction, status printing, and verification printing.

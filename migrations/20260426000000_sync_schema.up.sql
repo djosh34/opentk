@@ -1353,7 +1353,6 @@ CREATE TABLE "toezegging__toegezegd_aan" (
     "ordinal" integer NOT NULL,
     "source_updated_at" timestamptz NOT NULL,
     PRIMARY KEY ("source_category", "source_id", "relation_name", "target_category", "target_id", "ordinal"),
-    UNIQUE ("source_category", "source_id", "relation_name"),
     FOREIGN KEY ("source_category", "source_id") REFERENCES "toezegging" ("source_category", "source_id") ON DELETE CASCADE,
     FOREIGN KEY ("target_category", "target_id") REFERENCES "sync_entity" ("source_category", "source_id") ON DELETE RESTRICT
 );

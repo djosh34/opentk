@@ -1,0 +1,5 @@
+$ psql size query
+-[ RECORD 1 ]----
+bytes  | 15544803
+pretty | 15 MB
+

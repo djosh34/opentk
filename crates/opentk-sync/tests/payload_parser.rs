@@ -171,6 +171,39 @@ fn toezegging_live_toegezegd_aan_relation_parses() {
 }
 
 #[test]
+fn toezegging_live_repeated_toegezegd_aan_relations_keep_ordinals() {
+    let parsed = parse_entity_xml(
+        "Toezegging",
+        r#"<toezegging xmlns="http://www.tweedekamer.nl/xsd/tkData/v1-0"
+            id="77777777-7777-4777-8777-777777777777"
+            verwijderd="false"
+            bijgewerkt="2026-04-26T00:00:00Z">
+            <toegezegdAan ref="88888888-8888-4888-8888-888888888881"/>
+            <toegezegdAan ref="88888888-8888-4888-8888-888888888882"/>
+            <tekst>De live feed kan meerdere ontvangers voor dezelfde toezegging leveren.</tekst>
+        </toezegging>"#,
+    )
+    .expect("live Toezegging payload with repeated toegezegdAan parses");
+
+    let toegezegd_aan = parsed
+        .relations
+        .iter()
+        .filter(|relation| relation.name == "toegezegdAan")
+        .collect::<Vec<_>>();
+    assert_eq!(toegezegd_aan.len(), 2);
+    assert_eq!(toegezegd_aan[0].ordinal, 1);
+    assert_eq!(
+        toegezegd_aan[0].target_id,
+        Uuid::parse_str("88888888-8888-4888-8888-888888888881").expect("valid uuid")
+    );
+    assert_eq!(toegezegd_aan[1].ordinal, 2);
+    assert_eq!(
+        toegezegd_aan[1].target_id,
+        Uuid::parse_str("88888888-8888-4888-8888-888888888882").expect("valid uuid")
+    );
+}
+
+#[test]
 fn toezegging_live_empty_toegezegd_aan_relation_is_absent() {
     let parsed = parse_entity_xml(
         "Toezegging",

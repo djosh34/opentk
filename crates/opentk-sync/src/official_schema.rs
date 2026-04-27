@@ -54,11 +54,11 @@ pub const TASK_DOCUMENTED_LIVE_FIELD_DRIFTS: &[LiveFieldDrift] = &[
         field_name: "toegezegdAan",
         kind: FieldKind::Relation,
         min_occurs: 0,
-        max_occurs: Occurs::Exactly(1),
+        max_occurs: Occurs::Unbounded,
         nillable: true,
         xsd_type: "referentieLiteral",
         order: 23,
-        reason: "live SyncFeed payload exposes this relation although the pinned official XSD only lists toegezegdAanFractie and toegezegdAanPersoon",
+        reason: "live SyncFeed payload exposes this relation more than once although the pinned official XSD only lists toegezegdAanFractie and toegezegdAanPersoon",
     },
 ];
 

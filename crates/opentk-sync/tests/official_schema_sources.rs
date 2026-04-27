@@ -66,6 +66,19 @@ fn documented_live_field_drifts_are_applied_to_schema_source_comparison() {
         .field_named("kamerbriefNakoming")
         .expect("Toezegging.kamerbriefNakoming model field exists");
     assert_eq!(field.max_occurs, Occurs::Unbounded);
+
+    let toegezegd_aan_drift = TASK_DOCUMENTED_LIVE_FIELD_DRIFTS
+        .iter()
+        .find(|drift| drift.category == "Toezegging" && drift.field_name == "toegezegdAan")
+        .expect("Toezegging.toegezegdAan live drift is documented");
+    assert_eq!(toegezegd_aan_drift.kind, FieldKind::Relation);
+    assert_eq!(toegezegd_aan_drift.max_occurs, Occurs::Unbounded);
+
+    let field = official_schema::entity_named("Toezegging")
+        .expect("Toezegging model exists")
+        .field_named("toegezegdAan")
+        .expect("Toezegging.toegezegdAan model field exists");
+    assert_eq!(field.max_occurs, Occurs::Unbounded);
 }
 
 #[test]

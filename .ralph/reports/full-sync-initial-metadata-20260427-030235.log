@@ -1,0 +1,16 @@
+RUN_ID=20260427-030235
+START_METADATA=2026-04-27T03:03:14+02:00
+GIT_HEAD=0a680be798483ba7d2a7a5f1d77c1af2bef4dcb0
+GIT_STATUS_SHORT_BEGIN
+ M .ralph/current_tasks.md
+ M .ralph/current_tasks_done.md
+ M .ralph/progress/42.jsonl
+ M .ralph/reports/full-sync-current-run.env
+?? .ralph/current_task.txt
+?? .ralph/reports/full-sync-config-20260427-030235.toml
+?? .ralph/reports/full-sync-initial-metadata-20260427-030235.log
+GIT_STATUS_SHORT_END
+CONFIG=.ralph/reports/full-sync-config-20260427-030235.toml
+DB_NAME=opentk_full_sync_20260427_030235
+DB_URL_REDACTED=postgres://postgres@127.0.0.1:55432/opentk_full_sync_20260427_030235
+MIGRATION_SHA256=7f78b0695c07643534e456123d88827aa1c9eff8413e8ed3aee852336d0bd68a  migrations/20260426000000_sync_schema.up.sql

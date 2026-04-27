@@ -1,6 +1,6 @@
 # Done Tasks Summary
 
-Generated: Mon Apr 27 03:00:18 AM CEST 2026
+Generated: Mon Apr 27 03:33:58 AM CEST 2026
 
 # Task `/home/joshazimullah.linux/work_mounts/patroni_rewrite/opentk/.ralph/tasks/bugs/bug-cargo-run-opentk-sync-linker-missing-objects.md`
 
@@ -22,6 +22,17 @@ While executing Story 10 Task 1 on 2026-04-26, the preliminary command
 <description>
 Story 10 Task 1 attempted a clean full SyncFeed-to-PostgreSQL sync from a fresh
 database and the public sync runner exited nonzero after 305 seconds.
+```
+
+==============
+
+# Task `/home/joshazimullah.linux/work_mounts/patroni_rewrite/opentk/.ralph/tasks/bugs/bug-full-sync-fails-on-duplicate-toezegging-toegezegd-aan.md`
+
+```
+## Bug: Full Sync Fails on Duplicate Toezegging toegezegdAan <status>done</status> <passes>true</passes> <priority>high</priority>
+
+<description>
+Story 10 Task 1 clean full sync run `20260427-030235` failed while parsing the live SyncFeed `Toezegging` category.
 ```
 
 ==============

@@ -2724,7 +2724,7 @@ const TOEZEGGING_FIELDS: &[Field] = &[
         name: "toegezegdAan",
         kind: FieldKind::Relation,
         min_occurs: 0,
-        max_occurs: Occurs::Exactly(1),
+        max_occurs: Occurs::Unbounded,
         nillable: true,
         xsd_type: "referentieLiteral",
         order: 23,
