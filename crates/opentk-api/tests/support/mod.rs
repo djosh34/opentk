@@ -4,7 +4,9 @@ use axum::{
     Router,
 };
 use opentk_db::{connect, DatabaseConfig};
-use opentk_search::{SearchIndexError, SearchQueryClient, SearchRequest, SearchResponse};
+use opentk_search::{
+    SearchHealthClient, SearchIndexError, SearchQueryClient, SearchRequest, SearchResponse,
+};
 use serde_json::Value;
 use sqlx::{postgres::PgPoolOptions, PgPool, Row};
 use std::{collections::VecDeque, future::Future, pin::Pin, sync::Arc};
@@ -184,6 +186,19 @@ impl SearchQueryClient for UnavailableSearchClient {
         &'a self,
         _request: SearchRequest,
     ) -> Pin<Box<dyn Future<Output = Result<SearchResponse, SearchIndexError>> + Send + 'a>> {
+        Box::pin(async {
+            Err(SearchIndexError::Http {
+                status: None,
+                message: "search unavailable in this test".to_owned(),
+            })
+        })
+    }
+}
+
+impl SearchHealthClient for UnavailableSearchClient {
+    fn health<'a>(
+        &'a self,
+    ) -> Pin<Box<dyn Future<Output = Result<(), SearchIndexError>> + Send + 'a>> {
         Box::pin(async {
             Err(SearchIndexError::Http {
                 status: None,

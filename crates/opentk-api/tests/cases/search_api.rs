@@ -11,8 +11,8 @@ use axum::{
 };
 use opentk_db::search_cdc::SearchCdcRuntimeStatus;
 use opentk_search::{
-    SearchEntityKind, SearchIndexError, SearchQueryClient, SearchRequest, SearchResponse,
-    SearchResult, SearchSnippet,
+    SearchEntityKind, SearchHealthClient, SearchIndexError, SearchQueryClient, SearchRequest,
+    SearchResponse, SearchResult, SearchRuntimeClient, SearchSnippet,
 };
 use opentk_search_eval::{load_quality_benchmark, BenchmarkSearchClient};
 use serde_json::Value;
@@ -262,6 +262,14 @@ impl SearchQueryClient for FakeSearchClient {
     }
 }
 
+impl SearchHealthClient for FakeSearchClient {
+    fn health<'a>(
+        &'a self,
+    ) -> Pin<Box<dyn Future<Output = Result<(), SearchIndexError>> + Send + 'a>> {
+        Box::pin(async { Ok(()) })
+    }
+}
+
 async fn router_json_with_search(
     search: FakeSearchClient,
     path: &str,
@@ -271,7 +279,7 @@ async fn router_json_with_search(
 }
 
 async fn router_json_with_search_client(
-    search: Arc<dyn SearchQueryClient + Send + Sync>,
+    search: Arc<dyn SearchRuntimeClient + Send + Sync>,
     path: &str,
     expected_status: StatusCode,
 ) -> Result<Value, Box<dyn std::error::Error>> {
@@ -288,7 +296,7 @@ async fn router_json_with_search_client(
 }
 
 async fn router_json_with_search_client_and_status(
-    search: Arc<dyn SearchQueryClient + Send + Sync>,
+    search: Arc<dyn SearchRuntimeClient + Send + Sync>,
     status: SearchCdcRuntimeStatus,
     path: &str,
     expected_status: StatusCode,

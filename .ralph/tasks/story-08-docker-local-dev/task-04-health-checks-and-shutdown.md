@@ -1,4 +1,4 @@
-## Task: Story 08 Task 04 - Docker Health Checks and Graceful Shutdown <status>not_started</status> <passes>false</passes>
+## Task: Story 08 Task 04 - Docker Health Checks and Graceful Shutdown <status>done</status> <passes>true</passes>
 
 <description>
 Must use tdd skill to complete
@@ -22,14 +22,20 @@ In scope: health endpoint, Dockerfile HEALTHCHECK, graceful shutdown, docs. Out 
 
 
 <acceptance_criteria>
-- [ ] `/health` returns 200 degraded when Meilisearch is down and PostgreSQL is healthy
-- [ ] `/health` returns 503 when PostgreSQL or another required core dependency is down
-- [ ] All Dockerfiles contain HEALTHCHECK instructions
-- [ ] `docker compose ps` shows all services as healthy
-- [ ] `opentk-api` shuts down gracefully within 10s of `docker stop`
-- [ ] `opentk-sync poll` exits cleanly on SIGTERM after current page
-- [ ] `docs/operations.md` documents health and shutdown
-- [ ] `make check` — passes cleanly
-- [ ] `make test` — passes cleanly (default suite)
-- [ ] `make lint` — passes cleanly
+- [x] `/health` returns 200 degraded when Meilisearch is down and PostgreSQL is healthy
+- [x] `/health` returns 503 when PostgreSQL or another required core dependency is down
+- [x] All Dockerfiles contain HEALTHCHECK instructions
+- [x] `docker compose ps` shows all services as healthy
+- [x] `opentk-api` shuts down gracefully within 10s of `docker stop`
+- [x] `opentk-sync poll` exits cleanly on SIGTERM after current page
+- [x] `docs/operations.md` documents health and shutdown
+- [x] `make check` — passes cleanly
+- [x] `make test` — passes cleanly (default suite)
+- [x] `make lint` — passes cleanly
 </acceptance_criteria>
+
+<plan>
+.ralph/tasks/story-08-docker-local-dev/task-04-health-checks-and-shutdown_plans/health-checks-and-shutdown-plan.md
+</plan>
+
+NOW EXECUTE

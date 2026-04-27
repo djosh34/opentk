@@ -1172,6 +1172,14 @@ impl SearchQueryClient for BenchmarkSearchClient {
     }
 }
 
+impl opentk_search::SearchHealthClient for BenchmarkSearchClient {
+    fn health<'a>(
+        &'a self,
+    ) -> Pin<Box<dyn Future<Output = Result<(), SearchIndexError>> + Send + 'a>> {
+        Box::pin(async { Ok(()) })
+    }
+}
+
 #[derive(Debug, Clone)]
 struct SearchIndex {
     engine: SearchEngine,

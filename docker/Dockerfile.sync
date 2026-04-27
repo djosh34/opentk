@@ -69,9 +69,14 @@ RUN --mount=type=cache,target=/usr/local/cargo/registry \
     && printf 'opentk:x:1000:1000:opentk:/nonexistent:/sbin/nologin\n' > /runtime/etc/passwd \
     && printf 'opentk:x:1000:\n' > /runtime/etc/group
 
-FROM scratch
+FROM debian:bookworm-slim
 
-COPY --from=builder /runtime/ /
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY --from=builder /runtime/bin/opentk-sync /bin/opentk-sync
 
 USER 1000:1000
+HEALTHCHECK CMD /bin/opentk-sync --config /etc/opentk/config.toml --health-check || exit 1
 ENTRYPOINT ["/bin/opentk-sync"]

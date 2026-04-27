@@ -52,3 +52,4 @@
 .ralph/tasks/story-08-docker-local-dev/task-01-dockerfiles.md
 .ralph/tasks/story-08-docker-local-dev/task-02-docker-compose.md
 .ralph/tasks/story-08-docker-local-dev/task-03-multi-arch-scratch.md
+.ralph/tasks/story-08-docker-local-dev/task-04-health-checks-and-shutdown.md

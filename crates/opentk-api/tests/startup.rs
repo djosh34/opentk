@@ -90,7 +90,11 @@ async fn api_startup_marks_search_unavailable_when_probe_fails(
         .clone()
         .oneshot(Request::get("/health").body(Body::empty())?)
         .await?;
-    assert_eq!(health.status(), StatusCode::SERVICE_UNAVAILABLE);
+    assert_eq!(health.status(), StatusCode::OK);
+    let body: Value = serde_json::from_slice(&to_bytes(health.into_body(), usize::MAX).await?)?;
+    assert_eq!(body["status"], "degraded");
+    assert_eq!(body["postgres"], "ok");
+    assert_eq!(body["meilisearch"], "unavailable");
 
     let search_response = server
         .router

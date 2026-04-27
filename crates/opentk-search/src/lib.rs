@@ -67,6 +67,22 @@ pub trait SearchQueryClient {
     ) -> Pin<Box<dyn Future<Output = Result<SearchResponse, SearchIndexError>> + Send + 'a>>;
 }
 
+pub trait SearchHealthClient {
+    /// Check that the backing search service accepts lightweight authenticated requests.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`SearchIndexError`] when the backing search service cannot be
+    /// reached or rejects the health request.
+    fn health<'a>(
+        &'a self,
+    ) -> Pin<Box<dyn Future<Output = Result<(), SearchIndexError>> + Send + 'a>>;
+}
+
+pub trait SearchRuntimeClient: SearchQueryClient + SearchHealthClient {}
+
+impl<T> SearchRuntimeClient for T where T: SearchQueryClient + SearchHealthClient {}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SearchRequest {
     pub query: String,
@@ -441,6 +457,14 @@ impl SearchQueryClient for MeilisearchClient {
         request: SearchRequest,
     ) -> Pin<Box<dyn Future<Output = Result<SearchResponse, SearchIndexError>> + Send + 'a>> {
         Box::pin(async move { self.search_index(request).await })
+    }
+}
+
+impl SearchHealthClient for MeilisearchClient {
+    fn health<'a>(
+        &'a self,
+    ) -> Pin<Box<dyn Future<Output = Result<(), SearchIndexError>> + Send + 'a>> {
+        Box::pin(async move { self.validate_reachable().await })
     }
 }
 

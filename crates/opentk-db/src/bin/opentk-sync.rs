@@ -22,6 +22,8 @@ struct Cli {
     config: Option<PathBuf>,
     #[arg(long, global = true)]
     validate_config: bool,
+    #[arg(long, global = true)]
+    health_check: bool,
     #[command(subcommand)]
     command: Option<Command>,
 }
@@ -55,10 +57,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         print!("{report}");
         return Ok(());
     }
+    if cli.health_check {
+        check_database_health(&config).await?;
+        return Ok(());
+    }
 
     let command = cli
         .command
-        .ok_or("command is required unless --validate-config is set")?;
+        .ok_or("command is required unless --validate-config or --health-check is set")?;
     match command {
         Command::Run => {
             run_once(&config).await?;
@@ -70,7 +76,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 Duration::from_secs(config.sync.poll_interval_secs),
             )
             .await?;
-            runner.run_forever().await?;
+            runner.run_until_shutdown(shutdown_signal()).await?;
         }
         Command::Status => {
             print_status(&config).await?;
@@ -79,6 +85,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             print_verification(&config, args).await?;
         }
     }
+    Ok(())
+}
+
+async fn check_database_health(config: &Config) -> Result<(), Box<dyn std::error::Error>> {
+    let pool = connect(&database_config(config)).await?;
+    sqlx::query("SELECT 1").execute(&pool).await?;
+    pool.close().await;
     Ok(())
 }
 
@@ -257,6 +270,36 @@ fn display_optional_i64(value: Option<i64>) -> String {
     value.map_or_else(|| "null".to_owned(), |value| value.to_string())
 }
 
+async fn shutdown_signal() {
+    let ctrl_c = async {
+        if let Err(error) = tokio::signal::ctrl_c().await {
+            tracing::error!(%error, "failed to install Ctrl-C handler");
+            std::future::pending::<()>().await;
+        }
+    };
+
+    #[cfg(unix)]
+    let terminate = async {
+        match tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate()) {
+            Ok(mut signal) => {
+                signal.recv().await;
+            }
+            Err(error) => {
+                tracing::error!(%error, "failed to install SIGTERM handler");
+                std::future::pending::<()>().await;
+            }
+        }
+    };
+
+    #[cfg(not(unix))]
+    let terminate = std::future::pending::<()>();
+
+    tokio::select! {
+        () = ctrl_c => {}
+        () = terminate => {}
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::{format_verification_report, Cli, Command};
@@ -288,6 +331,14 @@ mod tests {
         let cli = Cli::try_parse_from(["opentk-sync", "--validate-config"])
             .expect("validation mode parses");
         assert!(cli.validate_config);
+        assert!(cli.command.is_none());
+    }
+
+    #[test]
+    fn sync_cli_accepts_health_check_without_subcommand() {
+        let cli = Cli::try_parse_from(["opentk-sync", "--health-check"])
+            .expect("health check mode parses");
+        assert!(cli.health_check);
         assert!(cli.command.is_none());
     }
 

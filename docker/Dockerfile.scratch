@@ -26,4 +26,5 @@ FROM scratch
 COPY --from=artifact-selector /runtime/ /
 
 USER 1000:1000
+HEALTHCHECK NONE
 ENTRYPOINT ["/bin/opentk"]

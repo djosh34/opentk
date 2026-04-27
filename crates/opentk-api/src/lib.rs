@@ -26,6 +26,7 @@ use opentk_db::{
 };
 use opentk_search::{
     MeilisearchClient, SearchIndexError, SearchQueryClient, SearchRequest, SearchResponse,
+    SearchRuntimeClient,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
@@ -50,7 +51,7 @@ use utoipa::{
 #[derive(Clone)]
 struct ApiState {
     pool: PgPool,
-    search: Arc<dyn SearchQueryClient + Send + Sync>,
+    search: Arc<dyn SearchRuntimeClient + Send + Sync>,
     search_cdc_status: SearchCdcRuntimeStatus,
 }
 
@@ -174,6 +175,9 @@ pub struct ErrorResponse {
 #[derive(Serialize, ToSchema)]
 struct HealthResponse {
     status: &'static str,
+    postgres: &'static str,
+    meilisearch: &'static str,
+    search_sync: SearchSyncDaemonStatusResponse,
 }
 
 #[derive(Serialize, ToSchema)]
@@ -377,7 +381,7 @@ pub async fn build_app(config: ApiConfig) -> Result<ApiServer, ApiError> {
 async fn configured_search_client(
     config: SearchBackendConfig,
     search_cdc_status: &SearchCdcRuntimeStatus,
-) -> Arc<dyn SearchQueryClient + Send + Sync> {
+) -> Arc<dyn SearchRuntimeClient + Send + Sync> {
     let search = Arc::new(MeilisearchClient::new(
         config.url.clone(),
         config.api_key.clone(),
@@ -422,7 +426,7 @@ pub async fn serve_with_shutdown(
         config.search.api_key.clone(),
         config.search.index_name.clone(),
     ));
-    let search: Arc<dyn SearchQueryClient + Send + Sync> = match validate_meilisearch_config(
+    let search: Arc<dyn SearchRuntimeClient + Send + Sync> = match validate_meilisearch_config(
         config.search.url,
         config.search.api_key,
         config.search.index_name,
@@ -481,14 +485,14 @@ pub async fn serve_with_shutdown(
 
 pub fn router_with_search(
     pool: PgPool,
-    search_client: Arc<dyn SearchQueryClient + Send + Sync>,
+    search_client: Arc<dyn SearchRuntimeClient + Send + Sync>,
 ) -> Router {
     router_with_search_and_cdc_status(pool, search_client, SearchCdcRuntimeStatus::new())
 }
 
 pub fn router_with_search_and_cdc_status(
     pool: PgPool,
-    search_client: Arc<dyn SearchQueryClient + Send + Sync>,
+    search_client: Arc<dyn SearchRuntimeClient + Send + Sync>,
     search_cdc_status: SearchCdcRuntimeStatus,
 ) -> Router {
     Router::new()
@@ -519,6 +523,19 @@ impl SearchQueryClient for UnavailableSearchClient {
         &'a self,
         _request: SearchRequest,
     ) -> Pin<Box<dyn Future<Output = Result<SearchResponse, SearchIndexError>> + Send + 'a>> {
+        Box::pin(async {
+            Err(SearchIndexError::Http {
+                status: None,
+                message: "search backend unavailable at startup".to_owned(),
+            })
+        })
+    }
+}
+
+impl opentk_search::SearchHealthClient for UnavailableSearchClient {
+    fn health<'a>(
+        &'a self,
+    ) -> Pin<Box<dyn Future<Output = Result<(), SearchIndexError>> + Send + 'a>> {
         Box::pin(async {
             Err(SearchIndexError::Http {
                 status: None,
@@ -860,14 +877,37 @@ fn required_query_parameter(name: &str, description: &str) -> Parameter {
         .build()
 }
 
-async fn health(State(state): State<ApiState>) -> Result<Json<HealthResponse>, ApiError> {
+async fn health(
+    State(state): State<ApiState>,
+) -> Result<(StatusCode, Json<HealthResponse>), ApiError> {
     sqlx::query("SELECT 1")
         .execute(&state.pool)
         .await
         .map_err(ApiError::DatabaseUnavailable)?;
-    ensure_search_sync_usable(&state)?;
+    let search_sync = state.search_cdc_status.snapshot();
+    let meilisearch = match state.search.health().await {
+        Ok(()) => "ok",
+        Err(error) => {
+            tracing::warn!(%error, "search backend health check failed");
+            "unavailable"
+        }
+    };
+    let search_sync_response = search_sync_daemon_status_response(search_sync.clone());
+    let status = if meilisearch == "ok" && search_sync.state.is_search_usable() {
+        "ok"
+    } else {
+        "degraded"
+    };
 
-    Ok(Json(HealthResponse { status: "ok" }))
+    Ok((
+        StatusCode::OK,
+        Json(HealthResponse {
+            status,
+            postgres: "ok",
+            meilisearch,
+            search_sync: search_sync_response,
+        }),
+    ))
 }
 
 async fn openapi_json() -> Json<utoipa::openapi::OpenApi> {

@@ -8,7 +8,9 @@ use opentk_db::{
     search_cdc::{SearchCdcBatchReport, SearchCdcRuntimeStatus},
     DatabaseConfig,
 };
-use opentk_search::{SearchIndexError, SearchQueryClient, SearchRequest, SearchResponse};
+use opentk_search::{
+    SearchHealthClient, SearchIndexError, SearchQueryClient, SearchRequest, SearchResponse,
+};
 use serde_json::Value;
 use sqlx::{postgres::PgPoolOptions, PgPool};
 use std::{future::Future, pin::Pin, sync::Arc};
@@ -31,7 +33,10 @@ async fn health_reports_ok_when_database_is_reachable() -> Result<(), Box<dyn st
 
     assert_eq!(response.status(), StatusCode::OK);
     let body: Value = serde_json::from_slice(&to_bytes(response.into_body(), usize::MAX).await?)?;
-    assert_eq!(body, serde_json::json!({ "status": "ok" }));
+    assert_eq!(body["status"], "degraded");
+    assert_eq!(body["postgres"], "ok");
+    assert_eq!(body["meilisearch"], "unavailable");
+    assert_eq!(body["search_sync"]["state"], "starting");
 
     Ok(())
 }
@@ -77,15 +82,13 @@ async fn health_reports_search_sync_degraded() -> Result<(), Box<dyn std::error:
         .oneshot(Request::get("/health").body(Body::empty())?)
         .await?;
 
-    assert_eq!(response.status(), StatusCode::SERVICE_UNAVAILABLE);
+    assert_eq!(response.status(), StatusCode::OK);
     let body: Value = serde_json::from_slice(&to_bytes(response.into_body(), usize::MAX).await?)?;
-    assert_eq!(
-        body,
-        serde_json::json!({
-            "code": "search_sync_degraded",
-            "message": "search sync degraded"
-        })
-    );
+    assert_eq!(body["status"], "degraded");
+    assert_eq!(body["postgres"], "ok");
+    assert_eq!(body["meilisearch"], "unavailable");
+    assert_eq!(body["search_sync"]["state"], "degraded");
+    assert_eq!(body["search_sync"]["last_error"], "fixture CDC failure");
 
     Ok(())
 }
@@ -144,6 +147,19 @@ impl SearchQueryClient for UnavailableSearchClient {
         &'a self,
         _request: SearchRequest,
     ) -> Pin<Box<dyn Future<Output = Result<SearchResponse, SearchIndexError>> + Send + 'a>> {
+        Box::pin(async {
+            Err(SearchIndexError::Http {
+                status: None,
+                message: "search unavailable in health tests".to_owned(),
+            })
+        })
+    }
+}
+
+impl SearchHealthClient for UnavailableSearchClient {
+    fn health<'a>(
+        &'a self,
+    ) -> Pin<Box<dyn Future<Output = Result<(), SearchIndexError>> + Send + 'a>> {
         Box::pin(async {
             Err(SearchIndexError::Http {
                 status: None,

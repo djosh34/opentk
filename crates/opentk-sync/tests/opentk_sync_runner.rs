@@ -22,7 +22,7 @@ use reqwest::Url;
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
     net::TcpListener,
-    sync::Mutex,
+    sync::{oneshot, Mutex},
 };
 use uuid::Uuid;
 
@@ -150,6 +150,50 @@ async fn category_workers_overlap_while_each_category_preserves_cursor_order() {
         "/SyncFeed/2.0/Feed?category=Zaak&content=internal",
         "/SyncFeed/2.0/Feed?category=Zaak&skiptoken=1&content=internal",
     );
+}
+
+#[tokio::test]
+async fn run_until_shutdown_finishes_in_flight_page_before_exiting() {
+    let server = TestServer::start(Vec::new()).await;
+    let next = server.cursor("Document", 1);
+    let first = "/SyncFeed/2.0/Feed?category=Document&content=internal";
+    server
+        .replace_responses(vec![document_page("Document", &next).for_target(first)])
+        .await;
+    let store = MemoryStore::default();
+    store.delay_next_write(Duration::from_millis(80)).await;
+    let runner = runner_with_mode(
+        &server,
+        store.clone(),
+        ["Document"],
+        SyncRunMode::Continuous,
+        Duration::from_secs(30),
+    );
+    let (shutdown_tx, shutdown_rx) = oneshot::channel();
+    let task = tokio::spawn(async move {
+        runner
+            .run_until_shutdown(async {
+                let _ = shutdown_rx.await;
+            })
+            .await
+    });
+
+    tokio::time::sleep(Duration::from_millis(20)).await;
+    shutdown_tx.send(()).expect("send shutdown");
+    task.await
+        .expect("runner task joins")
+        .expect("runner exits cleanly");
+
+    assert_eq!(store.entity_count("Document").await, 1);
+    assert_eq!(
+        store
+            .cursor("Document")
+            .await
+            .expect("cursor committed")
+            .latest_skiptoken,
+        1
+    );
+    assert_eq!(server.requests().await, vec![first.to_owned()]);
 }
 
 #[tokio::test]
@@ -327,6 +371,25 @@ fn runner_with_client_config<const N: usize>(
     }
 }
 
+fn runner_with_mode<const N: usize>(
+    server: &TestServer,
+    store: MemoryStore,
+    categories: [&str; N],
+    mode: SyncRunMode,
+    poll_interval: Duration,
+) -> CompleteSyncRunner<MemoryStore> {
+    let client = SyncFeedClient::new(syncfeed_client_config(server)).expect("valid client config");
+    CompleteSyncRunner {
+        client,
+        store,
+        config: CompleteSyncConfig {
+            categories: categories.into_iter().map(str::to_owned).collect(),
+            mode,
+            poll_interval,
+        },
+    }
+}
+
 fn syncfeed_client_config(server: &TestServer) -> SyncFeedClientConfig {
     SyncFeedClientConfig {
         base_url: Url::parse(&server.base_url).expect("mock server URL"),
@@ -351,6 +414,7 @@ struct MemoryStoreState {
     entities: HashMap<(String, Uuid), ParsedEntity>,
     errors: Vec<DurableSyncError>,
     fail_next_write: Option<WriteFailure>,
+    write_delay: Option<Duration>,
 }
 
 #[derive(Clone, Copy)]
@@ -366,6 +430,10 @@ impl MemoryStore {
 
     async fn fail_next_write_after_commit(&self) {
         self.inner.lock().await.fail_next_write = Some(WriteFailure::AfterCommit);
+    }
+
+    async fn delay_next_write(&self, delay: Duration) {
+        self.inner.lock().await.write_delay = Some(delay);
     }
 
     async fn cursor(&self, category: &str) -> Option<StoredCategoryCursor> {
@@ -397,6 +465,10 @@ impl SyncStore for MemoryStore {
 
     fn write_page(&self, page: PreparedSyncPage) -> SyncStoreFuture<'_, SyncStoreWriteOutcome> {
         Box::pin(async move {
+            let delay = self.inner.lock().await.write_delay.take();
+            if let Some(delay) = delay {
+                tokio::time::sleep(delay).await;
+            }
             let mut state = self.inner.lock().await;
             let failure = state.fail_next_write.take();
             if matches!(failure, Some(WriteFailure::BeforeCommit)) {

@@ -44,7 +44,10 @@ async fn real_http_server_reports_health() -> Result<(), Box<dyn std::error::Err
 
     let body = server.get_json("/health", StatusCode::OK).await?;
 
-    assert_eq!(body, serde_json::json!({ "status": "ok" }));
+    assert_eq!(body["status"], "degraded");
+    assert_eq!(body["postgres"], "ok");
+    assert_eq!(body["meilisearch"], "unavailable");
+    assert_eq!(body["search_sync"]["state"], "starting");
     Ok(())
 }
 
@@ -342,7 +345,8 @@ async fn server_handles_concurrent_representative_reads() -> Result<(), Box<dyn 
         server.get_json(&relation_path, StatusCode::OK),
     )?;
 
-    assert_eq!(health["status"], "ok");
+    assert_eq!(health["status"], "degraded");
+    assert_eq!(health["postgres"], "ok");
     assert!(
         category(&categories, "Document")["field_count"]
             .as_u64()

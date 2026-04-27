@@ -287,6 +287,13 @@ fn docker_compose_declares_local_stack_contract() {
         "./config/opentk.compose.toml:/etc/opentk/config.toml:ro",
     );
     assert_eq!(
+        string_sequence(path_mapping(api, "healthcheck"), "test"),
+        [
+            "CMD-SHELL",
+            "curl -f http://localhost:3000/health || exit 1"
+        ]
+    );
+    assert_eq!(
         depends_condition(api, "postgres"),
         Some("service_healthy"),
         "api must wait for healthy postgres"
@@ -315,6 +322,32 @@ fn docker_compose_declares_local_stack_contract() {
         string_sequence(sync, "command"),
         ["--config", "/etc/opentk/config.toml", "poll"]
     );
+    assert_eq!(
+        string_sequence(path_mapping(sync, "healthcheck"), "test"),
+        [
+            "CMD",
+            "/bin/opentk-sync",
+            "--config",
+            "/etc/opentk/config.toml",
+            "--health-check"
+        ]
+    );
+}
+
+#[test]
+fn dockerfiles_declare_runtime_healthchecks() {
+    let api = fs::read_to_string(workspace_path("docker/Dockerfile.api"))
+        .expect("API Dockerfile should exist");
+    let sync = fs::read_to_string(workspace_path("docker/Dockerfile.sync"))
+        .expect("sync Dockerfile should exist");
+    let scratch = fs::read_to_string(workspace_path("docker/Dockerfile.scratch"))
+        .expect("scratch Dockerfile should exist");
+
+    assert!(api.contains("HEALTHCHECK CMD curl -f http://localhost:3000/health || exit 1"));
+    assert!(sync.contains(
+        "HEALTHCHECK CMD /bin/opentk-sync --config /etc/opentk/config.toml --health-check || exit 1"
+    ));
+    assert!(scratch.contains("HEALTHCHECK NONE"));
 }
 
 #[test]
@@ -380,6 +413,27 @@ fn docker_compose_docs_explain_polling_and_cdc_boundaries() {
 }
 
 #[test]
+fn operations_docs_explain_healthchecks_and_shutdown() {
+    let docs = fs::read_to_string(workspace_path("docs/operations.md"))
+        .expect("operations documentation should exist");
+
+    for required in [
+        "/health",
+        "degraded",
+        "search_sync",
+        "opentk-sync --health-check",
+        "Docker healthchecks",
+        "SIGTERM",
+        "graceful shutdown",
+    ] {
+        assert!(
+            docs.contains(required),
+            "operations docs should mention {required}"
+        );
+    }
+}
+
+#[test]
 fn scratch_docker_build_contract_uses_prebuilt_multi_arch_artifacts() {
     let scratch = fs::read_to_string(workspace_path("docker/Dockerfile.scratch"))
         .expect("scratch Dockerfile should exist");
@@ -407,6 +461,7 @@ fn assert_scratch_dockerfile_contract(scratch: &str) {
         "cp \"/artifacts/${rust_target}/${BINARY}\" /runtime/bin/opentk",
         "COPY --from=artifact-selector /runtime/ /",
         "USER 1000:1000",
+        "HEALTHCHECK NONE",
         "ENTRYPOINT [\"/bin/opentk\"]",
     ] {
         assert!(

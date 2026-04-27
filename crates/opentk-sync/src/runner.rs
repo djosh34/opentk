@@ -1,9 +1,17 @@
-use std::{future::Future, pin::Pin, time::Duration};
+use std::{
+    future::Future,
+    pin::Pin,
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        Arc,
+    },
+    time::Duration,
+};
 
 use chrono::{DateTime, Utc};
 use reqwest::Url;
 use thiserror::Error;
-use tokio::{task::JoinSet, time::sleep};
+use tokio::{sync::Notify, task::JoinSet, time::sleep};
 use uuid::Uuid;
 
 use crate::{
@@ -49,6 +57,30 @@ pub struct CategorySyncReport {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct CompleteSyncReport {
     pub categories: Vec<CategorySyncReport>,
+}
+
+#[derive(Clone)]
+struct ShutdownToken {
+    requested: Arc<AtomicBool>,
+    notify: Arc<Notify>,
+}
+
+impl ShutdownToken {
+    fn new() -> Self {
+        Self {
+            requested: Arc::new(AtomicBool::new(false)),
+            notify: Arc::new(Notify::new()),
+        }
+    }
+
+    fn request(&self) {
+        self.requested.store(true, Ordering::SeqCst);
+        self.notify.notify_waiters();
+    }
+
+    fn is_requested(&self) -> bool {
+        self.requested.load(Ordering::SeqCst)
+    }
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -239,6 +271,13 @@ impl<S: SyncStore> CompleteSyncRunner<S> {
     /// records durable errors before returning whenever the storage boundary is
     /// available.
     pub async fn run_once(&self) -> Result<CompleteSyncReport, CompleteSyncError> {
+        self.run_once_with_shutdown(None).await
+    }
+
+    async fn run_once_with_shutdown(
+        &self,
+        shutdown: Option<ShutdownToken>,
+    ) -> Result<CompleteSyncReport, CompleteSyncError> {
         let mut workers = JoinSet::new();
         for category in &self.config.categories {
             let client = self.client.clone();
@@ -246,8 +285,9 @@ impl<S: SyncStore> CompleteSyncRunner<S> {
             let category = category.clone();
             let mode = self.config.mode;
             let poll_interval = self.config.poll_interval;
+            let shutdown = shutdown.clone();
             workers.spawn(async move {
-                run_category(client, store, category, mode, poll_interval).await
+                run_category(client, store, category, mode, poll_interval, shutdown).await
             });
         }
 
@@ -272,6 +312,34 @@ impl<S: SyncStore> CompleteSyncRunner<S> {
             sleep(self.config.poll_interval).await;
         }
     }
+
+    /// Poll until a shutdown signal resolves, finishing any active sync cycle first.
+    ///
+    /// # Errors
+    ///
+    /// Returns the first error from a polling cycle.
+    pub async fn run_until_shutdown(
+        &self,
+        shutdown: impl Future<Output = ()> + Send + 'static,
+    ) -> Result<(), CompleteSyncError> {
+        let shutdown_token = ShutdownToken::new();
+        let shutdown_task_token = shutdown_token.clone();
+        tokio::spawn(async move {
+            shutdown.await;
+            shutdown_task_token.request();
+        });
+        loop {
+            self.run_once_with_shutdown(Some(shutdown_token.clone()))
+                .await?;
+            if shutdown_token.is_requested() {
+                return Ok(());
+            }
+            tokio::select! {
+                () = shutdown_token.notify.notified() => return Ok(()),
+                () = sleep(self.config.poll_interval) => {}
+            }
+        }
+    }
 }
 
 async fn run_category<S: SyncStore>(
@@ -280,6 +348,7 @@ async fn run_category<S: SyncStore>(
     category: String,
     mode: SyncRunMode,
     poll_interval: Duration,
+    shutdown: Option<ShutdownToken>,
 ) -> Result<CategorySyncReport, CompleteSyncError> {
     let stored = store
         .load_category_cursor(&category)
@@ -312,9 +381,20 @@ async fn run_category<S: SyncStore>(
 
     loop {
         let current_skiptoken = skiptoken_from_url(&cursor.url);
-        let page = match fetch_page_with_transient_recovery(&client, cursor.clone(), poll_interval)
-            .await
-        {
+        if shutdown.as_ref().is_some_and(ShutdownToken::is_requested) {
+            return Ok(report);
+        }
+        let fetched = fetch_page_with_transient_recovery(&client, cursor.clone(), poll_interval);
+        let page = match shutdown.as_ref() {
+            Some(shutdown) => {
+                tokio::select! {
+                    page = fetched => page,
+                    () = shutdown.notify.notified() => return Ok(report),
+                }
+            }
+            None => fetched.await,
+        };
+        let page = match page {
             Ok(page) => page,
             Err(source) => {
                 record_error(
@@ -337,9 +417,19 @@ async fn run_category<S: SyncStore>(
         };
 
         if page.entries.is_empty() {
-            cursor = handle_empty_page(&store, &category, page, mode, poll_interval, &mut report)
-                .await?;
-            if report.caught_up && matches!(mode, SyncRunMode::UntilCaughtUp) {
+            cursor = handle_empty_page(
+                &store,
+                &category,
+                page,
+                mode,
+                poll_interval,
+                shutdown.as_ref(),
+                &mut report,
+            )
+            .await?;
+            if shutdown.as_ref().is_some_and(ShutdownToken::is_requested)
+                || report.caught_up && matches!(mode, SyncRunMode::UntilCaughtUp)
+            {
                 return Ok(report);
             }
             continue;
@@ -353,6 +443,9 @@ async fn run_category<S: SyncStore>(
         report.pages_written += 1;
         report.entities_seen += u64::try_from(outcome.entities_seen).unwrap_or(u64::MAX);
         report.latest_skiptoken = Some(latest_skiptoken);
+        if shutdown.as_ref().is_some_and(ShutdownToken::is_requested) {
+            return Ok(report);
+        }
         cursor = next;
     }
 }
@@ -421,6 +514,7 @@ async fn handle_empty_page<S: SyncStore>(
     page: crate::syncfeed::SyncFeedPage,
     mode: SyncRunMode,
     poll_interval: Duration,
+    shutdown: Option<&ShutdownToken>,
     report: &mut CategorySyncReport,
 ) -> Result<SyncFeedCursor, CompleteSyncError> {
     let resume = page
@@ -453,7 +547,14 @@ async fn handle_empty_page<S: SyncStore>(
     report.caught_up = true;
     report.latest_skiptoken = skiptoken_from_url(&resume.url);
     if matches!(mode, SyncRunMode::Continuous) {
-        sleep(poll_interval).await;
+        if let Some(shutdown) = shutdown {
+            tokio::select! {
+                () = shutdown.notify.notified() => {}
+                () = sleep(poll_interval) => {}
+            }
+        } else {
+            sleep(poll_interval).await;
+        }
     }
     Ok(resume)
 }

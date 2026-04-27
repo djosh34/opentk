@@ -1,28 +1,6 @@
 # Current Tasks Summary
 
-Generated: Mon Apr 27 13:03:29 CEST 2026
-
-# Task `/home/joshazimullah.linux/work_mounts/patroni_rewrite/opentk/.ralph/tasks/story-08-docker-local-dev/task-04-health-checks-and-shutdown.md`
-
-```
-## Task: Story 08 Task 04 - Docker Health Checks and Graceful Shutdown <status>not_started</status> <passes>false</passes>
-
-<description>
-Must use tdd skill to complete
-```
-
-==============
-
-# Task `/home/joshazimullah.linux/work_mounts/patroni_rewrite/opentk/.ralph/tasks/story-09-ci-cd-multi-arch/task-01-github-workflow-check-test-lint.md`
-
-```
-## Task: Story 09 Task 01 - GitHub Workflow for Check, Test, and Lint <status>not_started</status> <passes>false</passes>
-
-<description>
-Must use tdd skill to complete
-```
-
-==============
+Generated: Mon Apr 27 13:45:24 CEST 2026
 
 # Task `/home/joshazimullah.linux/work_mounts/patroni_rewrite/opentk/.ralph/tasks/story-09-ci-cd-multi-arch/task-02-github-workflow-docker-build.md`
 
