@@ -1,6 +1,8 @@
 ## Bug: Remove bs text-assert tests <status>not_started</status> <passes>false</passes> <priority>high</priority>
 
 <description>
+This is a non-code file/test-suite cleanup bug. Do not use Red-Green TDD for this task, because the work is to remove brittle text-assert tests rather than to add new behavior. Do not add new Rust tests that assert source/docs/config text fragments as acceptance coverage for this cleanup.
+
 The test suite contains overengineered bs-tests that do dumb stuff like asserting particular text strings exist in Dockerfiles, GitHub Actions workflows, shell scripts, README/docs files, Cargo manifests, and production source files. These tests do not test actual runtime behavior. They mostly lock in implementation text, prose, filenames, command snippets, and exact source-code spelling, which makes the suite brittle and gives false confidence.
 
 Remove these tests instead of preserving them. This project is greenfield with no backwards compatibility requirement, so do not keep static text-contract tests around as legacy protection. Tests should exercise actual code/logic/behavior.
@@ -149,23 +151,21 @@ Also do a repo-wide sweep for any other bs-tests that do dumb string scanning or
 Do not remove tests that genuinely exercise actual code/logic just because they use fixtures. The target is tests whose main value is checking that particular text strings exist or do not exist in files.
 </description>
 
-<mandatory_red_green_tdd>
-Use Red-Green TDD to solve the problem.
-You must make ONE test, and then make ONE test green at the time.
+<manual_verification_required>
+This task is governed by the non-code/file-manipulation rule from `add-task-as-agent` and `add-bug`.
 
-Then verify if bug still holds. If yes, create new Red test, and continue with Red-Green TDD until it does work.
-</mandatory_red_green_tdd>
+TDD is not allowed for this task. The implementer must manually verify that the text-assert cleanup was performed by searching the repository for remaining tests that read Dockerfiles, GitHub workflows, shell scripts, README/docs files, Cargo manifests, or production source files only to assert exact strings or substrings.
+
+Manual verification must include targeted searches for patterns such as `fs::read_to_string`, `include_str!`, `.contains("...")`, `starts_with`, `ends_with`, `serde_yaml::to_string`, and tests touching `docker/`, `.github/`, `docs/`, `README.md`, `Cargo.toml`, `scripts/`, or production `src/`. Any remaining matches must be inspected and either removed if they are brittle text contracts or explicitly kept only when they exercise actual runtime/parser/extractor behavior.
+</manual_verification_required>
 
 <acceptance_criteria>
 - [ ] Removed the listed Dockerfile, GitHub Actions, shell script, docs, README, Cargo manifest, and production source substring tests
 - [ ] Swept the repo for other bs-tests that assert particular text strings exist or do not exist in files
 - [ ] Removed any additional tests found that do dumb source/docs/config text-fragment assertions instead of behavior
 - [ ] Preserved tests that genuinely exercise actual code/logic/behavior, including legitimate fixture-driven parser/extractor tests where they add behavioral coverage
-- [ ] I created a Red unit and/or integration test that captures the bug
-- [ ] I made the test green by fixing
-- [ ] I manually verified the bug, and created a new Red test if not working still
+- [ ] Manually verified with repository searches that no targeted brittle source/docs/config text-assert tests remain
+- [ ] Documented any borderline fixture-driven tests that were inspected and intentionally preserved as behavior tests
 - [ ] `make check` — passes cleanly
-- [ ] `make test` — passes cleanly (default suite; excludes only ultra-long tests moved to `make test-long`)
 - [ ] `make lint` — passes cleanly
-- [ ] If this bug impacts ultra-long tests (or their selection): `make test-long` — passes cleanly (ultra-long-only)
 </acceptance_criteria>

@@ -1,1 +1,1 @@
-.ralph/tasks/story-09-ci-cd-multi-arch/task-02-github-workflow-docker-build.md
+.ralph/tasks/bugs/bug-remove-bs-text-assert-tests.md

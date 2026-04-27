@@ -1,14 +1,14 @@
 # Current Tasks Summary
 
-Generated: Mon Apr 27 05:38:27 PM CEST 2026
+Generated: Mon Apr 27 06:03:02 PM CEST 2026
 
-# Task `/home/joshazimullah.linux/work_mounts/patroni_rewrite/opentk/.ralph/tasks/story-09-ci-cd-multi-arch/task-02-github-workflow-docker-build.md`
+# Task `/home/joshazimullah.linux/work_mounts/patroni_rewrite/opentk/.ralph/tasks/bugs/bug-remove-bs-text-assert-tests.md`
 
 ```
-## Task: Story 09 Task 02 - GitHub Workflow for Multi-Arch Docker Build <status>not_started</status> <passes>false</passes>
+## Bug: Remove bs text-assert tests <status>not_started</status> <passes>false</passes> <priority>high</priority>
 
 <description>
-Must use tdd skill to complete
+The test suite contains overengineered bs-tests that do dumb stuff like asserting particular text strings exist in Dockerfiles, GitHub Actions workflows, shell scripts, README/docs files, Cargo manifests, and production source files. These tests do not test actual runtime behavior. They mostly lock in implementation text, prose, filenames, command snippets, and exact source-code spelling, which makes the suite brittle and gives false confidence.
 ```
 
 ==============

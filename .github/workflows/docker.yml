@@ -3,7 +3,7 @@ name: Docker
 "on":
   push:
     branches:
-      - main
+      - master
     tags:
       - "v*"
   workflow_dispatch:
@@ -141,8 +141,8 @@ jobs:
           owner="$(printf '%s' "${GITHUB_REPOSITORY_OWNER}" | tr '[:upper:]' '[:lower:]')"
           short_sha="${GITHUB_SHA::12}"
           tags=()
-          if [[ "${GITHUB_REF}" == "refs/heads/main" ]]; then
-            tags=("latest" "sha-${short_sha}")
+          if [[ "${GITHUB_REF}" == "refs/heads/master" ]]; then
+            tags=("sha-${short_sha}")
           elif [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
             tags=("${GITHUB_REF_NAME}")
           else
