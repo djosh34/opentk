@@ -136,6 +136,7 @@ impl SearchCdcRuntimeStatus {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct SearchCdcNotification {
+    schema: Option<String>,
     source_category: String,
     source_id: Uuid,
     latest_skiptoken: i64,
@@ -151,6 +152,7 @@ impl SearchCdcNotification {
         deleted: bool,
     ) -> Self {
         Self {
+            schema: None,
             source_category,
             source_id,
             latest_skiptoken,
@@ -166,12 +168,18 @@ impl SearchCdcNotification {
     /// by the `sync_entity` trigger.
     pub fn from_payload(payload: &str) -> Result<Self, SearchCdcError> {
         let payload: NotificationPayload = serde_json::from_str(payload)?;
-        Ok(Self::new(
-            payload.source_category,
-            payload.source_id,
-            payload.latest_skiptoken,
-            payload.deleted,
-        ))
+        Ok(Self {
+            schema: payload.schema,
+            source_category: payload.source_category,
+            source_id: payload.source_id,
+            latest_skiptoken: payload.latest_skiptoken,
+            deleted: payload.deleted,
+        })
+    }
+
+    #[must_use]
+    pub fn schema(&self) -> Option<&str> {
+        self.schema.as_deref()
     }
 
     #[must_use]
@@ -273,6 +281,7 @@ impl SearchCdcBatcher {
 pub struct SearchCdcListener<'a, C> {
     pg_listener: Option<PgListener>,
     pool: PgPool,
+    schema_name: String,
     client: &'a C,
     search_config: SearchSyncConfig,
     batcher: SearchCdcBatcher,
@@ -297,9 +306,13 @@ where
     ) -> Result<Self, SearchCdcError> {
         let mut pg_listener = PgListener::connect(database_url).await?;
         pg_listener.listen(SEARCH_CDC_CHANNEL).await?;
+        let schema_name: String = sqlx::query_scalar("SELECT current_schema()")
+            .fetch_one(&pool)
+            .await?;
         Ok(Self {
             pg_listener: Some(pg_listener),
             pool,
+            schema_name,
             client,
             search_config,
             batcher: SearchCdcBatcher::new(batch_config),
@@ -315,13 +328,21 @@ where
         &mut self,
         now: Instant,
     ) -> Result<Option<SearchSyncReport>, SearchCdcError> {
-        let notification = self
-            .pg_listener
-            .as_mut()
-            .ok_or(SearchCdcError::ListenerNotConnected)?
-            .recv()
-            .await?;
-        let notification = SearchCdcNotification::from_payload(notification.payload())?;
+        let notification = loop {
+            let notification = self
+                .pg_listener
+                .as_mut()
+                .ok_or(SearchCdcError::ListenerNotConnected)?
+                .recv()
+                .await?;
+            let notification = SearchCdcNotification::from_payload(notification.payload())?;
+            if notification
+                .schema()
+                .is_none_or(|schema| schema == self.schema_name)
+            {
+                break notification;
+            }
+        };
         self.batcher.push(notification, now);
         if self.batcher.should_flush(now) {
             Ok(Some(self.flush().await?))
@@ -477,6 +498,7 @@ pub enum SearchCdcError {
 
 #[derive(Deserialize)]
 struct NotificationPayload {
+    schema: Option<String>,
     source_category: String,
     source_id: Uuid,
     latest_skiptoken: i64,

@@ -1,6 +1,6 @@
 # Done Tasks Summary
 
-Generated: Mon Apr 27 20:19:15 CEST 2026
+Generated: Mon Apr 27 21:13:41 CEST 2026
 
 # Task `/home/joshazimullah.linux/work_mounts/patroni_rewrite/opentk/.ralph/tasks/bugs/bug-cargo-run-opentk-sync-linker-missing-objects.md`
 
@@ -544,5 +544,16 @@ Must use tdd skill to complete
 
 <description>
 **Goal:** After Story 10 Task 01 has produced a fully synced database, take one plain operational database dump of that exact state so development can revert after accidental wipe/truncate or other destructive mistakes.
+```
+
+==============
+
+# Task `/home/joshazimullah.linux/work_mounts/patroni_rewrite/opentk/.ralph/tasks/story-11-binary-managed-schema/task-01-move-schema-management-into-binaries.md`
+
+```
+## Task: Move Schema Management Into Binaries <status>done</status> <passes>true</passes>
+
+<description>
+Must use tdd skill to complete
 ```
 

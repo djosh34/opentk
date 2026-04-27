@@ -4,6 +4,7 @@ use clap::{Parser, Subcommand};
 use opentk_config::{Config, ConfigLoader};
 use opentk_db::{
     connect,
+    schema_lifecycle::ensure_schema,
     startup_validation::validate_sync_dependencies,
     sync_state::PostgresSyncStore,
     sync_verification::{verify_sync_database, SyncVerificationConfig, SyncVerificationReport},
@@ -113,6 +114,7 @@ async fn run_once(config: &Config) -> Result<(), Box<dyn std::error::Error>> {
 
 async fn print_status(config: &Config) -> Result<(), Box<dyn std::error::Error>> {
     let pool = connect(&database_config(config)).await?;
+    ensure_schema(&pool).await?;
     let store = PostgresSyncStore::new(pool);
     for status in store.status(&config.sync.categories).await? {
         let last_error = status.last_error.map_or_else(
@@ -152,6 +154,7 @@ async fn print_verification(
     args: VerifyArgs,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let pool = connect(&database_config(config)).await?;
+    ensure_schema(&pool).await?;
     let report = verify_sync_database(
         &pool,
         SyncVerificationConfig {
@@ -238,6 +241,7 @@ async fn build_runner(
     poll_interval: Duration,
 ) -> Result<CompleteSyncRunner<PostgresSyncStore>, Box<dyn std::error::Error>> {
     let pool = connect(&database_config(config)).await?;
+    ensure_schema(&pool).await?;
     let client = SyncFeedClient::new(SyncFeedClientConfig {
         base_url: config.sync.base_url.clone(),
         content_mode: SyncFeedContentMode::Internal,

@@ -7,6 +7,7 @@ use sqlx::postgres::PgPoolOptions;
 use thiserror::Error;
 use tokio::time::timeout;
 
+use crate::schema_lifecycle::validate_schema;
 use crate::DatabaseConfig;
 
 pub const STARTUP_VALIDATION_TIMEOUT: Duration = Duration::from_secs(5);
@@ -88,6 +89,8 @@ pub enum DependencyValidationError {
     DatabaseUrlRedactionFailed { message: String },
     #[error("Database at {target} is unreachable: {message}")]
     DatabaseUnreachable { target: String, message: String },
+    #[error("Database at {target} has incompatible schema: {message}")]
+    DatabaseSchemaInvalid { target: String, message: String },
     #[error("Meilisearch at {target} is unreachable: {message}")]
     MeilisearchUnreachable { target: String, message: String },
     #[error("Meilisearch at {target} returned {status}: {message}")]
@@ -132,7 +135,7 @@ pub async fn validate_api_dependencies(
     config: &Config,
     search_requirement: SearchRequirement,
 ) -> Result<DependencyValidationReport, DependencyValidationError> {
-    let database = validate_database(config).await?;
+    let database = validate_api_database(config).await?;
     let search_result = validate_search(config).await;
     let search = match search_result {
         Ok(status) => status,
@@ -149,6 +152,49 @@ pub async fn validate_api_dependencies(
         database,
         search: Some(search),
         syncfeed: None,
+    })
+}
+
+async fn validate_api_database(
+    config: &Config,
+) -> Result<DependencyCheckStatus, DependencyValidationError> {
+    let database_config = DatabaseConfig {
+        url: config.database.url.clone(),
+        max_connections: config.database.max_connections,
+    };
+    let target = redact_database_url(&database_config.url)?;
+    let check = async {
+        let pool = PgPoolOptions::new()
+            .max_connections(1)
+            .connect(&database_config.url)
+            .await?;
+        sqlx::query_scalar::<_, i32>("SELECT 1")
+            .fetch_one(&pool)
+            .await?;
+        let schema_result = validate_schema(&pool).await;
+        pool.close().await;
+        schema_result.map_err(|error| sqlx::Error::Protocol(error.to_string()))?;
+        Ok::<(), sqlx::Error>(())
+    };
+    timeout(STARTUP_VALIDATION_TIMEOUT, check)
+        .await
+        .map_err(|_| DependencyValidationError::DatabaseUnreachable {
+            target: target.clone(),
+            message: "timeout".to_owned(),
+        })?
+        .map_err(|source| match source {
+            sqlx::Error::Protocol(message) => DependencyValidationError::DatabaseSchemaInvalid {
+                target: target.clone(),
+                message,
+            },
+            source => DependencyValidationError::DatabaseUnreachable {
+                target: target.clone(),
+                message: source.to_string(),
+            },
+        })?;
+    Ok(DependencyCheckStatus::Reachable {
+        dependency: DependencyKind::Database,
+        target,
     })
 }
 

@@ -3,7 +3,7 @@ use axum::{
     http::{Request, StatusCode},
     Router,
 };
-use opentk_db::{connect, DatabaseConfig};
+use opentk_db::{connect, schema_lifecycle::ensure_schema, DatabaseConfig};
 use opentk_search::{
     SearchHealthClient, SearchIndexError, SearchQueryClient, SearchRequest, SearchResponse,
 };
@@ -233,7 +233,7 @@ pub async fn migrated_pool(test_name: &str) -> Result<PgPool, Box<dyn std::error
         max_connections: 4,
     })
     .await?;
-    sqlx::migrate!("../../migrations").run(&pool).await?;
+    ensure_schema(&pool).await?;
     Ok(pool)
 }
 

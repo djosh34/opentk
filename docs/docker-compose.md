@@ -13,8 +13,9 @@ being split across per-setting environment variables.
 ## Services
 
 - `postgres`: runs `postgres:16`, persists data in `opentk-postgres-data`,
-  exposes `localhost:5432`, and runs `scripts/init-db.sh` on first database
-  initialization.
+  and exposes `localhost:5432`. Application binaries own schema lifecycle:
+  `opentk-sync` creates or updates schema at startup, while `opentk-api`
+  validates compatibility without mutating the database.
 - `meilisearch`: runs the official `getmeili/meilisearch:latest` image in
   development mode, persists data in `opentk-meilisearch-data`, and exposes
   `localhost:7700`.

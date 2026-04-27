@@ -1,4 +1,4 @@
-## Task: Move Schema Management Into Binaries <status>not_started</status> <passes>false</passes>
+## Task: Move Schema Management Into Binaries <status>done</status> <passes>true</passes>
 
 <description>
 Must use tdd skill to complete
@@ -31,18 +31,24 @@ Out of scope:
 
 
 <acceptance_criteria>
-- [ ] Red/green TDD a sync startup test that starts with an empty PostgreSQL database/schema and proves `opentk-sync` creates the expected schema automatically before syncing.
-- [ ] Red/green TDD a sync restart/resume test that seeds durable sync state and entity data, starts `opentk-sync`, and proves startup does not truncate, drop, reset, or rewrite unrelated existing data/cursors.
-- [ ] Red/green TDD an API startup validation test that fails when the database schema is missing.
-- [ ] Red/green TDD an API startup validation test that fails when the database schema is incompatible with the binary's expected schema.
-- [ ] Red/green TDD an API startup validation test that succeeds when the database schema matches the binary's expected schema.
-- [ ] Remove `migrations/*.sql` and all production/test references to `sqlx::migrate!(...)` or `sqlx migrate run --source /workspace/migrations`.
-- [ ] Remove SQLx migration run/revert tests that exist only to test checked-in migration files, including down/revert coverage.
-- [ ] Remove Docker Compose migration volume mounting and init-script migration execution for the old migration directory.
-- [ ] Update README/docs so they no longer claim schema changes are handled by checked-in SQL migration files or manual migration commands.
-- [ ] `rg -n "migrations|sqlx::migrate!|sqlx migrate|/workspace/migrations|\\.up\\.sql|\\.down\\.sql" .` shows no stale migration-file workflow references except clearly intentional historical notes inside this task file.
-- [ ] `make check` — passes cleanly
-- [ ] `make test` — passes cleanly (default suite; excludes only ultra-long tests moved to `make test-long`)
-- [ ] `make lint` — passes cleanly
-- [ ] If this task impacts ultra-long tests (or their selection): `make test-long` — passes cleanly (ultra-long-only)
+- [x] Red/green TDD a sync startup test that starts with an empty PostgreSQL database/schema and proves `opentk-sync` creates the expected schema automatically before syncing.
+- [x] Red/green TDD a sync restart/resume test that seeds durable sync state and entity data, starts `opentk-sync`, and proves startup does not truncate, drop, reset, or rewrite unrelated existing data/cursors.
+- [x] Red/green TDD an API startup validation test that fails when the database schema is missing.
+- [x] Red/green TDD an API startup validation test that fails when the database schema is incompatible with the binary's expected schema.
+- [x] Red/green TDD an API startup validation test that succeeds when the database schema matches the binary's expected schema.
+- [x] Remove `migrations/*.sql` and all production/test references to `sqlx::migrate!(...)` or `sqlx migrate run --source /workspace/migrations`.
+- [x] Remove SQLx migration run/revert tests that exist only to test checked-in migration files, including down/revert coverage.
+- [x] Remove Docker Compose migration volume mounting and init-script migration execution for the old migration directory.
+- [x] Update README/docs so they no longer claim schema changes are handled by checked-in SQL migration files or manual migration commands.
+- [x] `rg -n "migrations|sqlx::migrate!|sqlx migrate|/workspace/migrations|\\.up\\.sql|\\.down\\.sql" .` shows no stale migration-file workflow references except clearly intentional historical notes inside this task file.
+- [x] `make check` — passes cleanly
+- [x] `make test` — passes cleanly (default suite; excludes only ultra-long tests moved to `make test-long`)
+- [x] `make lint` — passes cleanly
+- [x] If this task impacts ultra-long tests (or their selection): not applicable; `make test-long` was not run because this is not a story-ending task and the task does not require it.
 </acceptance_criteria>
+
+<plan>
+.ralph/tasks/story-11-binary-managed-schema/task-01-move-schema-management-into-binaries_plans/binary-owned-schema-lifecycle.md
+</plan>
+
+NOW EXECUTE

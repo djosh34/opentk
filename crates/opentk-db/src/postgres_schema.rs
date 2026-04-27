@@ -303,42 +303,32 @@ pub fn sql_name(official_name: &str) -> String {
 }
 
 #[must_use]
-pub fn render_up_migration(schema: &SchemaSpec) -> String {
+pub fn render_ensure_schema(schema: &SchemaSpec) -> String {
     let mut sql = String::from("-- Generated from opentk-db::postgres_schema.\n");
-    sql.push_str("-- Do not hand-maintain official entity, field, or relation lists here.\n\n");
+    sql.push_str("-- Idempotent schema bootstrap for binary-owned startup.\n\n");
 
     for table in &schema.tables {
-        render_create_table(&mut sql, table);
+        render_create_table_if_not_exists(&mut sql, table);
         sql.push('\n');
     }
 
-    render_search_cdc_trigger(&mut sql);
+    render_search_cdc_trigger_replacement(&mut sql);
     sql.push('\n');
 
     for index_spec in &schema.indexes {
-        render_create_index(&mut sql, index_spec);
+        render_create_index_if_not_exists(&mut sql, index_spec);
     }
 
     sql
 }
 
-#[must_use]
-pub fn render_down_migration(schema: &SchemaSpec) -> String {
-    let mut sql = String::from("-- Generated from opentk-db::postgres_schema.\n\n");
-    sql.push_str("DROP FUNCTION IF EXISTS notify_sync_entity_change() CASCADE;\n");
-    for table in schema.tables.iter().rev() {
-        writeln!(sql, "DROP TABLE IF EXISTS {} CASCADE;", ident(&table.name))
-            .expect("writing to String cannot fail");
-    }
-    sql
-}
-
-fn render_search_cdc_trigger(sql: &mut String) {
+fn render_search_cdc_trigger_replacement(sql: &mut String) {
     sql.push_str(concat!(
         "CREATE OR REPLACE FUNCTION notify_sync_entity_change()\n",
         "RETURNS TRIGGER AS $$\n",
         "BEGIN\n",
         "  PERFORM pg_notify('sync_entity_change', json_build_object(\n",
+        "    'schema', current_schema(),\n",
         "    'source_category', NEW.source_category,\n",
         "    'source_id', NEW.source_id,\n",
         "    'latest_skiptoken', NEW.latest_skiptoken,\n",
@@ -347,6 +337,7 @@ fn render_search_cdc_trigger(sql: &mut String) {
         "  RETURN NEW;\n",
         "END;\n",
         "$$ LANGUAGE plpgsql;\n\n",
+        "DROP TRIGGER IF EXISTS sync_entity_change_trigger ON sync_entity;\n",
         "CREATE TRIGGER sync_entity_change_trigger\n",
         "AFTER INSERT OR UPDATE ON sync_entity\n",
         "FOR EACH ROW EXECUTE FUNCTION notify_sync_entity_change();\n",
@@ -807,8 +798,9 @@ fn index(table_name: &str, columns: &[&str], unique: bool, purpose: IndexPurpose
     }
 }
 
-fn render_create_table(sql: &mut String, table: &TableSpec) {
-    writeln!(sql, "CREATE TABLE {} (", ident(&table.name)).expect("writing to String cannot fail");
+fn render_create_table_if_not_exists(sql: &mut String, table: &TableSpec) {
+    writeln!(sql, "CREATE TABLE IF NOT EXISTS {} (", ident(&table.name))
+        .expect("writing to String cannot fail");
     let mut clauses = Vec::new();
 
     for column in &table.columns {
@@ -858,11 +850,11 @@ fn render_create_table(sql: &mut String, table: &TableSpec) {
     sql.push_str(");\n");
 }
 
-fn render_create_index(sql: &mut String, index_spec: &IndexSpec) {
+fn render_create_index_if_not_exists(sql: &mut String, index_spec: &IndexSpec) {
     let unique = if index_spec.unique { "UNIQUE " } else { "" };
     writeln!(
         sql,
-        "CREATE {unique}INDEX {} ON {} ({});",
+        "CREATE {unique}INDEX IF NOT EXISTS {} ON {} ({});",
         ident(&index_spec.name),
         ident(&index_spec.table_name),
         ident_list(&index_spec.columns)

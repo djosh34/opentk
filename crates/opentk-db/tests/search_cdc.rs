@@ -4,6 +4,7 @@ use std::{
 };
 
 use opentk_db::{
+    schema_lifecycle::ensure_schema,
     search_cdc::{
         run_search_cdc_listener, SearchCdcBatchConfig, SearchCdcBatchReport, SearchCdcBatcher,
         SearchCdcError, SearchCdcListener, SearchCdcNotification, SearchCdcRuntimeState,
@@ -140,6 +141,9 @@ async fn sync_entity_trigger_notifies_changed_record() -> Result<(), Box<dyn std
     let (pool, database_url) = migrated_pool("search_cdc_trigger").await?;
     let mut listener = sqlx::postgres::PgListener::connect(&database_url).await?;
     listener.listen(SEARCH_CDC_CHANNEL).await?;
+    let schema_name: String = sqlx::query_scalar("SELECT current_schema()")
+        .fetch_one(&pool)
+        .await?;
     let source_id = Uuid::parse_str("11111111-1111-4111-8111-111111111111").expect("valid uuid");
 
     sqlx::query(
@@ -157,8 +161,16 @@ async fn sync_entity_trigger_notifies_changed_record() -> Result<(), Box<dyn std
     .execute(&pool)
     .await?;
 
-    let notification = timeout(Duration::from_secs(3), listener.recv()).await??;
-    let change = SearchCdcNotification::from_payload(notification.payload())?;
+    let change = timeout(Duration::from_secs(3), async {
+        loop {
+            let notification = listener.recv().await?;
+            let change = SearchCdcNotification::from_payload(notification.payload())?;
+            if change.schema() == Some(schema_name.as_str()) {
+                return Ok::<_, Box<dyn std::error::Error>>(change);
+            }
+        }
+    })
+    .await??;
     assert_eq!(change.source_category(), "Document");
     assert_eq!(change.source_id(), source_id);
     assert_eq!(change.latest_skiptoken(), 42);
@@ -392,7 +404,9 @@ async fn migrated_pool(test_name: &str) -> Result<(PgPool, String), sqlx::Error>
         .max_connections(1)
         .connect(&database_url)
         .await?;
-    sqlx::migrate!("../../migrations").run(&pool).await?;
+    ensure_schema(&pool)
+        .await
+        .map_err(|error| sqlx::Error::Protocol(error.to_string()))?;
     Ok((pool, database_url))
 }
 

@@ -61,3 +61,4 @@
 .ralph/tasks/bugs/bug-remove-bs-text-assert-tests.md
 .ralph/tasks/story-11-search-observability/task-01-enhance-health-endpoint.md
 .ralph/tasks/bugs/bug-docker-workflow-oci-archive-has-multiple-images.md
+.ralph/tasks/story-11-binary-managed-schema/task-01-move-schema-management-into-binaries.md

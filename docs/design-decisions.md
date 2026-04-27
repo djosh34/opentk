@@ -51,11 +51,11 @@ Consequences:
 
 Status: open
 
-Decision: Use `sqlx` for database access and migrations. The primary database is being selected between SQLite relational storage and PostgreSQL relational storage with JSONB for source-adjacent fields.
+Decision: Use `sqlx` for database access. The primary database is being selected between SQLite relational storage and PostgreSQL relational storage with JSONB for source-adjacent fields.
 
 Rationale:
 
-- `sqlx` keeps migration workflow and query code consistent across importer and API.
+- `sqlx` keeps query code consistent across importer and API.
 - SQLite gives the simplest local deployment.
 - PostgreSQL gives first-class JSONB for fields that are still settling and fits a hosted API service.
 
@@ -91,13 +91,13 @@ Rationale:
 
 - The core data has stable identifiers, references, timestamps, and cursor semantics.
 - Direct relational ingestion keeps the database inspectable and queryable.
-- Unknown fields can be handled through typed migrations, narrow side tables, relation rows, or explicit ingest errors.
+- Unknown fields can be handled through typed schema evolution, narrow side tables, relation rows, or explicit ingest errors.
 
 Consequences:
 
 - The parser produces short-lived typed Rust structs.
 - Projection writers insert/update typed tables and relation tables.
-- Schema changes are handled with `sqlx` migrations.
+- Schema changes are driven from `opentk-db::postgres_schema`; `opentk-sync` creates or updates schema at startup, while `opentk-api` only validates compatibility.
 
 ## D006: Page refetch
 

@@ -8,6 +8,7 @@ mod database;
 pub mod document_assets;
 pub mod postgres_schema;
 pub mod read_model;
+pub mod schema_lifecycle;
 pub mod search_cdc;
 pub mod search_sync;
 pub mod startup_validation;

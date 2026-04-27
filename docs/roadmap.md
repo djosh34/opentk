@@ -26,7 +26,7 @@ Exit criteria:
 
 ## Phase 2: SQLite schema and single-category ingestion
 
-- Add `sqlx` migrations for category cursor, relationship, asset metadata, ingest errors, and typed tables.
+- Add binary-owned schema setup for category cursor, relationship, asset metadata, ingest errors, and typed tables.
 - Add CLI command: `opentk ingest --category Document`.
 - Implement page fetch, parse, transaction write, and cursor advance.
 - Add integration tests using a local mock server and fixture database.
@@ -88,4 +88,4 @@ Exit criteria:
 
 - Fresh setup is reproducible.
 - Import can resume after interruption.
-- CI runs formatting, linting, migrations, and tests.
+- CI runs formatting, linting, schema checks, and tests.

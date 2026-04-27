@@ -67,7 +67,7 @@ The API exposes upstream links for binary documents during this phase.
 ## Current design constraints
 
 - Rust implementation.
-- `sqlx` for database access and migrations.
+- `sqlx` for database access.
 - SQLite is acceptable as the initial database.
 - Direct relational ingestion.
 - API-focused schemas.

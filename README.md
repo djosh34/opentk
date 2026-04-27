@@ -7,9 +7,8 @@ SyncFeed XML, applied directly into PostgreSQL through `sqlx`.
 
 - `crates/opentk-core`: source-neutral domain and shared value types.
 - `crates/opentk-sync`: SyncFeed fetching, parsing, cursor handling, and importer orchestration.
-- `crates/opentk-db`: PostgreSQL access, SQLx query code, transactions, and migrations.
+- `crates/opentk-db`: PostgreSQL access, SQLx query code, transactions, and binary-owned schema lifecycle.
 - `crates/opentk-api`: future Axum HTTP API boundary.
-- `migrations`: SQLx migration files.
 - `docs`: product, architecture, and exploration notes.
 
 The root is a virtual Cargo workspace. There is no umbrella crate; later stories

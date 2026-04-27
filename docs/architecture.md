@@ -11,7 +11,7 @@ Build a fast Rust HTTP API over Tweede Kamer SyncFeed data. The system should ru
 - `reqwest` for HTTP with connection pooling, timeouts, retry classification, and tracing.
 - `quick-xml` for strict streaming XML parsing.
 - `axum` for the HTTP API.
-- `sqlx` for database access and migrations.
+- `sqlx` for database access; binaries own schema creation or validation at startup.
 - `tracing` and `tracing-subscriber` for structured logs.
 - `clap` for importer/admin commands.
 - `insta` or fixture-based tests for XML parser contracts.

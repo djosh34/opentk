@@ -12,7 +12,7 @@ Official names are converted to lowercase snake case:
 - `documentNummer` becomes `document_nummer`.
 - `Document.kamerstukdossier` becomes `document__kamerstukdossier`.
 
-Identifiers are quoted in migrations to avoid collisions with SQL keywords.
+Identifiers are quoted in generated SQL to avoid collisions with SQL keywords.
 
 ## Type Mapping
 
@@ -141,9 +141,6 @@ The schema has two levels of tests:
 - `postgres_schema` tests validate the generated `SchemaSpec` covers every
   official entity, scalar field, relation, primary key, foreign-key path, and
   required index purpose.
-- `postgres_migrations` runs and reverts the checked-in SQLx migrations against
-  a fresh PostgreSQL schema.
-
-The checked-in migration text must exactly match
-`postgres_schema::render_up_migration` and
-`postgres_schema::render_down_migration`.
+- `schema_lifecycle` tests run `ensure_schema` and `validate_schema` against
+  fresh PostgreSQL schemas so binary startup behavior and API compatibility
+  checks exercise the same public database boundary.

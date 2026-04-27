@@ -40,7 +40,7 @@ The official information model is represented directly in database structure:
   endpoints,
 - cursor state is transactional,
 - source metadata is queryable without reparsing XML,
-- `sqlx` migrations define the database shape explicitly.
+- `opentk-db::postgres_schema` defines the database shape explicitly.
 
 JSONB is reserved for source-adjacent diagnostics whose shape is not part of
 the official model, such as ingest error payloads. Official scalar fields and
@@ -54,14 +54,14 @@ Schema generation flows through one boundary:
 vendored official XSDs
 opentk-core::official_schema
 opentk-db::postgres_schema::SchemaSpec
-sqlx migrations
+opentk-db::schema_lifecycle
 ```
 
 `opentk-core` owns source-neutral official metadata. `opentk-db` owns
-PostgreSQL naming, type mapping, table shape, indexes, and migration rendering
-tests. The checked-in migration is verified against `SchemaSpec` so entity,
-field, relation, primary-key, foreign-key, and index coverage are not
-hand-maintained in separate lists.
+PostgreSQL naming, type mapping, table shape, indexes, startup creation, and
+API compatibility validation. Schema lifecycle tests verify the live PostgreSQL
+catalog against `SchemaSpec` so entity, field, relation, primary-key,
+foreign-key, and index coverage are not hand-maintained in separate lists.
 
 ## Core Tables
 
@@ -180,14 +180,14 @@ queries:
 - official content source ranking,
 - foreign-key paths.
 
-## Migration Tests
+## Schema Lifecycle Tests
 
 `make test` starts a local throwaway PostgreSQL server under `target/` when no
 external `OPENTK_TEST_DATABASE_URL` is supplied, then runs the workspace test
-suite. The migration integration test itself requires
-`OPENTK_TEST_DATABASE_URL` or `DATABASE_URL`; running it directly without one
-fails instead of silently skipping database verification.
+suite. Direct PostgreSQL lifecycle tests require `OPENTK_TEST_DATABASE_URL` or
+`DATABASE_URL`; running them directly without one fails instead of silently
+skipping database verification.
 
-The migration test creates an isolated temporary schema, runs the SQLx
-migration, inspects PostgreSQL catalog data for expected tables and indexes,
-then reverts migrations and verifies the tables are gone.
+The lifecycle tests create isolated temporary schemas, run `ensure_schema`,
+validate that expected tables and indexes exist, and verify repeated startup
+does not remove durable cursor or entity data.

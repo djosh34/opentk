@@ -1,6 +1,9 @@
 use chrono::{DateTime, Utc};
 use opentk_core::official_schema;
-use opentk_db::sync_writer::{write_sync_page, SyncPageWrite};
+use opentk_db::{
+    schema_lifecycle::ensure_schema,
+    sync_writer::{write_sync_page, SyncPageWrite},
+};
 use opentk_sync::payload::{parse_entity_xml, ParsedEntity, ParsedRelation};
 use sqlx::{postgres::PgPoolOptions, PgPool, Row};
 use std::sync::Arc;
@@ -323,7 +326,9 @@ async fn migrated_pool(test_name: &str) -> Result<PgPool, sqlx::Error> {
         .max_connections(4)
         .connect(&with_search_path(&database_url, &schema_name))
         .await?;
-    sqlx::migrate!("../../migrations").run(&pool).await?;
+    ensure_schema(&pool)
+        .await
+        .map_err(|error| sqlx::Error::Protocol(error.to_string()))?;
     Ok(pool)
 }
 

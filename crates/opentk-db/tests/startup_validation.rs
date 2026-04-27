@@ -8,10 +8,14 @@ use std::{
 };
 
 use opentk_config::Config;
-use opentk_db::startup_validation::{
-    redact_database_url, validate_api_dependencies, validate_search_sync_dependencies,
-    validate_sync_dependencies, DependencyCheckStatus, DependencyKind, SearchRequirement,
+use opentk_db::{
+    schema_lifecycle::ensure_schema,
+    startup_validation::{
+        redact_database_url, validate_api_dependencies, validate_search_sync_dependencies,
+        validate_sync_dependencies, DependencyCheckStatus, DependencyKind, SearchRequirement,
+    },
 };
+use sqlx::{postgres::PgPoolOptions, PgPool};
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
     net::TcpListener,
@@ -20,7 +24,11 @@ use tokio::{
 #[tokio::test]
 async fn database_validation_runs_select_one_against_reachable_database(
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let config = config_with_database(test_database_url()?, "http://127.0.0.1:1", None)?;
+    let pool = empty_pool("api_valid_schema").await?;
+    ensure_schema(&pool).await?;
+    let database_url = current_database_url(&pool).await?;
+    pool.close().await;
+    let config = config_with_database(database_url, "http://127.0.0.1:1", None)?;
 
     let report = validate_api_dependencies(&config, SearchRequirement::Optional).await?;
 
@@ -38,6 +46,50 @@ async fn database_validation_runs_select_one_against_reachable_database(
             ..
         })
     ));
+    Ok(())
+}
+
+#[tokio::test]
+async fn api_validation_fails_when_database_schema_is_missing(
+) -> Result<(), Box<dyn std::error::Error>> {
+    let pool = empty_pool("api_missing_schema").await?;
+    let database_url = current_database_url(&pool).await?;
+    pool.close().await;
+    let config = config_with_database(database_url, "http://127.0.0.1:1", None)?;
+
+    let error = validate_api_dependencies(&config, SearchRequirement::Optional)
+        .await
+        .expect_err("missing schema is fatal for API startup");
+
+    assert!(
+        error.to_string().contains("has incompatible schema"),
+        "{error}"
+    );
+    assert!(error.to_string().contains("missing table"), "{error}");
+    Ok(())
+}
+
+#[tokio::test]
+async fn api_validation_fails_when_database_schema_is_incompatible(
+) -> Result<(), Box<dyn std::error::Error>> {
+    let pool = empty_pool("api_incompatible_schema").await?;
+    sqlx::query("CREATE TABLE sync_category (source_category integer NOT NULL)")
+        .execute(&pool)
+        .await?;
+    let database_url = current_database_url(&pool).await?;
+    pool.close().await;
+    let config = config_with_database(database_url, "http://127.0.0.1:1", None)?;
+
+    let error = validate_api_dependencies(&config, SearchRequirement::Optional)
+        .await
+        .expect_err("incompatible schema is fatal for API startup");
+
+    assert!(
+        error.to_string().contains("has incompatible schema"),
+        "{error}"
+    );
+    assert!(error.to_string().contains("sync_category"), "{error}");
+    assert!(error.to_string().contains("source_category"), "{error}");
     Ok(())
 }
 
@@ -107,7 +159,11 @@ async fn required_meilisearch_validation_formats_non_success_status(
         "invalid API key",
     )])
     .await?;
-    let config = config_with_database(test_database_url()?, &meili.base_url, Some("bad"))?;
+    let config = config_with_database(
+        schema_prepared_database_url("api_required_search").await?,
+        &meili.base_url,
+        Some("bad"),
+    )?;
 
     let error = validate_api_dependencies(&config, SearchRequirement::Required)
         .await
@@ -131,7 +187,11 @@ async fn optional_api_search_validation_reports_degraded_search(
         "invalid API key",
     )])
     .await?;
-    let config = config_with_database(test_database_url()?, &meili.base_url, Some("bad"))?;
+    let config = config_with_database(
+        schema_prepared_database_url("api_optional_search").await?,
+        &meili.base_url,
+        Some("bad"),
+    )?;
 
     let report = validate_api_dependencies(&config, SearchRequirement::Optional).await?;
 
@@ -226,6 +286,59 @@ async fn sync_validation_reports_syncfeed_error_body_read_failures(
 
 fn test_database_url() -> Result<String, std::env::VarError> {
     std::env::var("OPENTK_TEST_DATABASE_URL").or_else(|_| std::env::var("DATABASE_URL"))
+}
+
+async fn empty_pool(test_name: &str) -> Result<PgPool, sqlx::Error> {
+    let database_url = test_database_url()
+        .expect("set OPENTK_TEST_DATABASE_URL or DATABASE_URL to run PostgreSQL startup tests");
+    let admin_pool = PgPoolOptions::new()
+        .max_connections(1)
+        .connect(&database_url)
+        .await?;
+    let schema_name = format!("opentk_{test_name}_{}", std::process::id());
+    sqlx::query(&format!(
+        "DROP SCHEMA IF EXISTS {} CASCADE",
+        quote_ident(&schema_name)
+    ))
+    .execute(&admin_pool)
+    .await?;
+    sqlx::query(&format!("CREATE SCHEMA {}", quote_ident(&schema_name)))
+        .execute(&admin_pool)
+        .await?;
+    admin_pool.close().await;
+
+    PgPoolOptions::new()
+        .max_connections(1)
+        .connect(&with_search_path(&database_url, &schema_name))
+        .await
+}
+
+async fn schema_prepared_database_url(
+    test_name: &str,
+) -> Result<String, Box<dyn std::error::Error>> {
+    let pool = empty_pool(test_name).await?;
+    ensure_schema(&pool).await?;
+    let database_url = current_database_url(&pool).await?;
+    pool.close().await;
+    Ok(database_url)
+}
+
+async fn current_database_url(pool: &PgPool) -> Result<String, sqlx::Error> {
+    let database_url = test_database_url()
+        .expect("set OPENTK_TEST_DATABASE_URL or DATABASE_URL to run PostgreSQL startup tests");
+    let schema_name: String = sqlx::query_scalar("SELECT current_schema()")
+        .fetch_one(pool)
+        .await?;
+    Ok(with_search_path(&database_url, &schema_name))
+}
+
+fn with_search_path(database_url: &str, schema_name: &str) -> String {
+    let separator = if database_url.contains('?') { '&' } else { '?' };
+    format!("{database_url}{separator}options=-csearch_path%3D{schema_name}")
+}
+
+fn quote_ident(identifier: &str) -> String {
+    format!("\"{}\"", identifier.replace('"', "\"\""))
 }
 
 fn config_with_database(
