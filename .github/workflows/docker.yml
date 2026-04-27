@@ -16,6 +16,7 @@ jobs:
     permissions:
       contents: read
       actions: read
+      packages: write
     strategy:
       fail-fast: false
       matrix:
@@ -47,6 +48,20 @@ jobs:
       - name: Set up Docker Buildx
         id: buildx
         uses: docker/setup-buildx-action@v4.0.0
+
+      - name: Set image name
+        id: image
+        run: |
+          set -euo pipefail
+          owner="$(printf '%s' "${GITHUB_REPOSITORY_OWNER}" | tr '[:upper:]' '[:lower:]')"
+          echo "name=ghcr.io/${owner}/${{ matrix.image_name }}" >> "${GITHUB_OUTPUT}"
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v4.1.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Restore cache-mount directories
         uses: actions/cache@v5.0.5
@@ -80,7 +95,7 @@ jobs:
           file: docker/Dockerfile
           target: ${{ matrix.docker_target }}
           platforms: ${{ matrix.platform }}
-          outputs: type=oci,dest=/tmp/${{ matrix.image_name }}-${{ matrix.platform_tag }}.oci.tar
+          outputs: type=image,name=${{ steps.image.outputs.name }},push-by-digest=true,name-canonical=true,push=true
           provenance: false
           cache-from: type=gha,scope=${{ matrix.image_name }}-${{ matrix.platform_tag }}
           cache-to: type=gha,scope=${{ matrix.image_name }}-${{ matrix.platform_tag }},mode=max
@@ -97,11 +112,23 @@ jobs:
           cache-from: type=gha,scope=${{ matrix.image_name }}-${{ matrix.platform_tag }}
           cache-to: type=gha,scope=${{ matrix.image_name }}-${{ matrix.platform_tag }},mode=max
 
-      - name: Upload ${{ matrix.image_name }} ${{ matrix.platform }} OCI archive
+      - name: Export ${{ matrix.image_name }} ${{ matrix.platform }} digest
+        run: |
+          set -euo pipefail
+          digest="${{ steps.build.outputs.digest }}"
+          if [[ ! "${digest}" =~ ^sha256:[a-f0-9]{64}$ ]]; then
+            echo "Unexpected image digest: ${digest}" >&2
+            exit 1
+          fi
+
+          mkdir -p "/tmp/digests/${{ matrix.image_name }}"
+          touch "/tmp/digests/${{ matrix.image_name }}/${digest#sha256:}"
+
+      - name: Upload ${{ matrix.image_name }} ${{ matrix.platform }} digest
         uses: actions/upload-artifact@v7.0.1
         with:
-          name: ${{ matrix.image_name }}-${{ matrix.platform_tag }}-oci
-          path: /tmp/${{ matrix.image_name }}-${{ matrix.platform_tag }}.oci.tar
+          name: ${{ matrix.image_name }}-${{ matrix.platform_tag }}-digest
+          path: /tmp/digests/${{ matrix.image_name }}/*
           if-no-files-found: error
           retention-days: 1
 
@@ -113,29 +140,32 @@ jobs:
       contents: read
       packages: write
     steps:
-      - name: Download opentk-api amd64 image
+      - name: Download opentk-api amd64 digest
         uses: actions/download-artifact@v8.0.1
         with:
-          name: opentk-api-amd64-oci
-          path: /tmp/opentk-api-amd64
+          name: opentk-api-amd64-digest
+          path: /tmp/digests/opentk-api-amd64
 
-      - name: Download opentk-api arm64 image
+      - name: Download opentk-api arm64 digest
         uses: actions/download-artifact@v8.0.1
         with:
-          name: opentk-api-arm64-oci
-          path: /tmp/opentk-api-arm64
+          name: opentk-api-arm64-digest
+          path: /tmp/digests/opentk-api-arm64
 
-      - name: Download opentk-sync amd64 image
+      - name: Download opentk-sync amd64 digest
         uses: actions/download-artifact@v8.0.1
         with:
-          name: opentk-sync-amd64-oci
-          path: /tmp/opentk-sync-amd64
+          name: opentk-sync-amd64-digest
+          path: /tmp/digests/opentk-sync-amd64
 
-      - name: Download opentk-sync arm64 image
+      - name: Download opentk-sync arm64 digest
         uses: actions/download-artifact@v8.0.1
         with:
-          name: opentk-sync-arm64-oci
-          path: /tmp/opentk-sync-arm64
+          name: opentk-sync-arm64-digest
+          path: /tmp/digests/opentk-sync-arm64
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4.0.0
 
       - name: Log in to GHCR
         uses: docker/login-action@v4.1.0
@@ -143,12 +173,6 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Install OCI tooling
-        run: |
-          set -euo pipefail
-          sudo apt-get update
-          sudo apt-get install --no-install-recommends -y jq skopeo
 
       - name: Publish commit-SHA multiplatform tags
         run: |
@@ -159,38 +183,22 @@ jobs:
 
           for image_name in opentk-api opentk-sync; do
             image="ghcr.io/${owner}/${image_name}"
-            work_dir="/tmp/${image_name}-oci"
-            amd64_dir="${work_dir}/amd64"
-            arm64_dir="${work_dir}/arm64"
-            merged_dir="${work_dir}/merged"
-            merged_archive="/tmp/${image_name}.oci.tar"
+            refs=()
 
-            rm -rf "${work_dir}" "${merged_archive}"
-            mkdir -p "${amd64_dir}" "${arm64_dir}" "${merged_dir}/blobs/sha256"
+            for platform_tag in amd64 arm64; do
+              digest_dir="/tmp/digests/${image_name}-${platform_tag}"
+              digest_count="$(find "${digest_dir}" -maxdepth 1 -type f | wc -l)"
+              if [[ "${digest_count}" -ne 1 ]]; then
+                echo "Expected exactly one digest artifact in ${digest_dir}, found ${digest_count}" >&2
+                find "${digest_dir}" -maxdepth 1 -type f -print >&2
+                exit 1
+              fi
 
-            tar -xf "/tmp/${image_name}-amd64/${image_name}-amd64.oci.tar" -C "${amd64_dir}"
-            tar -xf "/tmp/${image_name}-arm64/${image_name}-arm64.oci.tar" -C "${arm64_dir}"
+              digest="$(find "${digest_dir}" -maxdepth 1 -type f -printf '%f\n')"
+              refs+=("${image}@sha256:${digest}")
+            done
 
-            cp "${amd64_dir}/oci-layout" "${merged_dir}/oci-layout"
-            cp -R "${amd64_dir}/blobs/sha256/." "${merged_dir}/blobs/sha256/"
-            cp -R "${arm64_dir}/blobs/sha256/." "${merged_dir}/blobs/sha256/"
-
-            jq -s --arg tag "${tag}" '
-              {
-                schemaVersion: 2,
-                mediaType: "application/vnd.oci.image.index.v1+json",
-                manifests: (.[0].manifests + .[1].manifests | map(del(.annotations["org.opencontainers.image.ref.name"]))),
-                annotations: {
-                  "org.opencontainers.image.ref.name": $tag
-                }
-              }
-            ' "${amd64_dir}/index.json" "${arm64_dir}/index.json" > "${merged_dir}/index.json"
-
-            tar -C "${merged_dir}" -cf "${merged_archive}" oci-layout index.json blobs
-
-            skopeo copy --all \
-              "oci-archive:${merged_archive}" \
-              "docker://${image}:${tag}"
+            docker buildx imagetools create --tag "${image}:${tag}" "${refs[@]}"
 
             docker buildx imagetools inspect "${image}:${tag}"
           done

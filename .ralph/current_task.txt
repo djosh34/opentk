@@ -1,1 +1,1 @@
-.ralph/tasks/story-11-search-observability/task-01-enhance-health-endpoint.md
+.ralph/tasks/bugs/bug-docker-workflow-oci-archive-has-multiple-images.md

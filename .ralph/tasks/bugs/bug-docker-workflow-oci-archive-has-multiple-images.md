@@ -46,3 +46,7 @@ The bug is only fixed when the real workflow run completes successfully and the 
 - [ ] Do not set `<passes>true</passes>` unless the workflow fully succeeds, including the caching behavior above
 - [ ] `make lint` passes cleanly for any workflow or script formatting/linting that applies in this repository
 </acceptance_criteria>
+
+<plan>
+.ralph/tasks/bugs/bug-docker-workflow-oci-archive-has-multiple-images_plans/docker-workflow-oci-archive-plan.md
+</plan>
