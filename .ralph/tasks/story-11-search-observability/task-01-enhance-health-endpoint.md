@@ -44,3 +44,9 @@ In scope: health endpoint, admin status endpoint, tests. Out of scope: metrics e
 - [ ] `make test` — passes cleanly (default suite)
 - [ ] `make lint` — passes cleanly
 </acceptance_criteria>
+
+<plan>
+.ralph/tasks/story-11-search-observability/task-01-enhance-health-endpoint_plans/health-admin-search-sync-status-plan.md
+</plan>
+
+NOW EXECUTE

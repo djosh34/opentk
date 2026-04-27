@@ -2,7 +2,7 @@
 
 ARG RUST_IMAGE=rust:1-bookworm
 
-FROM --platform=$BUILDPLATFORM ${RUST_IMAGE} AS build
+FROM --platform=$BUILDPLATFORM ${RUST_IMAGE} AS build-base
 
 ARG TARGETPLATFORM
 ARG ZIG_VERSION=0.13.0
@@ -41,6 +41,8 @@ COPY Cargo.toml Cargo.lock rustfmt.toml ./
 COPY crates ./crates
 COPY migrations ./migrations
 
+FROM build-base AS build-api
+
 RUN --mount=type=cache,target=/usr/local/cargo/registry,sharing=locked \
     --mount=type=cache,target=/usr/local/cargo/git,sharing=locked \
     --mount=type=cache,target=/src/target,sharing=locked \
@@ -50,17 +52,30 @@ RUN --mount=type=cache,target=/usr/local/cargo/registry,sharing=locked \
       *) echo "unsupported target platform: ${TARGETPLATFORM}" >&2; exit 1 ;; \
     esac && \
     cargo zigbuild --release --target "${rust_target}" \
-      --bin opentk-api \
+      --bin opentk-api && \
+    mkdir -p /out/bin && \
+    cp "target/${rust_target}/release/opentk-api" /out/bin/opentk-api
+
+FROM build-base AS build-sync
+
+RUN --mount=type=cache,target=/usr/local/cargo/registry,sharing=locked \
+    --mount=type=cache,target=/usr/local/cargo/git,sharing=locked \
+    --mount=type=cache,target=/src/target,sharing=locked \
+    case "${TARGETPLATFORM}" in \
+      linux/amd64) rust_target="x86_64-unknown-linux-musl" ;; \
+      linux/arm64) rust_target="aarch64-unknown-linux-musl" ;; \
+      *) echo "unsupported target platform: ${TARGETPLATFORM}" >&2; exit 1 ;; \
+    esac && \
+    cargo zigbuild --release --target "${rust_target}" \
       --bin opentk-sync && \
     mkdir -p /out/bin && \
-    cp "target/${rust_target}/release/opentk-api" /out/bin/opentk-api && \
     cp "target/${rust_target}/release/opentk-sync" /out/bin/opentk-sync
 
 FROM scratch AS api
 
 USER 1000:1000
 
-COPY --from=build /out/bin/opentk-api /bin/opentk-api
+COPY --from=build-api /out/bin/opentk-api /bin/opentk-api
 
 CMD ["/bin/opentk-api"]
 
@@ -68,6 +83,6 @@ FROM scratch AS sync
 
 USER 1001:1001
 
-COPY --from=build /out/bin/opentk-sync /bin/opentk-sync
+COPY --from=build-sync /out/bin/opentk-sync /bin/opentk-sync
 
 CMD ["/bin/opentk-sync"]
