@@ -1,160 +1,157 @@
 name: Docker
 
-"on":
+on:
   push:
     branches:
       - master
-    tags:
-      - "v*"
   workflow_dispatch:
+
+concurrency:
+  group: docker-${{ github.ref }}
+  cancel-in-progress: true
 
 permissions:
   contents: read
 
+env:
+  IMAGE_NAME: opentk
+
 jobs:
-  warm-dependency-cache:
-    runs-on: ubuntu-24.04
+  build:
+    name: Build ${{ matrix.platform }}
+    runs-on: ${{ matrix.runner }}
     permissions:
       contents: read
+      actions: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: linux/amd64
+            platform_tag: amd64
+            runner: ubuntu-24.04
+          - platform: linux/arm64
+            platform_tag: arm64
+            runner: ubuntu-24.04-arm
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
+
       - name: Set up Docker Buildx
+        id: buildx
         uses: docker/setup-buildx-action@v3
-      - name: Warm scratch dependency cache
-        run: |
-          set -euo pipefail
-          docker buildx build \
-            --platform linux/amd64 \
-            --target built-dependency-cache \
-            --cache-from "type=gha,scope=opentk-scratch-deps" \
-            --cache-to "type=gha,scope=opentk-scratch-deps,mode=max" \
-            -f docker/Dockerfile.scratch-artifacts \
-            --output "type=oci,dest=/tmp/opentk-scratch-deps.oci.tar" \
-            .
-      - name: Upload scratch dependency artifact
+
+      - name: Restore cache-mount directories
+        uses: actions/cache@v4
+        id: cache-mount
+        with:
+          path: buildkit-cache-mounts/${{ matrix.platform_tag }}
+          key: buildkit-cache-mounts-${{ matrix.platform_tag }}-${{ hashFiles('docker/Dockerfile', 'Cargo.lock') }}
+          restore-keys: |
+            buildkit-cache-mounts-${{ matrix.platform_tag }}-
+
+      - name: Inject cache-mount directories into BuildKit
+        uses: reproducible-containers/buildkit-cache-dance@v3
+        with:
+          builder: ${{ steps.buildx.outputs.name }}
+          skip-extraction: ${{ steps.cache-mount.outputs.cache-hit }}
+          cache-map: |
+            {
+              "buildkit-cache-mounts/${{ matrix.platform_tag }}/var-cache-apt": "/var/cache/apt",
+              "buildkit-cache-mounts/${{ matrix.platform_tag }}/var-lib-apt-lists": "/var/lib/apt/lists",
+              "buildkit-cache-mounts/${{ matrix.platform_tag }}/cargo-registry": "/usr/local/cargo/registry",
+              "buildkit-cache-mounts/${{ matrix.platform_tag }}/cargo-git": "/usr/local/cargo/git",
+              "buildkit-cache-mounts/${{ matrix.platform_tag }}/cargo-install-target": "/usr/local/cargo-install-target",
+              "buildkit-cache-mounts/${{ matrix.platform_tag }}/src-target": "/src/target"
+            }
+
+      - name: Build ${{ matrix.platform }} image
+        id: build
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: docker/Dockerfile
+          platforms: ${{ matrix.platform }}
+          outputs: type=oci,dest=/tmp/opentk-${{ matrix.platform_tag }}.oci.tar
+          provenance: false
+          cache-from: type=gha,scope=opentk-${{ matrix.platform_tag }}
+          cache-to: type=gha,scope=opentk-${{ matrix.platform_tag }},mode=max
+
+      - name: Verify cache-backed rebuild is incremental
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: docker/Dockerfile
+          platforms: ${{ matrix.platform }}
+          outputs: type=cacheonly
+          provenance: false
+          cache-from: type=gha,scope=opentk-${{ matrix.platform_tag }}
+          cache-to: type=gha,scope=opentk-${{ matrix.platform_tag }},mode=max
+
+      - name: Upload ${{ matrix.platform }} OCI archive
         uses: actions/upload-artifact@v4
         with:
-          name: opentk-scratch-deps-oci
-          path: /tmp/opentk-scratch-deps.oci.tar
+          name: opentk-${{ matrix.platform_tag }}-oci
+          path: /tmp/opentk-${{ matrix.platform_tag }}.oci.tar
           if-no-files-found: error
+          retention-days: 1
 
-  build:
+  publish:
+    name: Publish GHCR manifest
     runs-on: ubuntu-24.04
-    needs:
-      - warm-dependency-cache
+    needs: build
     permissions:
       contents: read
-    strategy:
-      matrix:
-        binary:
-          - opentk-sync
-          - opentk-api
+      packages: write
     services:
       registry:
         image: registry:2
         ports:
           - 5000:5000
     steps:
-      - uses: actions/checkout@v4
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-        with:
-          driver-opts: network=host
-      - name: Download scratch dependency artifact
+      - name: Download amd64 image
         uses: actions/download-artifact@v4
         with:
-          name: opentk-scratch-deps-oci
-          path: /tmp/opentk-scratch-deps
-      - name: Unpack scratch dependency artifact
-        run: |
-          set -euo pipefail
-          mkdir -p /tmp/opentk-scratch-deps-oci-layout
-          tar -xf /tmp/opentk-scratch-deps/opentk-scratch-deps.oci.tar -C /tmp/opentk-scratch-deps-oci-layout
-      - name: Build cross-compiled scratch artifacts
-        run: |
-          set -euo pipefail
-          artifact_image="localhost:5000/opentk-scratch-artifacts-${{ matrix.binary }}:${GITHUB_SHA}"
-          docker buildx build \
-            --platform linux/amd64 \
-            --build-context dependency-cache-context=oci-layout:///tmp/opentk-scratch-deps-oci-layout \
-            --cache-from "type=gha,scope=opentk-scratch-deps" \
-            --cache-from "type=gha,scope=opentk-scratch-artifacts-${{ matrix.binary }}" \
-            --cache-to "type=gha,scope=opentk-scratch-artifacts-${{ matrix.binary }},mode=max" \
-            --build-arg "BINARY=${{ matrix.binary }}" \
-            -f docker/Dockerfile.scratch-artifacts \
-            -t "${artifact_image}" \
-            --push \
-            .
-      - name: Assemble scratch image artifacts
-        run: |
-          set -euo pipefail
-          artifact_image="localhost:5000/opentk-scratch-artifacts-${{ matrix.binary }}:${GITHUB_SHA}"
-          docker buildx build \
-            --platform linux/amd64,linux/arm64 \
-            --cache-from "type=gha,scope=opentk-scratch-${{ matrix.binary }}" \
-            --cache-to "type=gha,scope=opentk-scratch-${{ matrix.binary }},mode=max" \
-            --metadata-file "/tmp/${{ matrix.binary }}.metadata.json" \
-            --build-arg "BINARY=${{ matrix.binary }}" \
-            --build-arg "ARTIFACT_IMAGE=${artifact_image}" \
-            -f docker/Dockerfile.scratch \
-            --output "type=oci,dest=/tmp/${{ matrix.binary }}.oci.tar" \
-            .
-      - name: Upload scratch image artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: ${{ matrix.binary }}-oci-archive
-          path: |
-            /tmp/${{ matrix.binary }}.oci.tar
-            /tmp/${{ matrix.binary }}.metadata.json
-          if-no-files-found: error
+          name: opentk-amd64-oci
+          path: /tmp/opentk-amd64
 
-  publish:
-    runs-on: ubuntu-24.04
-    needs: build
-    permissions:
-      contents: read
-      packages: write
-    steps:
-      - uses: actions/checkout@v4
-      - name: Download opentk-sync image artifact
+      - name: Download arm64 image
         uses: actions/download-artifact@v4
         with:
-          name: opentk-sync-oci-archive
-      - name: Download opentk-api image artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: opentk-api-oci-archive
+          name: opentk-arm64-oci
+          path: /tmp/opentk-arm64
+
       - name: Log in to GHCR
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - name: Install OCI publication tooling
+
+      - name: Install OCI tooling
         run: |
           set -euo pipefail
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends skopeo
-      - name: Publish GHCR image tags
+          sudo apt-get install --no-install-recommends -y skopeo
+
+      - name: Publish one commit-SHA multiplatform tag
         run: |
           set -euo pipefail
-          owner="$(printf '%s' "${GITHUB_REPOSITORY_OWNER}" | tr '[:upper:]' '[:lower:]')"
-          short_sha="${GITHUB_SHA::12}"
-          tags=()
-          if [[ "${GITHUB_REF}" == "refs/heads/master" ]]; then
-            tags=("sha-${short_sha}")
-          elif [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
-            tags=("${GITHUB_REF_NAME}")
-          else
-            echo "ref ${GITHUB_REF} does not publish tags"
-            exit 0
-          fi
 
-          for binary in opentk-sync opentk-api; do
-            for tag in "${tags[@]}"; do
-              skopeo copy --all \
-                --authfile "${HOME}/.docker/config.json" \
-                "oci-archive:${binary}.oci.tar" \
-                "docker://ghcr.io/${owner}/${binary}:${tag}"
-            done
-          done
+          owner="$(printf '%s' "${GITHUB_REPOSITORY_OWNER}" | tr '[:upper:]' '[:lower:]')"
+          image="ghcr.io/${owner}/${IMAGE_NAME}"
+          tag="${GITHUB_SHA}"
+
+          skopeo copy --all \
+            "oci-archive:/tmp/opentk-amd64/opentk-amd64.oci.tar" \
+            "docker://localhost:5000/${IMAGE_NAME}:${tag}-amd64"
+          skopeo copy --all \
+            "oci-archive:/tmp/opentk-arm64/opentk-arm64.oci.tar" \
+            "docker://localhost:5000/${IMAGE_NAME}:${tag}-arm64"
+
+          docker buildx imagetools create \
+            --tag "${image}:${tag}" \
+            "localhost:5000/${IMAGE_NAME}:${tag}-amd64" \
+            "localhost:5000/${IMAGE_NAME}:${tag}-arm64"
+
+          docker buildx imagetools inspect "${image}:${tag}"
