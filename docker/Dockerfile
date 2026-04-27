@@ -39,7 +39,6 @@ WORKDIR /src
 
 COPY Cargo.toml Cargo.lock rustfmt.toml ./
 COPY crates ./crates
-COPY migrations ./migrations
 
 FROM build-base AS build-api
 
