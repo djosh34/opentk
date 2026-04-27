@@ -255,6 +255,63 @@ async fn verification_records_storage_and_asset_metadata_evidence() -> Result<()
 }
 
 #[tokio::test]
+async fn verification_reports_recent_ingest_errors_from_schema_columns() -> Result<(), sqlx::Error>
+{
+    let pool = migrated_pool("verify_ingest_errors").await?;
+    write_document(&pool, 42, document_xml("2026D00001", kamerstukdossier_id())).await;
+    let created_at: DateTime<Utc> = "2026-04-26T03:04:05Z".parse().expect("valid timestamp");
+    sqlx::query(
+        r"
+        INSERT INTO ingest_error (
+            phase,
+            source_category,
+            source_id,
+            latest_skiptoken,
+            message,
+            payload,
+            created_at
+        )
+        VALUES (
+            'parse_entity',
+            'Document',
+            $1,
+            42,
+            'invalid source payload',
+            NULL,
+            $2
+        )
+        ",
+    )
+    .bind(document_id())
+    .bind(created_at)
+    .execute(&pool)
+    .await?;
+
+    let report = verify_sync_database(
+        &pool,
+        SyncVerificationConfig {
+            categories: vec!["Document".to_owned()],
+            required_relation_samples: 1,
+        },
+    )
+    .await
+    .expect("database verifies");
+
+    assert_eq!(report.ingest_error_count, 1);
+    let error = report
+        .recent_ingest_errors
+        .first()
+        .expect("recent ingest error is reported");
+    assert_eq!(error.phase, "parse_entity");
+    assert_eq!(error.source_category, "Document");
+    assert_eq!(error.source_id, Some(document_id()));
+    assert_eq!(error.latest_skiptoken, Some(42));
+    assert_eq!(error.message, "invalid source payload");
+    assert_eq!(error.created_at, created_at);
+    Ok(())
+}
+
+#[tokio::test]
 async fn verifies_document_content_provenance_from_postgres_rows() -> Result<(), sqlx::Error> {
     let pool = migrated_pool("verify_document_content").await?;
     write_document(&pool, 42, document_xml("2026D00001", kamerstukdossier_id())).await;

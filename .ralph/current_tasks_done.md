@@ -1,6 +1,6 @@
 # Done Tasks Summary
 
-Generated: Mon Apr 27 10:15:51 CEST 2026
+Generated: Mon Apr 27 11:23:50 CEST 2026
 
 # Task `/home/joshazimullah.linux/work_mounts/patroni_rewrite/opentk/.ralph/tasks/bugs/bug-cargo-run-opentk-sync-linker-missing-objects.md`
 
@@ -8,7 +8,7 @@ Generated: Mon Apr 27 10:15:51 CEST 2026
 ## Bug: cargo run opentk-sync can fail linking with missing target object files <status>done</status> <passes>true</passes> <priority>medium</priority>
 
 <description>
-While executing Story 10 Task 1 on 2026-04-26, the preliminary command
+While executing Story 010 Task 01 on 2026-04-26, the preliminary command
 `cargo run -p opentk-db --bin opentk-sync -- --help` failed before any sync work
 ```
 
@@ -20,7 +20,7 @@ While executing Story 10 Task 1 on 2026-04-26, the preliminary command
 ## Bug: full sync fails on duplicate Toezegging kamerbriefNakoming field <status>done</status> <passes>true</passes> <priority>high</priority>
 
 <description>
-Story 10 Task 1 attempted a clean full SyncFeed-to-PostgreSQL sync from a fresh
+Story 010 Task 01 attempted a clean full SyncFeed-to-PostgreSQL sync from a fresh
 database and the public sync runner exited nonzero after 305 seconds.
 ```
 
@@ -32,7 +32,7 @@ database and the public sync runner exited nonzero after 305 seconds.
 ## Bug: Full Sync Fails on Duplicate Toezegging toegezegdAan <status>done</status> <passes>true</passes> <priority>high</priority>
 
 <description>
-Story 10 Task 1 clean full sync run `20260427-030235` failed while parsing the live SyncFeed `Toezegging` category.
+Story 010 Task 01 clean full sync run `20260427-030235` failed while parsing the live SyncFeed `Toezegging` category.
 ```
 
 ==============
@@ -43,7 +43,7 @@ Story 10 Task 1 clean full sync run `20260427-030235` failed while parsing the l
 ## Bug: full sync fails on FractieZetelVacature initial SyncFeed timeout <status>done</status> <passes>true</passes> <priority>high</priority>
 
 <description>
-Story 10 Task 1 attempted one clean full SyncFeed-to-PostgreSQL sync from a
+Story 010 Task 01 attempted one clean full SyncFeed-to-PostgreSQL sync from a
 fresh migrated database on 2026-04-27. The actual sync command failed after
 ```
 
@@ -55,7 +55,7 @@ fresh migrated database on 2026-04-27. The actual sync command failed after
 ## Bug: full sync operational plan assumes /usr/bin/time exists <status>done</status> <passes>true</passes> <priority>medium</priority>
 
 <description>
-While executing Story 10 Task 1 on 2026-04-26, the sync command wrapper failed
+While executing Story 010 Task 01 on 2026-04-26, the sync command wrapper failed
 before starting the sync binary because `/usr/bin/time` was not available:
 ```
 
@@ -67,7 +67,7 @@ before starting the sync binary because `/usr/bin/time` was not available:
 ## Bug: Full sync fails on Toezegging HTTP transport decode error <status>done</status> <passes>true</passes> <priority>high</priority>
 
 <description>
-Story 10 Task 1 attempted a fresh one-time clean full sync from an empty
+Story 010 Task 01 attempted a fresh one-time clean full sync from an empty
 database and the public sync runner exited nonzero on the initial `Toezegging`
 ```
 
@@ -79,7 +79,7 @@ database and the public sync runner exited nonzero on the initial `Toezegging`
 ## Bug: full sync fails on Toezegging initial SyncFeed timeout <status>done</status> <passes>true</passes> <priority>high</priority>
 
 <description>
-Story 10 Task 1 attempted one clean full SyncFeed-to-PostgreSQL sync from a
+Story 010 Task 01 attempted one clean full SyncFeed-to-PostgreSQL sync from a
 fresh migrated database on 2026-04-26. The actual sync command failed after
 ```
 
@@ -91,7 +91,7 @@ fresh migrated database on 2026-04-26. The actual sync command failed after
 ## Bug: Remove Swallowed Env And Duration Errors <status>completed</status> <passes>true</passes> <priority>high</priority>
 
 <description>
-Final boundary review for Story 3 Task 1 detected pre-existing swallowed errors outside the new API path:
+Final boundary review for Story 03 Task 01 detected pre-existing swallowed errors outside the new API path:
 ```
 
 ==============
@@ -126,7 +126,7 @@ While manually verifying
 ## Bug: Full sync fails on deleted PersoonNevenfunctie body content <status>not_started</status> <passes>true</passes> <priority>high</priority>
 
 <description>
-Story 10 Task 1 attempted one clean full SyncFeed-to-PostgreSQL sync from an
+Story 010 Task 01 attempted one clean full SyncFeed-to-PostgreSQL sync from an
 empty dedicated database:
 ```
 
@@ -150,7 +150,7 @@ reran the captured full-sync command on 2026-04-27:
 ## Bug: Full sync fails on unknown Toezegging toegezegdAan field <status>done</status> <passes>true</passes> <priority>high</priority>
 
 <description>
-Story 10 Task 1 attempted one clean full SyncFeed-to-PostgreSQL sync from an
+Story 010 Task 01 attempted one clean full SyncFeed-to-PostgreSQL sync from an
 empty dedicated database after the previous PersoonNevenfunctie deleted-body
 ```
 
@@ -162,16 +162,16 @@ empty dedicated database after the previous PersoonNevenfunctie deleted-body
 ## Bug: Startup validation swallows response body errors <status>done</status> <passes>true</passes> <priority>medium</priority>
 
 <description>
-During Story 10 Task 1 operational sync preparation, inspection found
+During Story 010 Task 01 operational sync preparation, inspection found
 `crates/opentk-db/src/startup_validation.rs` using
 ```
 
 ==============
 
-# Task `/home/joshazimullah.linux/work_mounts/patroni_rewrite/opentk/.ralph/tasks/story-10-full-sync-backup/task-1-run-one-time-clean-full-sync-report.md`
+# Task `/home/joshazimullah.linux/work_mounts/patroni_rewrite/opentk/.ralph/tasks/story-010-full-sync-backup/task-01-run-one-time-clean-full-sync-report.md`
 
 ```
-## Task: Story 10 Task 1 - Run One-Time Clean Full Sync and Report Results <status>done</status> <passes>true</passes>
+## Task: Story 010 Task 01 - Run One-Time Clean Full Sync and Report Results <status>done</status> <passes>true</passes>
 
 <description>
 **Goal:** Run one clean full SyncFeed-to-PostgreSQL sync once, measure the result, write a human-readable report under `.ralph/reports/`, and email that report to the user.
@@ -179,10 +179,21 @@ During Story 10 Task 1 operational sync preparation, inspection found
 
 ==============
 
-# Task `/home/joshazimullah.linux/work_mounts/patroni_rewrite/opentk/.ralph/tasks/story-2-complete-sync-postgres/task-1-model-official-informatiemodel.md`
+# Task `/home/joshazimullah.linux/work_mounts/patroni_rewrite/opentk/.ralph/tasks/story-010-full-sync-backup/task-02-create-one-time-dumb-database-dump.md`
 
 ```
-## Task: Story 2 Task 1 - Model Official Informatiemodel and XSDs <status>completed</status> <passes>true</passes>
+## Task: Story 010 Task 02 - Create One-Time Dumb Dump of Fully Synced Database <status>done</status> <passes>true</passes>
+
+<description>
+**Goal:** After Story 010 Task 01 has produced a fully synced database, take one plain operational database dump of that exact state so development can revert after accidental wipe/truncate or other destructive mistakes.
+```
+
+==============
+
+# Task `/home/joshazimullah.linux/work_mounts/patroni_rewrite/opentk/.ralph/tasks/story-02-complete-sync-postgres/task-01-model-official-informatiemodel.md`
+
+```
+## Task: Story 02 Task 01 - Model Official Informatiemodel and XSDs <status>completed</status> <passes>true</passes>
 
 <description>
 Must use tdd skill to complete
@@ -190,10 +201,10 @@ Must use tdd skill to complete
 
 ==============
 
-# Task `/home/joshazimullah.linux/work_mounts/patroni_rewrite/opentk/.ralph/tasks/story-2-complete-sync-postgres/task-2-design-postgres-schema.md`
+# Task `/home/joshazimullah.linux/work_mounts/patroni_rewrite/opentk/.ralph/tasks/story-02-complete-sync-postgres/task-02-design-postgres-schema.md`
 
 ```
-## Task: Story 2 Task 2 - Design Complete PostgreSQL Schema <status>done</status> <passes>true</passes>
+## Task: Story 02 Task 02 - Design Complete PostgreSQL Schema <status>done</status> <passes>true</passes>
 
 <description>
 Must use tdd skill to complete
@@ -201,10 +212,10 @@ Must use tdd skill to complete
 
 ==============
 
-# Task `/home/joshazimullah.linux/work_mounts/patroni_rewrite/opentk/.ralph/tasks/story-2-complete-sync-postgres/task-3-implement-syncfeed-client-and-rate-limits.md`
+# Task `/home/joshazimullah.linux/work_mounts/patroni_rewrite/opentk/.ralph/tasks/story-02-complete-sync-postgres/task-03-implement-syncfeed-client-and-rate-limits.md`
 
 ```
-## Task: Story 2 Task 3 - Implement SyncFeed Client and Rate Limit Respect <status>done</status> <passes>true</passes>
+## Task: Story 02 Task 03 - Implement SyncFeed Client and Rate Limit Respect <status>done</status> <passes>true</passes>
 
 <description>
 Must use tdd skill to complete
@@ -212,10 +223,10 @@ Must use tdd skill to complete
 
 ==============
 
-# Task `/home/joshazimullah.linux/work_mounts/patroni_rewrite/opentk/.ralph/tasks/story-2-complete-sync-postgres/task-4-implement-complete-parser-and-writers.md`
+# Task `/home/joshazimullah.linux/work_mounts/patroni_rewrite/opentk/.ralph/tasks/story-02-complete-sync-postgres/task-04-implement-complete-parser-and-writers.md`
 
 ```
-## Task: Story 2 Task 4 - Implement Complete XML Parser and PostgreSQL Writers <status>completed</status> <passes>true</passes>
+## Task: Story 02 Task 04 - Implement Complete XML Parser and PostgreSQL Writers <status>completed</status> <passes>true</passes>
 
 <description>
 Must use tdd skill to complete
@@ -223,22 +234,22 @@ Must use tdd skill to complete
 
 ==============
 
-# Task `/home/joshazimullah.linux/work_mounts/patroni_rewrite/opentk/.ralph/tasks/story-2-complete-sync-postgres/task-5-implement-parallel-sync-runner.md`
+# Task `/home/joshazimullah.linux/work_mounts/patroni_rewrite/opentk/.ralph/tasks/story-02-complete-sync-postgres/task-05-implement-parallel-sync-runner.md`
 
 ```
-## Task: Story 2 Task 5 - Implement Parallel Complete Sync Runner <status>done</status> <passes>true</passes>
+## Task: Story 02 Task 05 - Implement Parallel Complete Sync Runner <status>done</status> <passes>true</passes>
 
 <plan>
-.ralph/tasks/story-2-complete-sync-postgres/task-5-implement-parallel-sync-runner_plans/parallel-sync-runner-plan.md
+.ralph/tasks/story-02-complete-sync-postgres/task-05-implement-parallel-sync-runner_plans/parallel-sync-runner-plan.md
 </plan>
 ```
 
 ==============
 
-# Task `/home/joshazimullah.linux/work_mounts/patroni_rewrite/opentk/.ralph/tasks/story-2-complete-sync-postgres/task-6-deep-verify-complete-sync.md`
+# Task `/home/joshazimullah.linux/work_mounts/patroni_rewrite/opentk/.ralph/tasks/story-02-complete-sync-postgres/task-06-deep-verify-complete-sync.md`
 
 ```
-## Task: Story 2 Task 6 - Deep Verify Complete PostgreSQL Sync <status>completed</status> <passes>true</passes>
+## Task: Story 02 Task 06 - Deep Verify Complete PostgreSQL Sync <status>completed</status> <passes>true</passes>
 
 <description>
 Must use tdd skill to complete
@@ -246,10 +257,10 @@ Must use tdd skill to complete
 
 ==============
 
-# Task `/home/joshazimullah.linux/work_mounts/patroni_rewrite/opentk/.ralph/tasks/story-3-http-api/task-1-add-http-server-and-openapi.md`
+# Task `/home/joshazimullah.linux/work_mounts/patroni_rewrite/opentk/.ralph/tasks/story-03-http-api/task-01-add-http-server-and-openapi.md`
 
 ```
-## Task: Story 3 Task 1 - Add HTTP Server and OpenAPI Spec <status>not_started</status> <passes>true</passes>
+## Task: Story 03 Task 01 - Add HTTP Server and OpenAPI Spec <status>not_started</status> <passes>true</passes>
 
 <description>
 Must use tdd skill to complete
@@ -257,10 +268,10 @@ Must use tdd skill to complete
 
 ==============
 
-# Task `/home/joshazimullah.linux/work_mounts/patroni_rewrite/opentk/.ralph/tasks/story-3-http-api/task-2-implement-core-read-endpoints.md`
+# Task `/home/joshazimullah.linux/work_mounts/patroni_rewrite/opentk/.ralph/tasks/story-03-http-api/task-02-implement-core-read-endpoints.md`
 
 ```
-## Task: Story 3 Task 2 - Implement Core Read Endpoints <status>done</status> <passes>true</passes>
+## Task: Story 03 Task 02 - Implement Core Read Endpoints <status>done</status> <passes>true</passes>
 
 <description>
 Must use tdd skill to complete
@@ -268,10 +279,10 @@ Must use tdd skill to complete
 
 ==============
 
-# Task `/home/joshazimullah.linux/work_mounts/patroni_rewrite/opentk/.ralph/tasks/story-3-http-api/task-3-deep-verify-http-api.md`
+# Task `/home/joshazimullah.linux/work_mounts/patroni_rewrite/opentk/.ralph/tasks/story-03-http-api/task-03-deep-verify-http-api.md`
 
 ```
-## Task: Story 3 Task 3 - Deep Verify HTTP API <status>done</status> <passes>true</passes>
+## Task: Story 03 Task 03 - Deep Verify HTTP API <status>done</status> <passes>true</passes>
 
 <description>
 Must use tdd skill to complete
@@ -279,10 +290,10 @@ Must use tdd skill to complete
 
 ==============
 
-# Task `/home/joshazimullah.linux/work_mounts/patroni_rewrite/opentk/.ralph/tasks/story-4-document-text-support/task-1-design-document-content-schema.md`
+# Task `/home/joshazimullah.linux/work_mounts/patroni_rewrite/opentk/.ralph/tasks/story-04-document-text-support/task-01-design-document-content-schema.md`
 
 ```
-## Task: Story 4 Task 1 - Design Document Content Schema <status>completed</status> <passes>true</passes>
+## Task: Story 04 Task 01 - Design Document Content Schema <status>completed</status> <passes>true</passes>
 
 <description>
 Must use tdd skill to complete
@@ -290,10 +301,10 @@ Must use tdd skill to complete
 
 ==============
 
-# Task `/home/joshazimullah.linux/work_mounts/patroni_rewrite/opentk/.ralph/tasks/story-4-document-text-support/task-2-fetch-and-classify-document-assets.md`
+# Task `/home/joshazimullah.linux/work_mounts/patroni_rewrite/opentk/.ralph/tasks/story-04-document-text-support/task-02-fetch-and-classify-document-assets.md`
 
 ```
-## Task: Story 4 Task 2 - Fetch and Classify Document Assets <status>completed</status> <passes>true</passes>
+## Task: Story 04 Task 02 - Fetch and Classify Document Assets <status>completed</status> <passes>true</passes>
 
 <description>
 Must use tdd skill to complete
@@ -301,10 +312,10 @@ Must use tdd skill to complete
 
 ==============
 
-# Task `/home/joshazimullah.linux/work_mounts/patroni_rewrite/opentk/.ralph/tasks/story-4-document-text-support/task-3-extract-document-text-and-html.md`
+# Task `/home/joshazimullah.linux/work_mounts/patroni_rewrite/opentk/.ralph/tasks/story-04-document-text-support/task-03-extract-document-text-and-html.md`
 
 ```
-## Task: Story 4 Task 3 - Extract Document Text and HTML <status>done</status> <passes>true</passes>
+## Task: Story 04 Task 03 - Extract Document Text and HTML <status>done</status> <passes>true</passes>
 
 <description>
 Must use tdd skill to complete
@@ -312,10 +323,10 @@ Must use tdd skill to complete
 
 ==============
 
-# Task `/home/joshazimullah.linux/work_mounts/patroni_rewrite/opentk/.ralph/tasks/story-4-document-text-support/task-4-expose-document-content-api.md`
+# Task `/home/joshazimullah.linux/work_mounts/patroni_rewrite/opentk/.ralph/tasks/story-04-document-text-support/task-04-expose-document-content-api.md`
 
 ```
-## Task: Story 4 Task 4 - Expose Document Content API <status>done</status> <passes>true</passes>
+## Task: Story 04 Task 04 - Expose Document Content API <status>done</status> <passes>true</passes>
 
 <description>
 Must use tdd skill to complete
@@ -323,10 +334,10 @@ Must use tdd skill to complete
 
 ==============
 
-# Task `/home/joshazimullah.linux/work_mounts/patroni_rewrite/opentk/.ralph/tasks/story-4-document-text-support/task-5-deep-verify-document-content.md`
+# Task `/home/joshazimullah.linux/work_mounts/patroni_rewrite/opentk/.ralph/tasks/story-04-document-text-support/task-05-deep-verify-document-content.md`
 
 ```
-## Task: Story 4 Task 5 - Deep Verify Document Content Extraction <status>done</status> <passes>true</passes>
+## Task: Story 04 Task 05 - Deep Verify Document Content Extraction <status>done</status> <passes>true</passes>
 
 <description>
 Must use tdd skill to complete
@@ -334,10 +345,10 @@ Must use tdd skill to complete
 
 ==============
 
-# Task `/home/joshazimullah.linux/work_mounts/patroni_rewrite/opentk/.ralph/tasks/story-5-search/task-1-investigate-search-engine.md`
+# Task `/home/joshazimullah.linux/work_mounts/patroni_rewrite/opentk/.ralph/tasks/story-05-search/task-01-investigate-search-engine.md`
 
 ```
-## Task: Story 5 Task 1 - Investigate Search Engine With Current Repo State <status>completed</status> <passes>true</passes>
+## Task: Story 05 Task 01 - Investigate Search Engine With Current Repo State <status>completed</status> <passes>true</passes>
 
 <description>
 Must use tdd skill to complete
@@ -345,10 +356,10 @@ Must use tdd skill to complete
 
 ==============
 
-# Task `/home/joshazimullah.linux/work_mounts/patroni_rewrite/opentk/.ralph/tasks/story-5-search/task-2-design-search-indexing.md`
+# Task `/home/joshazimullah.linux/work_mounts/patroni_rewrite/opentk/.ralph/tasks/story-05-search/task-02-design-search-indexing.md`
 
 ```
-## Task: Story 5 Task 2 - Design Search Indexing Pipeline <status>completed</status> <passes>true</passes>
+## Task: Story 05 Task 02 - Design Search Indexing Pipeline <status>completed</status> <passes>true</passes>
 
 <description>
 Must use tdd skill to complete
@@ -356,34 +367,34 @@ Must use tdd skill to complete
 
 ==============
 
-# Task `/home/joshazimullah.linux/work_mounts/patroni_rewrite/opentk/.ralph/tasks/story-5-search/task-3-implement-search-sync.md`
+# Task `/home/joshazimullah.linux/work_mounts/patroni_rewrite/opentk/.ralph/tasks/story-05-search/task-03-implement-search-sync.md`
 
 ```
-## Task: Story 5 Task 3 - Implement Search Sync Pipeline <status>completed</status> <passes>true</passes>
+## Task: Story 05 Task 03 - Implement Search Sync Pipeline <status>completed</status> <passes>true</passes>
 
 <plan>
-.ralph/tasks/story-5-search/task-3-implement-search-sync_plans/search-sync-pipeline-plan.md
+.ralph/tasks/story-05-search/task-03-implement-search-sync_plans/search-sync-pipeline-plan.md
 </plan>
 ```
 
 ==============
 
-# Task `/home/joshazimullah.linux/work_mounts/patroni_rewrite/opentk/.ralph/tasks/story-5-search/task-4-expose-search-api.md`
+# Task `/home/joshazimullah.linux/work_mounts/patroni_rewrite/opentk/.ralph/tasks/story-05-search/task-04-expose-search-api.md`
 
 ```
-## Task: Story 5 Task 4 - Expose Search API <status>done</status> <passes>true</passes>
+## Task: Story 05 Task 04 - Expose Search API <status>done</status> <passes>true</passes>
 
 <plan>
-.ralph/tasks/story-5-search/task-4-expose-search-api_plans/search-api-plan.md
+.ralph/tasks/story-05-search/task-04-expose-search-api_plans/search-api-plan.md
 </plan>
 ```
 
 ==============
 
-# Task `/home/joshazimullah.linux/work_mounts/patroni_rewrite/opentk/.ralph/tasks/story-5-search/task-5-deep-verify-search-quality.md`
+# Task `/home/joshazimullah.linux/work_mounts/patroni_rewrite/opentk/.ralph/tasks/story-05-search/task-05-deep-verify-search-quality.md`
 
 ```
-## Task: Story 5 Task 5 - Deep Verify Search Quality <status>completed</status> <passes>true</passes>
+## Task: Story 05 Task 05 - Deep Verify Search Quality <status>completed</status> <passes>true</passes>
 
 <description>
 Must use tdd skill to complete
@@ -391,34 +402,34 @@ Must use tdd skill to complete
 
 ==============
 
-# Task `/home/joshazimullah.linux/work_mounts/patroni_rewrite/opentk/.ralph/tasks/story-6-config-unification/task-1-create-config-crate.md`
+# Task `/home/joshazimullah.linux/work_mounts/patroni_rewrite/opentk/.ralph/tasks/story-06-config-unification/task-01-create-config-crate.md`
 
 ```
-## Task: Story 6 Task 1 - Create Centralized Configuration Crate <status>done</status> <passes>true</passes>
+## Task: Story 06 Task 01 - Create Centralized Configuration Crate <status>done</status> <passes>true</passes>
 
 <plan>
-.ralph/tasks/story-6-config-unification/task-1-create-config-crate_plans/centralized-config-crate-plan.md
+.ralph/tasks/story-06-config-unification/task-01-create-config-crate_plans/centralized-config-crate-plan.md
 </plan>
 ```
 
 ==============
 
-# Task `/home/joshazimullah.linux/work_mounts/patroni_rewrite/opentk/.ralph/tasks/story-6-config-unification/task-2-refactor-binaries-to-config.md`
+# Task `/home/joshazimullah.linux/work_mounts/patroni_rewrite/opentk/.ralph/tasks/story-06-config-unification/task-02-refactor-binaries-to-config.md`
 
 ```
-## Task: Story 6 Task 2 - Refactor All Binaries to Use Unified Config <status>done</status> <passes>true</passes>
+## Task: Story 06 Task 02 - Refactor All Binaries to Use Unified Config <status>done</status> <passes>true</passes>
 
 <plan>
-.ralph/tasks/story-6-config-unification/task-2-refactor-binaries-to-config_plans/refactor-binaries-to-config-plan.md
+.ralph/tasks/story-06-config-unification/task-02-refactor-binaries-to-config_plans/refactor-binaries-to-config-plan.md
 </plan>
 ```
 
 ==============
 
-# Task `/home/joshazimullah.linux/work_mounts/patroni_rewrite/opentk/.ralph/tasks/story-6-config-unification/task-3-startup-validation.md`
+# Task `/home/joshazimullah.linux/work_mounts/patroni_rewrite/opentk/.ralph/tasks/story-06-config-unification/task-03-startup-validation.md`
 
 ```
-## Task: Story 6 Task 3 - Add Startup Dependency Validation <status>done</status> <passes>true</passes>
+## Task: Story 06 Task 03 - Add Startup Dependency Validation <status>done</status> <passes>true</passes>
 
 <description>
 Must use tdd skill to complete
@@ -426,10 +437,10 @@ Must use tdd skill to complete
 
 ==============
 
-# Task `/home/joshazimullah.linux/work_mounts/patroni_rewrite/opentk/.ralph/tasks/story-7-binary-rename-and-cdc/task-1-rename-to-opentk-sync.md`
+# Task `/home/joshazimullah.linux/work_mounts/patroni_rewrite/opentk/.ralph/tasks/story-07-binary-rename-and-cdc/task-01-rename-to-opentk-sync.md`
 
 ```
-## Task: Story 7 Task 1 - Rename complete-sync Binary to opentk-sync <status>done</status> <passes>true</passes>
+## Task: Story 07 Task 01 - Rename complete-sync Binary to opentk-sync <status>done</status> <passes>true</passes>
 
 <description>
 Must use tdd skill to complete
@@ -437,10 +448,10 @@ Must use tdd skill to complete
 
 ==============
 
-# Task `/home/joshazimullah.linux/work_mounts/patroni_rewrite/opentk/.ralph/tasks/story-7-binary-rename-and-cdc/task-2-implement-listen-notify-cdc.md`
+# Task `/home/joshazimullah.linux/work_mounts/patroni_rewrite/opentk/.ralph/tasks/story-07-binary-rename-and-cdc/task-02-implement-listen-notify-cdc.md`
 
 ```
-## Task: Story 7 Task 2 - Implement LISTEN/NOTIFY CDC for Search Sync <status>done</status> <passes>true</passes>
+## Task: Story 07 Task 02 - Implement LISTEN/NOTIFY CDC for Search Sync <status>done</status> <passes>true</passes>
 
 <description>
 Must use tdd skill to complete
@@ -448,10 +459,10 @@ Must use tdd skill to complete
 
 ==============
 
-# Task `/home/joshazimullah.linux/work_mounts/patroni_rewrite/opentk/.ralph/tasks/story-7-binary-rename-and-cdc/task-3-integrate-cdc-into-api.md`
+# Task `/home/joshazimullah.linux/work_mounts/patroni_rewrite/opentk/.ralph/tasks/story-07-binary-rename-and-cdc/task-03-integrate-cdc-into-api.md`
 
 ```
-## Task: Story 7 Task 3 - Integrate Search CDC Background Task into opentk-api <status>done</status> <passes>true</passes>
+## Task: Story 07 Task 03 - Integrate Search CDC Background Task into opentk-api <status>done</status> <passes>true</passes>
 
 <description>
 Must use tdd skill to complete

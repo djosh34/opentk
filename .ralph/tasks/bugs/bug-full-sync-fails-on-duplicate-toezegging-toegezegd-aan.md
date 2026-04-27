@@ -1,7 +1,7 @@
 ## Bug: Full Sync Fails on Duplicate Toezegging toegezegdAan <status>done</status> <passes>true</passes> <priority>high</priority>
 
 <description>
-Story 10 Task 1 clean full sync run `20260427-030235` failed while parsing the live SyncFeed `Toezegging` category.
+Story 010 Task 01 clean full sync run `20260427-030235` failed while parsing the live SyncFeed `Toezegging` category.
 
 Command:
 

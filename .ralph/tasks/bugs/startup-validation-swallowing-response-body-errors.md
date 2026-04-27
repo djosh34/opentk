@@ -1,7 +1,7 @@
 ## Bug: Startup validation swallows response body errors <status>done</status> <passes>true</passes> <priority>medium</priority>
 
 <description>
-During Story 10 Task 1 operational sync preparation, inspection found
+During Story 010 Task 01 operational sync preparation, inspection found
 `crates/opentk-db/src/startup_validation.rs` using
 `response.text().await.unwrap_or_default()` when validating SyncFeed HTTP
 status errors. If reading the response body fails, the real error is silently

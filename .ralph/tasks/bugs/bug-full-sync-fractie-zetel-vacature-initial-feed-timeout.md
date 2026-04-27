@@ -1,7 +1,7 @@
 ## Bug: full sync fails on FractieZetelVacature initial SyncFeed timeout <status>done</status> <passes>true</passes> <priority>high</priority>
 
 <description>
-Story 10 Task 1 attempted one clean full SyncFeed-to-PostgreSQL sync from a
+Story 010 Task 01 attempted one clean full SyncFeed-to-PostgreSQL sync from a
 fresh migrated database on 2026-04-27. The actual sync command failed after
 540 seconds with exit status 1:
 
@@ -61,7 +61,7 @@ The first ingest-error evidence query used the wrong column name
 `skiptoken` and failed visibly; the same evidence log contains the corrected
 query using `latest_skiptoken`.
 
-The full sync did not complete cleanly, so Story 10 Task 1 was stopped before
+The full sync did not complete cleanly, so Story 010 Task 01 was stopped before
 post-sync measurement, final report generation, or email.
 </description>
 

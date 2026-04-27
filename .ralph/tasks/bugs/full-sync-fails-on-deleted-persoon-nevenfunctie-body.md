@@ -1,7 +1,7 @@
 ## Bug: Full sync fails on deleted PersoonNevenfunctie body content <status>not_started</status> <passes>true</passes> <priority>high</priority>
 
 <description>
-Story 10 Task 1 attempted one clean full SyncFeed-to-PostgreSQL sync from an
+Story 010 Task 01 attempted one clean full SyncFeed-to-PostgreSQL sync from an
 empty dedicated database:
 
 - Config: `.ralph/reports/full-sync-config-20260426-193554.toml`

@@ -1,7 +1,7 @@
 ## Bug: Full sync fails on unknown Toezegging toegezegdAan field <status>done</status> <passes>true</passes> <priority>high</priority>
 
 <description>
-Story 10 Task 1 attempted one clean full SyncFeed-to-PostgreSQL sync from an
+Story 010 Task 01 attempted one clean full SyncFeed-to-PostgreSQL sync from an
 empty dedicated database after the previous PersoonNevenfunctie deleted-body
 bug was marked passing:
 

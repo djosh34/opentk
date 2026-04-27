@@ -1,7 +1,7 @@
 ## Bug: Full sync fails on Toezegging HTTP transport decode error <status>done</status> <passes>true</passes> <priority>high</priority>
 
 <description>
-Story 10 Task 1 attempted a fresh one-time clean full sync from an empty
+Story 010 Task 01 attempted a fresh one-time clean full sync from an empty
 database and the public sync runner exited nonzero on the initial `Toezegging`
 SyncFeed request with an HTTP transport body decode failure.
 
@@ -50,7 +50,7 @@ Evidence files:
 - pre-sync evidence: `.ralph/reports/full-sync-pre-sync-evidence-20260427-042209.log`
 - config: `.ralph/reports/full-sync-config-20260427-042209.toml`
 
-The full sync did not complete cleanly, so Story 10 Task 1 stopped before
+The full sync did not complete cleanly, so Story 010 Task 01 stopped before
 post-sync measurements, report generation, or email.
 </description>
 

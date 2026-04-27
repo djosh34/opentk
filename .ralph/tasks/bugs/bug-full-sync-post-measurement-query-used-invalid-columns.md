@@ -1,7 +1,7 @@
 ## Bug: Full Sync Post-Measurement Query Used Invalid Columns <status>not_started</status> <passes>false</passes> <priority>medium</priority>
 
 <description>
-During Story 10 Task 1 full-sync post-run measurement for run `20260427-044908`,
+During Story 010 Task 01 full-sync post-run measurement for run `20260427-044908`,
 the first post-sync evidence command guessed two column names that do not exist
 in the current schema:
 
@@ -36,3 +36,7 @@ Red-Green TDD until it does work.
 - [ ] `make lint` — passes cleanly
 - [ ] If this bug impacts ultra-long tests (or their selection): `make test-long` — passes cleanly (ultra-long-only)
 </acceptance_criteria>
+
+Plan: `.ralph/tasks/bugs/bug-full-sync-post-measurement-query-used-invalid-columns_plans/schema-backed-post-measurement-plan.md`
+
+NOW EXECUTE

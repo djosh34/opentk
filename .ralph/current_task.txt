@@ -1,0 +1,1 @@
+.ralph/tasks/bugs/bug-full-sync-post-measurement-query-used-invalid-columns.md

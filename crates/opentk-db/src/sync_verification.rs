@@ -1,3 +1,4 @@
+use chrono::{DateTime, Utc};
 use opentk_core::official_schema;
 use opentk_sync::runner::CategorySyncState;
 use sqlx::{PgPool, Row};
@@ -19,6 +20,8 @@ pub struct SyncVerificationReport {
     pub direct_queries: Vec<DirectQueryVerification>,
     pub table_snapshots: Vec<TableSnapshot>,
     pub storage: StorageVerification,
+    pub ingest_error_count: i64,
+    pub recent_ingest_errors: Vec<IngestErrorVerification>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -45,6 +48,17 @@ pub struct RelationVerification {
 pub struct DirectQueryVerification {
     pub name: String,
     pub rows: i64,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct IngestErrorVerification {
+    pub id: i64,
+    pub phase: String,
+    pub source_category: String,
+    pub source_id: Option<Uuid>,
+    pub latest_skiptoken: Option<i64>,
+    pub message: String,
+    pub created_at: DateTime<Utc>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -132,6 +146,7 @@ pub async fn verify_sync_database(
     let direct_queries = verify_direct_queries(pool, &categories).await?;
     let table_snapshots = snapshot_tables(pool, &schema).await?;
     let storage = verify_storage(pool, &schema).await?;
+    let (ingest_error_count, recent_ingest_errors) = verify_ingest_errors(pool).await?;
 
     Ok(SyncVerificationReport {
         categories: category_reports,
@@ -139,6 +154,8 @@ pub async fn verify_sync_database(
         direct_queries,
         table_snapshots,
         storage,
+        ingest_error_count,
+        recent_ingest_errors,
     })
 }
 
@@ -454,6 +471,44 @@ async fn verify_storage(
         binary_asset_metadata_rows,
         document_content_rows,
     })
+}
+
+async fn verify_ingest_errors(
+    pool: &PgPool,
+) -> Result<(i64, Vec<IngestErrorVerification>), SyncVerificationError> {
+    let count = sqlx::query_scalar("SELECT count(*)::bigint FROM ingest_error")
+        .fetch_one(pool)
+        .await?;
+    let rows = sqlx::query(
+        r"
+        SELECT id,
+               phase,
+               source_category,
+               source_id,
+               latest_skiptoken,
+               message,
+               created_at
+        FROM ingest_error
+        ORDER BY created_at DESC, id DESC
+        LIMIT 20
+        ",
+    )
+    .fetch_all(pool)
+    .await?;
+    let recent_errors = rows
+        .into_iter()
+        .map(|row| IngestErrorVerification {
+            id: row.get("id"),
+            phase: row.get("phase"),
+            source_category: row.get("source_category"),
+            source_id: row.get("source_id"),
+            latest_skiptoken: row.get("latest_skiptoken"),
+            message: row.get("message"),
+            created_at: row.get("created_at"),
+        })
+        .collect();
+
+    Ok((count, recent_errors))
 }
 
 async fn count_category_rows(

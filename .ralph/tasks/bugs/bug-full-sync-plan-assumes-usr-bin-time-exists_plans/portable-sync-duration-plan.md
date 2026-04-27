@@ -4,7 +4,7 @@ Task: `.ralph/tasks/bugs/bug-full-sync-plan-assumes-usr-bin-time-exists.md`
 
 ## Goal
 
-Fix the Story 10 full-sync operational plan so it no longer depends on
+Fix the Story 010 full-sync operational plan so it no longer depends on
 `/usr/bin/time` being installed. The operational command must measure start
 time, end time, duration, and command status using shell facilities available in
 the execution environment, while preserving the rule that sync failures are
@@ -15,7 +15,7 @@ visible and become add-bug tasks.
 - Public sync interface remains:
   `cargo run -p opentk-db --bin opentk-sync -- --config <config> run`
 - The affected boundary is the one-time Ralph operational plan:
-  `.ralph/tasks/story-10-full-sync-backup/task-1-run-one-time-clean-full-sync-report_plans/one-time-clean-full-sync-report-plan.md`
+  `.ralph/tasks/story-010-full-sync-backup/task-01-run-one-time-clean-full-sync-report_plans/one-time-clean-full-sync-report-plan.md`
 - No product code, CLI command, helper script, or test that scans `.ralph` files
   should be added. `AGENTS.md` says not to test `.ralph/` files, and this is a
   planning defect, not application behavior.
@@ -34,7 +34,7 @@ Use red-green at the operational boundary without adding a checked-in test for
    It should fail with status 127 when `/usr/bin/time` is missing. If it does not
    fail because the environment changed, keep the historical log as the bug
    evidence and continue because the plan still must not assume that path.
-3. Green: replace the Story 10 plan's sync timing step with explicit POSIX-ish
+3. Green: replace the Story 010 plan's sync timing step with explicit POSIX-ish
    shell timestamp arithmetic using `date +%s`, `date -Is`, `COMMAND_STATUS`,
    and an explicit `exit "$COMMAND_STATUS"` after recording all evidence.
 4. Green verification: run the new wrapper around a harmless command such as
@@ -70,7 +70,7 @@ exit "${COMMAND_STATUS}"
 
 Keep this in the plan as an operator command block, not a new script. The command
 must not mask the sync exit status, and any non-zero status still follows the
-existing Story 10 failure path: file add-bug with command, stdout/stderr,
+existing Story 010 failure path: file add-bug with command, stdout/stderr,
 database target, timestamps, and observed state, then stop.
 
 ## Execution Checklist
@@ -81,7 +81,7 @@ database target, timestamps, and observed state, then stop.
 - [x] Red: run `/bin/bash -lc '/usr/bin/time true'` and record whether the
   current environment still reproduces the missing binary.
 - [x] Green: edit
-  `.ralph/tasks/story-10-full-sync-backup/task-1-run-one-time-clean-full-sync-report_plans/one-time-clean-full-sync-report-plan.md`
+  `.ralph/tasks/story-010-full-sync-backup/task-01-run-one-time-clean-full-sync-report_plans/one-time-clean-full-sync-report-plan.md`
   so the sync run step uses explicit timestamp arithmetic and preserves
   `COMMAND_STATUS`.
 - [x] Green: update
@@ -93,7 +93,7 @@ database target, timestamps, and observed state, then stop.
   - [x] Failure case around `false` exits 1 while still printing all evidence and
     `COMMAND_STATUS=1`.
 - [x] Grep current operational instructions for forbidden assumptions:
-  - [x] `rg -n "/usr/bin/time|time cargo run" .ralph/tasks/story-10-full-sync-backup/task-1-run-one-time-clean-full-sync-report_plans/one-time-clean-full-sync-report-plan.md`
+  - [x] `rg -n "/usr/bin/time|time cargo run" .ralph/tasks/story-010-full-sync-backup/task-01-run-one-time-clean-full-sync-report_plans/one-time-clean-full-sync-report-plan.md`
     returns no matches.
 - [ ] Final improve-code-boundaries review:
   - [x] No product code, helper script, or one-off abstraction was added.

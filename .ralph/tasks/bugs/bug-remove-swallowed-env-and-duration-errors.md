@@ -1,7 +1,7 @@
 ## Bug: Remove Swallowed Env And Duration Errors <status>completed</status> <passes>true</passes> <priority>high</priority>
 
 <description>
-Final boundary review for Story 3 Task 1 detected pre-existing swallowed errors outside the new API path:
+Final boundary review for Story 03 Task 01 detected pre-existing swallowed errors outside the new API path:
 
 - `crates/opentk-db/src/bin/complete-sync.rs` uses `std::env::var("DATABASE_URL").ok()` while resolving database configuration, which hides invalid Unicode environment variable errors.
 - `crates/opentk-db/src/sync_state.rs` uses `.to_std().ok()` while converting lag duration, which hides negative/invalid duration conversion errors.
