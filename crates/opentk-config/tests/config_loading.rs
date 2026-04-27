@@ -544,7 +544,7 @@ fn github_docker_workflow_caches_cargo_targets_layers_and_final_assembly() {
         "--cache-to \"type=gha,scope=opentk-scratch-artifacts,mode=max\"",
         "--cache-from \"type=gha,scope=opentk-scratch-${binary}\"",
         "--cache-to \"type=gha,scope=opentk-scratch-${binary},mode=max\"",
-        "opentk-scratch-final-target",
+        "opentk-scratch-target",
     ] {
         assert!(
             job_contains(build, required) || artifacts.contains(required),
@@ -554,8 +554,7 @@ fn github_docker_workflow_caches_cargo_targets_layers_and_final_assembly() {
     for required in [
         "--mount=type=cache,target=/usr/local/cargo/registry",
         "--mount=type=cache,target=/usr/local/cargo/git",
-        "--mount=type=cache,id=opentk-scratch-deps-target,target=/workspace/target-deps",
-        "--mount=type=cache,id=opentk-scratch-final-target,target=/workspace/target",
+        "--mount=type=cache,id=opentk-scratch-target,target=/workspace/target",
     ] {
         assert!(
             artifacts.contains(required),
@@ -632,13 +631,10 @@ fn assert_scratch_artifact_dockerfile_contract(artifacts: &str) {
         "FROM --platform=${BUILDPLATFORM} rust:1-bookworm AS builder",
         "--mount=type=cache,target=/usr/local/cargo/registry",
         "--mount=type=cache,target=/usr/local/cargo/git",
-        "--mount=type=cache,id=opentk-scratch-deps-target,target=/workspace/target-deps",
-        "--mount=type=cache,id=opentk-scratch-final-target,target=/workspace/target",
+        "--mount=type=cache,id=opentk-scratch-target,target=/workspace/target",
         "rustup target add x86_64-unknown-linux-musl aarch64-unknown-linux-musl",
-        "cargo build --release --target x86_64-unknown-linux-musl -p opentk-db --bin opentk-sync",
-        "cargo build --release --target x86_64-unknown-linux-musl -p opentk-api --bin opentk-api",
-        "cargo build --release --target aarch64-unknown-linux-musl -p opentk-db --bin opentk-sync",
-        "cargo build --release --target aarch64-unknown-linux-musl -p opentk-api --bin opentk-api",
+        "cargo build --release --target x86_64-unknown-linux-musl -p opentk-db -p opentk-api --bin opentk-sync --bin opentk-api",
+        "cargo build --release --target aarch64-unknown-linux-musl -p opentk-db -p opentk-api --bin opentk-sync --bin opentk-api",
         "/artifacts/x86_64-unknown-linux-musl/opentk-sync",
         "/artifacts/x86_64-unknown-linux-musl/opentk-api",
         "/artifacts/aarch64-unknown-linux-musl/opentk-sync",
@@ -648,6 +644,16 @@ fn assert_scratch_artifact_dockerfile_contract(artifacts: &str) {
         assert!(
             artifacts.contains(required),
             "artifact Dockerfile should contain {required}"
+        );
+    }
+    for forbidden in [
+        "target-deps",
+        "opentk-scratch-deps-target",
+        "opentk-scratch-final-target",
+    ] {
+        assert!(
+            !artifacts.contains(forbidden),
+            "artifact Dockerfile should avoid duplicate target cache {forbidden}"
         );
     }
 }
