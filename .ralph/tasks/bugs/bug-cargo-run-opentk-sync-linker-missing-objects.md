@@ -1,4 +1,4 @@
-## Bug: cargo run opentk-sync can fail linking with missing target object files <status>not_started</status> <passes>false</passes> <priority>medium</priority>
+## Bug: cargo run opentk-sync can fail linking with missing target object files <status>done</status> <passes>true</passes> <priority>medium</priority>
 
 <description>
 While executing Story 10 Task 1 on 2026-04-26, the preliminary command
@@ -29,11 +29,13 @@ Then verify if bug still holds. If yes, create new Red test, and continue with R
 </mandatory_red_green_tdd>
 
 <acceptance_criteria>
-- [ ] I created a Red unit and/or integration test that captures the bug
-- [ ] I made the test green by fixing
-- [ ] I manually verified the bug, and created a new Red test if not working still
-- [ ] `make check` — passes cleanly
-- [ ] `make test` — passes cleanly (default suite; excludes only ultra-long tests moved to `make test-long`)
-- [ ] `make lint` — passes cleanly
+- [x] I created a Red unit and/or integration test that captures the bug
+- [x] I made the test green by fixing
+- [x] I manually verified the bug, and created a new Red test if not working still
+- [x] `make check` — passes cleanly
+- [x] `make test` — passes cleanly (default suite; excludes only ultra-long tests moved to `make test-long`)
+- [x] `make lint` — passes cleanly
 - [ ] If this bug impacts ultra-long tests (or their selection): `make test-long` — passes cleanly (ultra-long-only)
 </acceptance_criteria>
+
+.ralph/tasks/bugs/bug-cargo-run-opentk-sync-linker-missing-objects_plans/opentk-sync-cargo-run-linker-plan.md

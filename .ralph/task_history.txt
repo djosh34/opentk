@@ -36,3 +36,4 @@
 .ralph/tasks/bugs/bug-full-sync-toezegging-initial-feed-timeout.md
 .ralph/tasks/bugs/bug-full-sync-toezegging-initial-feed-timeout.md
 .ralph/tasks/bugs/full-sync-fails-on-persoon-verwijderd-true.md
+.ralph/tasks/bugs/bug-cargo-run-opentk-sync-linker-missing-objects.md
