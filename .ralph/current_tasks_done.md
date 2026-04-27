@@ -1,6 +1,6 @@
 # Done Tasks Summary
 
-Generated: Mon Apr 27 08:13:47 PM CEST 2026
+Generated: Mon Apr 27 20:19:15 CEST 2026
 
 # Task `/home/joshazimullah.linux/work_mounts/patroni_rewrite/opentk/.ralph/tasks/bugs/bug-cargo-run-opentk-sync-linker-missing-objects.md`
 
@@ -10,6 +10,17 @@ Generated: Mon Apr 27 08:13:47 PM CEST 2026
 <description>
 While executing Story 10 Task 01 on 2026-04-26, the preliminary command
 `cargo run -p opentk-db --bin opentk-sync -- --help` failed before any sync work
+```
+
+==============
+
+# Task `/home/joshazimullah.linux/work_mounts/patroni_rewrite/opentk/.ralph/tasks/bugs/bug-docker-workflow-oci-archive-has-multiple-images.md`
+
+```
+## Bug: Docker Workflow OCI Archive Has Multiple Images <status>done</status> <passes>true</passes> <priority>ultra high</priority>
+
+<description>
+The Docker publishing workflow fails while initializing an OCI archive:
 ```
 
 ==============
