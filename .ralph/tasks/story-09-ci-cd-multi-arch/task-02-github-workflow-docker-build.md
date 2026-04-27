@@ -49,3 +49,9 @@ In scope: docker workflow, buildx, registry auth, tagging, cache, GHCR publish s
 - [ ] `make test` — passes cleanly (default suite)
 - [ ] `make lint` — passes cleanly
 </acceptance_criteria>
+
+<plan>
+.ralph/tasks/story-09-ci-cd-multi-arch/task-02-github-workflow-docker-build_plans/plan-01-github-docker-workflow.md
+</plan>
+
+NOW EXECUTE

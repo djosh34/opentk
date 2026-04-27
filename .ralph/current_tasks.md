@@ -1,6 +1,17 @@
 # Current Tasks Summary
 
-Generated: Mon Apr 27 13:45:24 CEST 2026
+Generated: Mon Apr 27 02:07:01 PM CEST 2026
+
+# Task `/home/joshazimullah.linux/work_mounts/patroni_rewrite/opentk/.ralph/tasks/bugs/bug-github-api-curl-bad-credentials.md`
+
+```
+## Bug: GitHub API Curl Wrapper Has Bad Credentials <status>not_started</status> <passes>false</passes> <priority>high</priority>
+
+<description>
+The required GitHub workflow verification path is broken.
+```
+
+==============
 
 # Task `/home/joshazimullah.linux/work_mounts/patroni_rewrite/opentk/.ralph/tasks/story-09-ci-cd-multi-arch/task-02-github-workflow-docker-build.md`
 

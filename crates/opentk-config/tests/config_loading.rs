@@ -448,6 +448,150 @@ fn scratch_docker_build_contract_uses_prebuilt_multi_arch_artifacts() {
     assert_scratch_docs_contract();
 }
 
+#[test]
+fn github_docker_workflow_declares_trigger_contract() {
+    let workflow = docker_workflow();
+    let on = path_mapping(&workflow, "on");
+    let push = path_mapping(on, "push");
+
+    assert_sequence_contains(push, "branches", "main");
+    assert_sequence_contains(push, "tags", "v*");
+    assert!(
+        on.contains_key(YamlValue::String("workflow_dispatch".to_owned())),
+        "Docker workflow should support manual dispatch"
+    );
+}
+
+#[test]
+fn github_docker_workflow_splits_build_from_publish_auth() {
+    let workflow = docker_workflow();
+    let jobs = path_mapping(&workflow, "jobs");
+    let build = path_mapping(jobs, "build");
+    let publish = path_mapping(jobs, "publish");
+
+    assert_eq!(scalar(build, "runs-on"), "ubuntu-24.04");
+    assert_eq!(scalar(publish, "runs-on"), "ubuntu-24.04");
+    assert_eq!(scalar(publish, "needs"), "build");
+    assert!(
+        !job_contains(build, "ghcr.io") && !job_contains(build, "docker/login-action"),
+        "build job must not authenticate to GHCR"
+    );
+    assert!(
+        job_contains(publish, "ghcr.io") && job_contains(publish, "docker/login-action"),
+        "publish job must authenticate to GHCR"
+    );
+}
+
+#[test]
+fn github_docker_workflow_builds_scratch_images_from_repository_dockerfiles() {
+    let workflow = docker_workflow();
+    let jobs = path_mapping(&workflow, "jobs");
+    let build = path_mapping(jobs, "build");
+
+    for required in [
+        "docker/setup-buildx-action",
+        "docker/Dockerfile.scratch-artifacts",
+        "docker/Dockerfile.scratch",
+        "opentk-sync",
+        "opentk-api",
+        "linux/amd64,linux/arm64",
+        "--build-arg \"BINARY=${binary}\"",
+        "--build-arg \"ARTIFACT_IMAGE=${artifact_image}\"",
+        "type=oci,dest=/tmp/${binary}.oci.tar",
+        "actions/upload-artifact",
+    ] {
+        assert!(
+            job_contains(build, required),
+            "build job should contain {required}"
+        );
+    }
+}
+
+#[test]
+fn github_docker_workflow_uses_native_cross_compilation_without_qemu() {
+    let workflow = fs::read_to_string(workspace_path(".github/workflows/docker.yml"))
+        .expect("Docker GitHub workflow should exist");
+    let workflow: YamlValue =
+        serde_yaml::from_str(&workflow).expect("Docker GitHub workflow parses as yaml");
+    let workflow_text = serde_yaml::to_string(&workflow).expect("workflow serializes");
+    let workflow = workflow
+        .as_mapping()
+        .expect("Docker GitHub workflow should be a mapping");
+    let build = path_mapping(path_mapping(workflow, "jobs"), "build");
+
+    for forbidden in ["setup-qemu", "docker/setup-qemu-action", "qemu", "emulat"] {
+        assert!(
+            !workflow_text.to_lowercase().contains(forbidden),
+            "Docker workflow must not contain {forbidden}"
+        );
+    }
+    assert!(
+        job_contains(build, "--platform linux/amd64")
+            && job_contains(build, "docker/Dockerfile.scratch-artifacts"),
+        "artifact build should run once from the native amd64 runner and cross-compile both targets"
+    );
+}
+
+#[test]
+fn github_docker_workflow_caches_cargo_targets_layers_and_final_assembly() {
+    let artifacts = fs::read_to_string(workspace_path("docker/Dockerfile.scratch-artifacts"))
+        .expect("scratch artifact Dockerfile should exist");
+    let workflow = docker_workflow();
+    let build = path_mapping(path_mapping(&workflow, "jobs"), "build");
+
+    for required in [
+        "--cache-from \"type=gha,scope=opentk-scratch-artifacts\"",
+        "--cache-to \"type=gha,scope=opentk-scratch-artifacts,mode=max\"",
+        "--cache-from \"type=gha,scope=opentk-scratch-${binary}\"",
+        "--cache-to \"type=gha,scope=opentk-scratch-${binary},mode=max\"",
+        "opentk-scratch-final-target",
+    ] {
+        assert!(
+            job_contains(build, required) || artifacts.contains(required),
+            "workflow cache contract should contain {required}"
+        );
+    }
+    for required in [
+        "--mount=type=cache,target=/usr/local/cargo/registry",
+        "--mount=type=cache,target=/usr/local/cargo/git",
+        "--mount=type=cache,id=opentk-scratch-deps-target,target=/workspace/target-deps",
+        "--mount=type=cache,id=opentk-scratch-final-target,target=/workspace/target",
+    ] {
+        assert!(
+            artifacts.contains(required),
+            "artifact Dockerfile cache contract should contain {required}"
+        );
+    }
+}
+
+#[test]
+fn github_docker_workflow_publishes_oci_artifacts_with_main_sha_and_release_tags() {
+    let workflow = docker_workflow();
+    let publish = path_mapping(path_mapping(&workflow, "jobs"), "publish");
+
+    for required in [
+        "actions/download-artifact",
+        "scratch-image-oci-archives",
+        "apt-get install -y --no-install-recommends skopeo",
+        "oci-archive:${binary}.oci.tar",
+        "docker://ghcr.io/${owner}/${binary}:${tag}",
+        "latest",
+        "sha-${short_sha}",
+        "${GITHUB_REF_NAME}",
+        "refs/heads/main",
+        "refs/tags/v",
+    ] {
+        assert!(
+            job_contains(publish, required),
+            "publish job should contain {required}"
+        );
+    }
+    assert!(
+        !job_contains(publish, "docker buildx build"),
+        "publish job must not rebuild images"
+    );
+}
+
 fn assert_scratch_dockerfile_contract(scratch: &str) {
     for required in [
         "ARG BINARY",
@@ -609,6 +753,17 @@ fn workspace_path(path: &str) -> PathBuf {
         .join(path)
 }
 
+fn docker_workflow() -> serde_yaml::Mapping {
+    let workflow = fs::read_to_string(workspace_path(".github/workflows/docker.yml"))
+        .expect("Docker GitHub workflow should exist");
+    let workflow: YamlValue =
+        serde_yaml::from_str(&workflow).expect("Docker GitHub workflow parses as yaml");
+    workflow
+        .as_mapping()
+        .expect("Docker GitHub workflow should be a mapping")
+        .clone()
+}
+
 fn service<'a>(services: &'a serde_yaml::Mapping, name: &'static str) -> &'a serde_yaml::Mapping {
     services
         .get(YamlValue::String(name.to_owned()))
@@ -666,4 +821,11 @@ fn depends_condition<'a>(
         .and_then(YamlValue::as_mapping)
         .and_then(|dependency| dependency.get(YamlValue::String("condition".to_owned())))
         .and_then(YamlValue::as_str)
+}
+
+fn job_contains(job: &serde_yaml::Mapping, needle: &str) -> bool {
+    let job = YamlValue::Mapping(job.clone());
+    serde_yaml::to_string(&job)
+        .expect("job serializes")
+        .contains(needle)
 }
