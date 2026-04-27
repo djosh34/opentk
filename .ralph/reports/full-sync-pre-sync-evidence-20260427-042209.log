@@ -1,0 +1,777 @@
+COMMAND: SELECT current_database(), current_user, inet_server_addr(), inet_server_port(), version();
+         current_database         | current_user | inet_server_addr | inet_server_port |                                                     version                                                     
+----------------------------------+--------------+------------------+------------------+-----------------------------------------------------------------------------------------------------------------
+ opentk_full_sync_20260427_042209 | postgres     | 127.0.0.1        |            55432 | PostgreSQL 16.11 on aarch64-redhat-linux-gnu, compiled by gcc (GCC) 11.5.0 20240719 (Red Hat 11.5.0-11), 64-bit
+(1 row)
+
+COMMAND: SELECT pg_database_size(current_database()), pg_size_pretty(pg_database_size(current_database()));
+ size_bytes | pretty_size 
+------------+-------------
+   15528419 | 15 MB
+(1 row)
+
+COMMAND: SELECT migration evidence (manual checked-in migration)
+         applied_migration         |                    checksum_evidence                    
+-----------------------------------+---------------------------------------------------------
+ 20260426000000_sync_schema.up.sql | see sha256sum in full-sync-db-setup-20260427-042209.log
+(1 row)
+
+COMMAND: all public table row counts before sync
+ schemaname |                      table_name                      | estimated_rows 
+------------+------------------------------------------------------+----------------
+ public     | activiteit                                           |              0
+ public     | activiteit__vervangen_vanuit                         |              0
+ public     | activiteit__voortgezet_vanuit                        |              0
+ public     | activiteit__voortouwcommissie                        |              0
+ public     | activiteit_actor                                     |              0
+ public     | activiteit_actor__activiteit                         |              0
+ public     | activiteit_actor__commissie                          |              0
+ public     | activiteit_actor__fractie                            |              0
+ public     | activiteit_actor__persoon                            |              0
+ public     | agendapunt                                           |              0
+ public     | agendapunt__activiteit                               |              0
+ public     | besluit                                              |              0
+ public     | besluit__agendapunt                                  |              0
+ public     | besluit__zaak                                        |              0
+ public     | commissie                                            |              0
+ public     | commissie_contactinformatie                          |              0
+ public     | commissie_contactinformatie__commissie               |              0
+ public     | commissie_zetel                                      |              0
+ public     | commissie_zetel__commissie                           |              0
+ public     | commissie_zetel_vast_persoon                         |              0
+ public     | commissie_zetel_vast_persoon__commissie_zetel        |              0
+ public     | commissie_zetel_vast_persoon__persoon                |              0
+ public     | commissie_zetel_vast_vacature                        |              0
+ public     | commissie_zetel_vast_vacature__commissie_zetel       |              0
+ public     | commissie_zetel_vast_vacature__fractie               |              0
+ public     | commissie_zetel_vervanger_persoon                    |              0
+ public     | commissie_zetel_vervanger_persoon__commissie_zetel   |              0
+ public     | commissie_zetel_vervanger_persoon__persoon           |              0
+ public     | commissie_zetel_vervanger_vacature                   |              0
+ public     | commissie_zetel_vervanger_vacature__commissie_zetel  |              0
+ public     | commissie_zetel_vervanger_vacature__fractie          |              0
+ public     | document                                             |              0
+ public     | document__activiteit                                 |              0
+ public     | document__agendapunt                                 |              0
+ public     | document__bron_document                              |              0
+ public     | document__huidige_document_versie                    |              0
+ public     | document__kamerstukdossier                           |              0
+ public     | document__zaak                                       |              0
+ public     | document_actor                                       |              0
+ public     | document_actor__commissie                            |              0
+ public     | document_actor__document                             |              0
+ public     | document_actor__fractie                              |              0
+ public     | document_actor__persoon                              |              0
+ public     | document_asset                                       |              0
+ public     | document_content                                     |              0
+ public     | document_versie                                      |              0
+ public     | document_versie__document                            |              0
+ public     | fractie                                              |              0
+ public     | fractie_zetel                                        |              0
+ public     | fractie_zetel__fractie                               |              0
+ public     | fractie_zetel_persoon                                |              0
+ public     | fractie_zetel_persoon__fractie_zetel                 |              0
+ public     | fractie_zetel_persoon__persoon                       |              0
+ public     | fractie_zetel_vacature                               |              0
+ public     | fractie_zetel_vacature__fractie_zetel                |              0
+ public     | ingest_error                                         |              0
+ public     | kamerstukdossier                                     |              0
+ public     | persoon                                              |              0
+ public     | persoon_contactinformatie                            |              0
+ public     | persoon_contactinformatie__persoon                   |              0
+ public     | persoon_geschenk                                     |              0
+ public     | persoon_geschenk__persoon                            |              0
+ public     | persoon_loopbaan                                     |              0
+ public     | persoon_loopbaan__persoon                            |              0
+ public     | persoon_nevenfunctie                                 |              0
+ public     | persoon_nevenfunctie__persoon                        |              0
+ public     | persoon_nevenfunctie_inkomsten                       |              0
+ public     | persoon_nevenfunctie_inkomsten__persoon_nevenfunctie |              0
+ public     | persoon_onderwijs                                    |              0
+ public     | persoon_onderwijs__persoon                           |              0
+ public     | persoon_reis                                         |              0
+ public     | persoon_reis__persoon                                |              0
+ public     | reservering                                          |              0
+ public     | reservering__activiteit                              |              0
+ public     | reservering__zaal                                    |              0
+ public     | search_index_cursor                                  |              0
+ public     | search_index_failure                                 |              0
+ public     | stemming                                             |              0
+ public     | stemming__besluit                                    |              0
+ public     | stemming__fractie                                    |              0
+ public     | stemming__persoon                                    |              0
+ public     | sync_category                                        |              0
+ public     | sync_entity                                          |              0
+ public     | toezegging                                           |              0
+ public     | toezegging__activiteit                               |              0
+ public     | toezegging__is_aanvulling_op                         |              0
+ public     | toezegging__is_herhaling_van                         |              0
+ public     | toezegging__is_wijziging_van                         |              0
+ public     | toezegging__kamerbrief_nakoming                      |              0
+ public     | toezegging__toegezegd_aan                            |              0
+ public     | toezegging__toegezegd_aan_fractie                    |              0
+ public     | toezegging__toegezegd_aan_persoon                    |              0
+ public     | vergadering                                          |              0
+ public     | verslag                                              |              0
+ public     | verslag__vergadering                                 |              0
+ public     | zaak                                                 |              0
+ public     | zaak__activiteit                                     |              0
+ public     | zaak__agendapunt                                     |              0
+ public     | zaak__gerelateerd_vanuit                             |              0
+ public     | zaak__kamerstukdossier                               |              0
+ public     | zaak__vervangen_vanuit                               |              0
+ public     | zaak_actor                                           |              0
+ public     | zaak_actor__commissie                                |              0
+ public     | zaak_actor__fractie                                  |              0
+ public     | zaak_actor__persoon                                  |              0
+ public     | zaak_actor__zaak                                     |              0
+ public     | zaal                                                 |              0
+(107 rows)
+
+COMMAND: exact row counts for all public tables before sync
+                                                                                 format                                                                                 
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ SELECT 'public.activiteit' AS table_name, count(*) AS rows FROM public.activiteit;
+ SELECT 'public.activiteit__vervangen_vanuit' AS table_name, count(*) AS rows FROM public.activiteit__vervangen_vanuit;
+ SELECT 'public.activiteit__voortgezet_vanuit' AS table_name, count(*) AS rows FROM public.activiteit__voortgezet_vanuit;
+ SELECT 'public.activiteit__voortouwcommissie' AS table_name, count(*) AS rows FROM public.activiteit__voortouwcommissie;
+ SELECT 'public.activiteit_actor' AS table_name, count(*) AS rows FROM public.activiteit_actor;
+ SELECT 'public.activiteit_actor__activiteit' AS table_name, count(*) AS rows FROM public.activiteit_actor__activiteit;
+ SELECT 'public.activiteit_actor__commissie' AS table_name, count(*) AS rows FROM public.activiteit_actor__commissie;
+ SELECT 'public.activiteit_actor__fractie' AS table_name, count(*) AS rows FROM public.activiteit_actor__fractie;
+ SELECT 'public.activiteit_actor__persoon' AS table_name, count(*) AS rows FROM public.activiteit_actor__persoon;
+ SELECT 'public.agendapunt' AS table_name, count(*) AS rows FROM public.agendapunt;
+ SELECT 'public.agendapunt__activiteit' AS table_name, count(*) AS rows FROM public.agendapunt__activiteit;
+ SELECT 'public.besluit' AS table_name, count(*) AS rows FROM public.besluit;
+ SELECT 'public.besluit__agendapunt' AS table_name, count(*) AS rows FROM public.besluit__agendapunt;
+ SELECT 'public.besluit__zaak' AS table_name, count(*) AS rows FROM public.besluit__zaak;
+ SELECT 'public.commissie' AS table_name, count(*) AS rows FROM public.commissie;
+ SELECT 'public.commissie_contactinformatie' AS table_name, count(*) AS rows FROM public.commissie_contactinformatie;
+ SELECT 'public.commissie_contactinformatie__commissie' AS table_name, count(*) AS rows FROM public.commissie_contactinformatie__commissie;
+ SELECT 'public.commissie_zetel' AS table_name, count(*) AS rows FROM public.commissie_zetel;
+ SELECT 'public.commissie_zetel__commissie' AS table_name, count(*) AS rows FROM public.commissie_zetel__commissie;
+ SELECT 'public.commissie_zetel_vast_persoon' AS table_name, count(*) AS rows FROM public.commissie_zetel_vast_persoon;
+ SELECT 'public.commissie_zetel_vast_persoon__commissie_zetel' AS table_name, count(*) AS rows FROM public.commissie_zetel_vast_persoon__commissie_zetel;
+ SELECT 'public.commissie_zetel_vast_persoon__persoon' AS table_name, count(*) AS rows FROM public.commissie_zetel_vast_persoon__persoon;
+ SELECT 'public.commissie_zetel_vast_vacature' AS table_name, count(*) AS rows FROM public.commissie_zetel_vast_vacature;
+ SELECT 'public.commissie_zetel_vast_vacature__commissie_zetel' AS table_name, count(*) AS rows FROM public.commissie_zetel_vast_vacature__commissie_zetel;
+ SELECT 'public.commissie_zetel_vast_vacature__fractie' AS table_name, count(*) AS rows FROM public.commissie_zetel_vast_vacature__fractie;
+ SELECT 'public.commissie_zetel_vervanger_persoon' AS table_name, count(*) AS rows FROM public.commissie_zetel_vervanger_persoon;
+ SELECT 'public.commissie_zetel_vervanger_persoon__commissie_zetel' AS table_name, count(*) AS rows FROM public.commissie_zetel_vervanger_persoon__commissie_zetel;
+ SELECT 'public.commissie_zetel_vervanger_persoon__persoon' AS table_name, count(*) AS rows FROM public.commissie_zetel_vervanger_persoon__persoon;
+ SELECT 'public.commissie_zetel_vervanger_vacature' AS table_name, count(*) AS rows FROM public.commissie_zetel_vervanger_vacature;
+ SELECT 'public.commissie_zetel_vervanger_vacature__commissie_zetel' AS table_name, count(*) AS rows FROM public.commissie_zetel_vervanger_vacature__commissie_zetel;
+ SELECT 'public.commissie_zetel_vervanger_vacature__fractie' AS table_name, count(*) AS rows FROM public.commissie_zetel_vervanger_vacature__fractie;
+ SELECT 'public.document' AS table_name, count(*) AS rows FROM public.document;
+ SELECT 'public.document__activiteit' AS table_name, count(*) AS rows FROM public.document__activiteit;
+ SELECT 'public.document__agendapunt' AS table_name, count(*) AS rows FROM public.document__agendapunt;
+ SELECT 'public.document__bron_document' AS table_name, count(*) AS rows FROM public.document__bron_document;
+ SELECT 'public.document__huidige_document_versie' AS table_name, count(*) AS rows FROM public.document__huidige_document_versie;
+ SELECT 'public.document__kamerstukdossier' AS table_name, count(*) AS rows FROM public.document__kamerstukdossier;
+ SELECT 'public.document__zaak' AS table_name, count(*) AS rows FROM public.document__zaak;
+ SELECT 'public.document_actor' AS table_name, count(*) AS rows FROM public.document_actor;
+ SELECT 'public.document_actor__commissie' AS table_name, count(*) AS rows FROM public.document_actor__commissie;
+ SELECT 'public.document_actor__document' AS table_name, count(*) AS rows FROM public.document_actor__document;
+ SELECT 'public.document_actor__fractie' AS table_name, count(*) AS rows FROM public.document_actor__fractie;
+ SELECT 'public.document_actor__persoon' AS table_name, count(*) AS rows FROM public.document_actor__persoon;
+ SELECT 'public.document_asset' AS table_name, count(*) AS rows FROM public.document_asset;
+ SELECT 'public.document_content' AS table_name, count(*) AS rows FROM public.document_content;
+ SELECT 'public.document_versie' AS table_name, count(*) AS rows FROM public.document_versie;
+ SELECT 'public.document_versie__document' AS table_name, count(*) AS rows FROM public.document_versie__document;
+ SELECT 'public.fractie' AS table_name, count(*) AS rows FROM public.fractie;
+ SELECT 'public.fractie_zetel' AS table_name, count(*) AS rows FROM public.fractie_zetel;
+ SELECT 'public.fractie_zetel__fractie' AS table_name, count(*) AS rows FROM public.fractie_zetel__fractie;
+ SELECT 'public.fractie_zetel_persoon' AS table_name, count(*) AS rows FROM public.fractie_zetel_persoon;
+ SELECT 'public.fractie_zetel_persoon__fractie_zetel' AS table_name, count(*) AS rows FROM public.fractie_zetel_persoon__fractie_zetel;
+ SELECT 'public.fractie_zetel_persoon__persoon' AS table_name, count(*) AS rows FROM public.fractie_zetel_persoon__persoon;
+ SELECT 'public.fractie_zetel_vacature' AS table_name, count(*) AS rows FROM public.fractie_zetel_vacature;
+ SELECT 'public.fractie_zetel_vacature__fractie_zetel' AS table_name, count(*) AS rows FROM public.fractie_zetel_vacature__fractie_zetel;
+ SELECT 'public.ingest_error' AS table_name, count(*) AS rows FROM public.ingest_error;
+ SELECT 'public.kamerstukdossier' AS table_name, count(*) AS rows FROM public.kamerstukdossier;
+ SELECT 'public.persoon' AS table_name, count(*) AS rows FROM public.persoon;
+ SELECT 'public.persoon_contactinformatie' AS table_name, count(*) AS rows FROM public.persoon_contactinformatie;
+ SELECT 'public.persoon_contactinformatie__persoon' AS table_name, count(*) AS rows FROM public.persoon_contactinformatie__persoon;
+ SELECT 'public.persoon_geschenk' AS table_name, count(*) AS rows FROM public.persoon_geschenk;
+ SELECT 'public.persoon_geschenk__persoon' AS table_name, count(*) AS rows FROM public.persoon_geschenk__persoon;
+ SELECT 'public.persoon_loopbaan' AS table_name, count(*) AS rows FROM public.persoon_loopbaan;
+ SELECT 'public.persoon_loopbaan__persoon' AS table_name, count(*) AS rows FROM public.persoon_loopbaan__persoon;
+ SELECT 'public.persoon_nevenfunctie' AS table_name, count(*) AS rows FROM public.persoon_nevenfunctie;
+ SELECT 'public.persoon_nevenfunctie__persoon' AS table_name, count(*) AS rows FROM public.persoon_nevenfunctie__persoon;
+ SELECT 'public.persoon_nevenfunctie_inkomsten' AS table_name, count(*) AS rows FROM public.persoon_nevenfunctie_inkomsten;
+ SELECT 'public.persoon_nevenfunctie_inkomsten__persoon_nevenfunctie' AS table_name, count(*) AS rows FROM public.persoon_nevenfunctie_inkomsten__persoon_nevenfunctie;
+ SELECT 'public.persoon_onderwijs' AS table_name, count(*) AS rows FROM public.persoon_onderwijs;
+ SELECT 'public.persoon_onderwijs__persoon' AS table_name, count(*) AS rows FROM public.persoon_onderwijs__persoon;
+ SELECT 'public.persoon_reis' AS table_name, count(*) AS rows FROM public.persoon_reis;
+ SELECT 'public.persoon_reis__persoon' AS table_name, count(*) AS rows FROM public.persoon_reis__persoon;
+ SELECT 'public.reservering' AS table_name, count(*) AS rows FROM public.reservering;
+ SELECT 'public.reservering__activiteit' AS table_name, count(*) AS rows FROM public.reservering__activiteit;
+ SELECT 'public.reservering__zaal' AS table_name, count(*) AS rows FROM public.reservering__zaal;
+ SELECT 'public.search_index_cursor' AS table_name, count(*) AS rows FROM public.search_index_cursor;
+ SELECT 'public.search_index_failure' AS table_name, count(*) AS rows FROM public.search_index_failure;
+ SELECT 'public.stemming' AS table_name, count(*) AS rows FROM public.stemming;
+ SELECT 'public.stemming__besluit' AS table_name, count(*) AS rows FROM public.stemming__besluit;
+ SELECT 'public.stemming__fractie' AS table_name, count(*) AS rows FROM public.stemming__fractie;
+ SELECT 'public.stemming__persoon' AS table_name, count(*) AS rows FROM public.stemming__persoon;
+ SELECT 'public.sync_category' AS table_name, count(*) AS rows FROM public.sync_category;
+ SELECT 'public.sync_entity' AS table_name, count(*) AS rows FROM public.sync_entity;
+ SELECT 'public.toezegging' AS table_name, count(*) AS rows FROM public.toezegging;
+ SELECT 'public.toezegging__activiteit' AS table_name, count(*) AS rows FROM public.toezegging__activiteit;
+ SELECT 'public.toezegging__is_aanvulling_op' AS table_name, count(*) AS rows FROM public.toezegging__is_aanvulling_op;
+ SELECT 'public.toezegging__is_herhaling_van' AS table_name, count(*) AS rows FROM public.toezegging__is_herhaling_van;
+ SELECT 'public.toezegging__is_wijziging_van' AS table_name, count(*) AS rows FROM public.toezegging__is_wijziging_van;
+ SELECT 'public.toezegging__kamerbrief_nakoming' AS table_name, count(*) AS rows FROM public.toezegging__kamerbrief_nakoming;
+ SELECT 'public.toezegging__toegezegd_aan' AS table_name, count(*) AS rows FROM public.toezegging__toegezegd_aan;
+ SELECT 'public.toezegging__toegezegd_aan_fractie' AS table_name, count(*) AS rows FROM public.toezegging__toegezegd_aan_fractie;
+ SELECT 'public.toezegging__toegezegd_aan_persoon' AS table_name, count(*) AS rows FROM public.toezegging__toegezegd_aan_persoon;
+ SELECT 'public.vergadering' AS table_name, count(*) AS rows FROM public.vergadering;
+ SELECT 'public.verslag' AS table_name, count(*) AS rows FROM public.verslag;
+ SELECT 'public.verslag__vergadering' AS table_name, count(*) AS rows FROM public.verslag__vergadering;
+ SELECT 'public.zaak' AS table_name, count(*) AS rows FROM public.zaak;
+ SELECT 'public.zaak__activiteit' AS table_name, count(*) AS rows FROM public.zaak__activiteit;
+ SELECT 'public.zaak__agendapunt' AS table_name, count(*) AS rows FROM public.zaak__agendapunt;
+ SELECT 'public.zaak__gerelateerd_vanuit' AS table_name, count(*) AS rows FROM public.zaak__gerelateerd_vanuit;
+ SELECT 'public.zaak__kamerstukdossier' AS table_name, count(*) AS rows FROM public.zaak__kamerstukdossier;
+ SELECT 'public.zaak__vervangen_vanuit' AS table_name, count(*) AS rows FROM public.zaak__vervangen_vanuit;
+ SELECT 'public.zaak_actor' AS table_name, count(*) AS rows FROM public.zaak_actor;
+ SELECT 'public.zaak_actor__commissie' AS table_name, count(*) AS rows FROM public.zaak_actor__commissie;
+ SELECT 'public.zaak_actor__fractie' AS table_name, count(*) AS rows FROM public.zaak_actor__fractie;
+ SELECT 'public.zaak_actor__persoon' AS table_name, count(*) AS rows FROM public.zaak_actor__persoon;
+ SELECT 'public.zaak_actor__zaak' AS table_name, count(*) AS rows FROM public.zaak_actor__zaak;
+ SELECT 'public.zaal' AS table_name, count(*) AS rows FROM public.zaal;
+(107 rows)
+
+ table_name | rows 
+------------+------
+ activiteit |    0
+(1 row)
+
+          table_name          | rows 
+------------------------------+------
+ activiteit__vervangen_vanuit |    0
+(1 row)
+
+          table_name           | rows 
+-------------------------------+------
+ activiteit__voortgezet_vanuit |    0
+(1 row)
+
+          table_name           | rows 
+-------------------------------+------
+ activiteit__voortouwcommissie |    0
+(1 row)
+
+    table_name    | rows 
+------------------+------
+ activiteit_actor |    0
+(1 row)
+
+          table_name          | rows 
+------------------------------+------
+ activiteit_actor__activiteit |    0
+(1 row)
+
+         table_name          | rows 
+-----------------------------+------
+ activiteit_actor__commissie |    0
+(1 row)
+
+        table_name         | rows 
+---------------------------+------
+ activiteit_actor__fractie |    0
+(1 row)
+
+        table_name         | rows 
+---------------------------+------
+ activiteit_actor__persoon |    0
+(1 row)
+
+ table_name | rows 
+------------+------
+ agendapunt |    0
+(1 row)
+
+       table_name       | rows 
+------------------------+------
+ agendapunt__activiteit |    0
+(1 row)
+
+ table_name | rows 
+------------+------
+ besluit    |    0
+(1 row)
+
+     table_name      | rows 
+---------------------+------
+ besluit__agendapunt |    0
+(1 row)
+
+  table_name   | rows 
+---------------+------
+ besluit__zaak |    0
+(1 row)
+
+ table_name | rows 
+------------+------
+ commissie  |    0
+(1 row)
+
+         table_name          | rows 
+-----------------------------+------
+ commissie_contactinformatie |    0
+(1 row)
+
+               table_name               | rows 
+----------------------------------------+------
+ commissie_contactinformatie__commissie |    0
+(1 row)
+
+   table_name    | rows 
+-----------------+------
+ commissie_zetel |    0
+(1 row)
+
+         table_name         | rows 
+----------------------------+------
+ commissie_zetel__commissie |    0
+(1 row)
+
+          table_name          | rows 
+------------------------------+------
+ commissie_zetel_vast_persoon |    0
+(1 row)
+
+                  table_name                   | rows 
+-----------------------------------------------+------
+ commissie_zetel_vast_persoon__commissie_zetel |    0
+(1 row)
+
+              table_name               | rows 
+---------------------------------------+------
+ commissie_zetel_vast_persoon__persoon |    0
+(1 row)
+
+          table_name           | rows 
+-------------------------------+------
+ commissie_zetel_vast_vacature |    0
+(1 row)
+
+                   table_name                   | rows 
+------------------------------------------------+------
+ commissie_zetel_vast_vacature__commissie_zetel |    0
+(1 row)
+
+               table_name               | rows 
+----------------------------------------+------
+ commissie_zetel_vast_vacature__fractie |    0
+(1 row)
+
+            table_name             | rows 
+-----------------------------------+------
+ commissie_zetel_vervanger_persoon |    0
+(1 row)
+
+                     table_name                     | rows 
+----------------------------------------------------+------
+ commissie_zetel_vervanger_persoon__commissie_zetel |    0
+(1 row)
+
+                 table_name                 | rows 
+--------------------------------------------+------
+ commissie_zetel_vervanger_persoon__persoon |    0
+(1 row)
+
+             table_name             | rows 
+------------------------------------+------
+ commissie_zetel_vervanger_vacature |    0
+(1 row)
+
+                     table_name                      | rows 
+-----------------------------------------------------+------
+ commissie_zetel_vervanger_vacature__commissie_zetel |    0
+(1 row)
+
+                 table_name                  | rows 
+---------------------------------------------+------
+ commissie_zetel_vervanger_vacature__fractie |    0
+(1 row)
+
+ table_name | rows 
+------------+------
+ document   |    0
+(1 row)
+
+      table_name      | rows 
+----------------------+------
+ document__activiteit |    0
+(1 row)
+
+      table_name      | rows 
+----------------------+------
+ document__agendapunt |    0
+(1 row)
+
+       table_name        | rows 
+-------------------------+------
+ document__bron_document |    0
+(1 row)
+
+            table_name             | rows 
+-----------------------------------+------
+ document__huidige_document_versie |    0
+(1 row)
+
+         table_name         | rows 
+----------------------------+------
+ document__kamerstukdossier |    0
+(1 row)
+
+   table_name   | rows 
+----------------+------
+ document__zaak |    0
+(1 row)
+
+   table_name   | rows 
+----------------+------
+ document_actor |    0
+(1 row)
+
+        table_name         | rows 
+---------------------------+------
+ document_actor__commissie |    0
+(1 row)
+
+        table_name        | rows 
+--------------------------+------
+ document_actor__document |    0
+(1 row)
+
+       table_name        | rows 
+-------------------------+------
+ document_actor__fractie |    0
+(1 row)
+
+       table_name        | rows 
+-------------------------+------
+ document_actor__persoon |    0
+(1 row)
+
+   table_name   | rows 
+----------------+------
+ document_asset |    0
+(1 row)
+
+    table_name    | rows 
+------------------+------
+ document_content |    0
+(1 row)
+
+   table_name    | rows 
+-----------------+------
+ document_versie |    0
+(1 row)
+
+        table_name         | rows 
+---------------------------+------
+ document_versie__document |    0
+(1 row)
+
+ table_name | rows 
+------------+------
+ fractie    |    0
+(1 row)
+
+  table_name   | rows 
+---------------+------
+ fractie_zetel |    0
+(1 row)
+
+       table_name       | rows 
+------------------------+------
+ fractie_zetel__fractie |    0
+(1 row)
+
+      table_name       | rows 
+-----------------------+------
+ fractie_zetel_persoon |    0
+(1 row)
+
+              table_name              | rows 
+--------------------------------------+------
+ fractie_zetel_persoon__fractie_zetel |    0
+(1 row)
+
+           table_name           | rows 
+--------------------------------+------
+ fractie_zetel_persoon__persoon |    0
+(1 row)
+
+       table_name       | rows 
+------------------------+------
+ fractie_zetel_vacature |    0
+(1 row)
+
+              table_name               | rows 
+---------------------------------------+------
+ fractie_zetel_vacature__fractie_zetel |    0
+(1 row)
+
+  table_name  | rows 
+--------------+------
+ ingest_error |    0
+(1 row)
+
+    table_name    | rows 
+------------------+------
+ kamerstukdossier |    0
+(1 row)
+
+ table_name | rows 
+------------+------
+ persoon    |    0
+(1 row)
+
+        table_name         | rows 
+---------------------------+------
+ persoon_contactinformatie |    0
+(1 row)
+
+             table_name             | rows 
+------------------------------------+------
+ persoon_contactinformatie__persoon |    0
+(1 row)
+
+    table_name    | rows 
+------------------+------
+ persoon_geschenk |    0
+(1 row)
+
+        table_name         | rows 
+---------------------------+------
+ persoon_geschenk__persoon |    0
+(1 row)
+
+    table_name    | rows 
+------------------+------
+ persoon_loopbaan |    0
+(1 row)
+
+        table_name         | rows 
+---------------------------+------
+ persoon_loopbaan__persoon |    0
+(1 row)
+
+      table_name      | rows 
+----------------------+------
+ persoon_nevenfunctie |    0
+(1 row)
+
+          table_name           | rows 
+-------------------------------+------
+ persoon_nevenfunctie__persoon |    0
+(1 row)
+
+           table_name           | rows 
+--------------------------------+------
+ persoon_nevenfunctie_inkomsten |    0
+(1 row)
+
+                      table_name                      | rows 
+------------------------------------------------------+------
+ persoon_nevenfunctie_inkomsten__persoon_nevenfunctie |    0
+(1 row)
+
+    table_name     | rows 
+-------------------+------
+ persoon_onderwijs |    0
+(1 row)
+
+         table_name         | rows 
+----------------------------+------
+ persoon_onderwijs__persoon |    0
+(1 row)
+
+  table_name  | rows 
+--------------+------
+ persoon_reis |    0
+(1 row)
+
+      table_name       | rows 
+-----------------------+------
+ persoon_reis__persoon |    0
+(1 row)
+
+ table_name  | rows 
+-------------+------
+ reservering |    0
+(1 row)
+
+       table_name        | rows 
+-------------------------+------
+ reservering__activiteit |    0
+(1 row)
+
+    table_name     | rows 
+-------------------+------
+ reservering__zaal |    0
+(1 row)
+
+     table_name      | rows 
+---------------------+------
+ search_index_cursor |    0
+(1 row)
+
+      table_name      | rows 
+----------------------+------
+ search_index_failure |    0
+(1 row)
+
+ table_name | rows 
+------------+------
+ stemming   |    0
+(1 row)
+
+    table_name     | rows 
+-------------------+------
+ stemming__besluit |    0
+(1 row)
+
+    table_name     | rows 
+-------------------+------
+ stemming__fractie |    0
+(1 row)
+
+    table_name     | rows 
+-------------------+------
+ stemming__persoon |    0
+(1 row)
+
+  table_name   | rows 
+---------------+------
+ sync_category |    0
+(1 row)
+
+ table_name  | rows 
+-------------+------
+ sync_entity |    0
+(1 row)
+
+ table_name | rows 
+------------+------
+ toezegging |    0
+(1 row)
+
+       table_name       | rows 
+------------------------+------
+ toezegging__activiteit |    0
+(1 row)
+
+          table_name          | rows 
+------------------------------+------
+ toezegging__is_aanvulling_op |    0
+(1 row)
+
+          table_name          | rows 
+------------------------------+------
+ toezegging__is_herhaling_van |    0
+(1 row)
+
+          table_name          | rows 
+------------------------------+------
+ toezegging__is_wijziging_van |    0
+(1 row)
+
+           table_name            | rows 
+---------------------------------+------
+ toezegging__kamerbrief_nakoming |    0
+(1 row)
+
+        table_name         | rows 
+---------------------------+------
+ toezegging__toegezegd_aan |    0
+(1 row)
+
+            table_name             | rows 
+-----------------------------------+------
+ toezegging__toegezegd_aan_fractie |    0
+(1 row)
+
+            table_name             | rows 
+-----------------------------------+------
+ toezegging__toegezegd_aan_persoon |    0
+(1 row)
+
+ table_name  | rows 
+-------------+------
+ vergadering |    0
+(1 row)
+
+ table_name | rows 
+------------+------
+ verslag    |    0
+(1 row)
+
+      table_name      | rows 
+----------------------+------
+ verslag__vergadering |    0
+(1 row)
+
+ table_name | rows 
+------------+------
+ zaak       |    0
+(1 row)
+
+    table_name    | rows 
+------------------+------
+ zaak__activiteit |    0
+(1 row)
+
+    table_name    | rows 
+------------------+------
+ zaak__agendapunt |    0
+(1 row)
+
+        table_name        | rows 
+--------------------------+------
+ zaak__gerelateerd_vanuit |    0
+(1 row)
+
+       table_name       | rows 
+------------------------+------
+ zaak__kamerstukdossier |    0
+(1 row)
+
+       table_name       | rows 
+------------------------+------
+ zaak__vervangen_vanuit |    0
+(1 row)
+
+ table_name | rows 
+------------+------
+ zaak_actor |    0
+(1 row)
+
+      table_name       | rows 
+-----------------------+------
+ zaak_actor__commissie |    0
+(1 row)
+
+     table_name      | rows 
+---------------------+------
+ zaak_actor__fractie |    0
+(1 row)
+
+     table_name      | rows 
+---------------------+------
+ zaak_actor__persoon |    0
+(1 row)
+
+    table_name    | rows 
+------------------+------
+ zaak_actor__zaak |    0
+(1 row)
+
+ table_name | rows 
+------------+------
+ zaal       |    0
+(1 row)
+

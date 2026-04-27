@@ -225,6 +225,41 @@ async fn fractie_zetel_vacature_initial_fetch_timeouts_retry_same_cursor_without
 }
 
 #[tokio::test]
+async fn toezegging_initial_body_decode_error_retries_same_cursor_without_durable_error() {
+    let server = TestServer::start(Vec::new()).await;
+    let resume = server.cursor("Toezegging", 17);
+    let initial = "/SyncFeed/2.0/Feed?category=Toezegging&content=internal";
+    server
+        .replace_responses(vec![
+            TestResponse::truncated_atom(initial),
+            resume_page(&resume).for_target(initial),
+        ])
+        .await;
+    let store = MemoryStore::default();
+    let mut client_config = syncfeed_client_config(&server);
+    client_config.max_retries = 0;
+    let runner = runner_with_client_config(
+        client_config,
+        store.clone(),
+        ["Toezegging"],
+        Duration::from_millis(1),
+    );
+
+    let report = runner.run_once().await.expect("sync recovers");
+
+    assert!(report.categories[0].caught_up);
+    let cursor = store.cursor("Toezegging").await.expect("stored cursor");
+    assert!(cursor.caught_up);
+    assert_eq!(cursor.latest_skiptoken, 17);
+    assert_eq!(cursor.next_url.as_str(), resume);
+    assert!(store.errors().await.is_empty());
+    assert_eq!(
+        server.requests().await,
+        vec![initial.to_owned(), initial.to_owned()]
+    );
+}
+
+#[tokio::test]
 async fn fetch_and_parse_errors_are_recorded_durably() {
     let server = TestServer::start(Vec::new()).await;
     server
@@ -468,6 +503,7 @@ struct TestResponse {
     content_type: Option<&'static str>,
     body: String,
     delay: Duration,
+    declared_content_length: Option<usize>,
 }
 
 impl TestResponse {
@@ -478,6 +514,7 @@ impl TestResponse {
             content_type: Some("application/atom+xml"),
             body: body.to_owned(),
             delay: Duration::ZERO,
+            declared_content_length: None,
         }
     }
 
@@ -488,6 +525,18 @@ impl TestResponse {
             content_type: Some("application/atom+xml"),
             body: body.to_owned(),
             delay: Duration::ZERO,
+            declared_content_length: None,
+        }
+    }
+
+    fn truncated_atom(expected_target: &str) -> Self {
+        Self {
+            expected_target: expected_target.to_owned(),
+            status: 200,
+            content_type: Some("application/atom+xml"),
+            body: "<feed xmlns=\"http://www.w3.org/2005/Atom\">".to_owned(),
+            delay: Duration::ZERO,
+            declared_content_length: Some(512),
         }
     }
 
@@ -568,7 +617,7 @@ impl TestServer {
                         response.status,
                         status_text,
                         content_type,
-                        response.body.len(),
+                        response.declared_content_length.unwrap_or(response.body.len()),
                         response.body
                     );
                     stream

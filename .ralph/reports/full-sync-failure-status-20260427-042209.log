@@ -1,0 +1,37 @@
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.71s
+     Running `target/debug/opentk-sync --config .ralph/reports/full-sync-config-20260427-042209.toml status`
+Activiteit	state=running	latest_skiptoken=11695714	lag_seconds=19	last_fetch_at=2026-04-27T02:29:35.235596+00:00	last_error=none
+ActiviteitActor	state=running	latest_skiptoken=11400840	lag_seconds=19	last_fetch_at=2026-04-27T02:29:35.573131+00:00	last_error=none
+Agendapunt	state=running	latest_skiptoken=118870	lag_seconds=19	last_fetch_at=2026-04-27T02:29:36.128436+00:00	last_error=none
+Besluit	state=running	latest_skiptoken=117607	lag_seconds=19	last_fetch_at=2026-04-27T02:29:35.711478+00:00	last_error=none
+Commissie	state=not_started	latest_skiptoken=null	lag_seconds=null	last_fetch_at=null	last_error=none
+CommissieContactinformatie	state=caught_up	latest_skiptoken=25391021	lag_seconds=160	last_fetch_at=2026-04-27T02:27:14.508246+00:00	last_error=none
+CommissieZetel	state=running	latest_skiptoken=16686786	lag_seconds=19	last_fetch_at=2026-04-27T02:29:36.196864+00:00	last_error=none
+CommissieZetelVastPersoon	state=running	latest_skiptoken=16949204	lag_seconds=18	last_fetch_at=2026-04-27T02:29:36.612333+00:00	last_error=none
+CommissieZetelVastVacature	state=caught_up	latest_skiptoken=25391057	lag_seconds=101	last_fetch_at=2026-04-27T02:28:14.147921+00:00	last_error=none
+CommissieZetelVervangerPersoon	state=running	latest_skiptoken=24104377	lag_seconds=19	last_fetch_at=2026-04-27T02:29:35.469577+00:00	last_error=none
+CommissieZetelVervangerVacature	state=caught_up	latest_skiptoken=25314931	lag_seconds=102	last_fetch_at=2026-04-27T02:28:12.688420+00:00	last_error=none
+Document	state=running	latest_skiptoken=7041435	lag_seconds=19	last_fetch_at=2026-04-27T02:29:35.318822+00:00	last_error=none
+DocumentActor	state=running	latest_skiptoken=5628560	lag_seconds=19	last_fetch_at=2026-04-27T02:29:35.807097+00:00	last_error=none
+DocumentVersie	state=running	latest_skiptoken=5658786	lag_seconds=19	last_fetch_at=2026-04-27T02:29:35.850835+00:00	last_error=none
+Fractie	state=caught_up	latest_skiptoken=24971385	lag_seconds=228	last_fetch_at=2026-04-27T02:26:06.234414+00:00	last_error=none
+FractieZetel	state=caught_up	latest_skiptoken=25174188	lag_seconds=156	last_fetch_at=2026-04-27T02:27:18.982871+00:00	last_error=none
+FractieZetelPersoon	state=caught_up	latest_skiptoken=25174174	lag_seconds=155	last_fetch_at=2026-04-27T02:27:19.945588+00:00	last_error=none
+FractieZetelVacature	state=not_started	latest_skiptoken=null	lag_seconds=null	last_fetch_at=null	last_error=none
+Kamerstukdossier	state=running	latest_skiptoken=16587727	lag_seconds=18	last_fetch_at=2026-04-27T02:29:36.284624+00:00	last_error=none
+Persoon	state=caught_up	latest_skiptoken=25362284	lag_seconds=77	last_fetch_at=2026-04-27T02:28:37.905738+00:00	last_error=none
+PersoonContactinformatie	state=caught_up	latest_skiptoken=25386537	lag_seconds=119	last_fetch_at=2026-04-27T02:27:56.116075+00:00	last_error=none
+PersoonGeschenk	state=running	latest_skiptoken=23041901	lag_seconds=14	last_fetch_at=2026-04-27T02:29:41.013580+00:00	last_error=none
+PersoonLoopbaan	state=caught_up	latest_skiptoken=24897468	lag_seconds=112	last_fetch_at=2026-04-27T02:28:03.196658+00:00	last_error=none
+PersoonNevenfunctie	state=caught_up	latest_skiptoken=25402682	lag_seconds=120	last_fetch_at=2026-04-27T02:27:54.687458+00:00	last_error=none
+PersoonNevenfunctieInkomsten	state=caught_up	latest_skiptoken=25228676	lag_seconds=212	last_fetch_at=2026-04-27T02:26:23.054831+00:00	last_error=none
+PersoonOnderwijs	state=caught_up	latest_skiptoken=24897442	lag_seconds=180	last_fetch_at=2026-04-27T02:26:54.598389+00:00	last_error=none
+PersoonReis	state=caught_up	latest_skiptoken=25386196	lag_seconds=75	last_fetch_at=2026-04-27T02:28:40.119965+00:00	last_error=none
+Reservering	state=running	latest_skiptoken=5381645	lag_seconds=18	last_fetch_at=2026-04-27T02:29:36.395249+00:00	last_error=none
+Stemming	state=running	latest_skiptoken=4117476	lag_seconds=19	last_fetch_at=2026-04-27T02:29:35.961597+00:00	last_error=none
+Toezegging	state=error	latest_skiptoken=null	lag_seconds=null	last_fetch_at=null	last_error=fetch skiptoken=null entity=null SyncFeed HTTP transport failed for https://gegevensmagazijn.tweedekamer.nl/SyncFeed/2.0/Feed?category=Toezegging&content=internal: error decoding response body
+Vergadering	state=running	latest_skiptoken=16208185	lag_seconds=20	last_fetch_at=2026-04-27T02:29:35.099976+00:00	last_error=none
+Verslag	state=running	latest_skiptoken=45262	lag_seconds=19	last_fetch_at=2026-04-27T02:29:36.054517+00:00	last_error=none
+Zaak	state=running	latest_skiptoken=18133085	lag_seconds=18	last_fetch_at=2026-04-27T02:29:36.759397+00:00	last_error=none
+ZaakActor	state=running	latest_skiptoken=360312	lag_seconds=14	last_fetch_at=2026-04-27T02:29:41.211832+00:00	last_error=none
+Zaal	state=caught_up	latest_skiptoken=21354884	lag_seconds=192	last_fetch_at=2026-04-27T02:26:42.601536+00:00	last_error=none

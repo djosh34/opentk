@@ -383,7 +383,10 @@ async fn fetch_page_with_transient_recovery(
 }
 
 fn is_transient_fetch_error(source: &SyncFeedClientError) -> bool {
-    matches!(source, SyncFeedClientError::Timeout { .. })
+    matches!(
+        source,
+        SyncFeedClientError::Timeout { .. } | SyncFeedClientError::HttpTransport { .. }
+    )
 }
 
 fn start_cursor(

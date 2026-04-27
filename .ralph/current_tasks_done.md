@@ -1,6 +1,6 @@
 # Done Tasks Summary
 
-Generated: Mon Apr 27 04:19:46 AM CEST 2026
+Generated: Mon Apr 27 04:46:35 AM CEST 2026
 
 # Task `/home/joshazimullah.linux/work_mounts/patroni_rewrite/opentk/.ralph/tasks/bugs/bug-cargo-run-opentk-sync-linker-missing-objects.md`
 
@@ -57,6 +57,18 @@ fresh migrated database on 2026-04-27. The actual sync command failed after
 <description>
 While executing Story 10 Task 1 on 2026-04-26, the sync command wrapper failed
 before starting the sync binary because `/usr/bin/time` was not available:
+```
+
+==============
+
+# Task `/home/joshazimullah.linux/work_mounts/patroni_rewrite/opentk/.ralph/tasks/bugs/bug-full-sync-toezegging-http-transport-decode-error.md`
+
+```
+## Bug: Full sync fails on Toezegging HTTP transport decode error <status>done</status> <passes>true</passes> <priority>high</priority>
+
+<description>
+Story 10 Task 1 attempted a fresh one-time clean full sync from an empty
+database and the public sync runner exited nonzero on the initial `Toezegging`
 ```
 
 ==============

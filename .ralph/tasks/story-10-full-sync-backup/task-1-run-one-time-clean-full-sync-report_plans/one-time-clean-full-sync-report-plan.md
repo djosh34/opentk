@@ -155,6 +155,27 @@ Failure evidence:
 Filed blocker bug:
 `.ralph/tasks/bugs/bug-full-sync-fractie-zetel-vacature-initial-feed-timeout.md`
 
+Stopped again on `2026-04-27T04:29:41+02:00` after rerunning from a fresh
+empty database for run `20260427-042209`. The clean full sync exited nonzero
+after `394` seconds:
+
+`Error: Fetch { phase: Fetch, category: "Toezegging", source: HttpTransport { request_url: "https://gegevensmagazijn.tweedekamer.nl/SyncFeed/2.0/Feed?category=Toezegging&content=internal", message: "error decoding response body" } }`
+
+Failure evidence:
+
+- Run log: `.ralph/reports/full-sync-run-20260427-042209.log`
+- Status log: `.ralph/reports/full-sync-failure-status-20260427-042209.log`
+- Ingest error log: `.ralph/reports/full-sync-failure-ingest-errors-20260427-042209.log`
+- Config: `.ralph/reports/full-sync-config-20260427-042209.toml`
+- Fresh database: `opentk_full_sync_20260427_042209`
+- Pre-sync size: recorded in `.ralph/reports/full-sync-pre-sync-evidence-20260427-042209.log`
+- Persisted ingest error: `phase=fetch`, `source_category=Toezegging`,
+  `latest_skiptoken=null`, message
+  `SyncFeed HTTP transport failed for https://gegevensmagazijn.tweedekamer.nl/SyncFeed/2.0/Feed?category=Toezegging&content=internal: error decoding response body`
+
+Filed blocker bug:
+`.ralph/tasks/bugs/bug-full-sync-toezegging-http-transport-decode-error.md`
+
 ## Boundary Notes
 
 - The public operational interface is already deep enough: the sync binary owns config loading, runner construction, status printing, and verification printing.
