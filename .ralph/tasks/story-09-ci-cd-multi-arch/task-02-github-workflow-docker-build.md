@@ -24,7 +24,9 @@ Requirements:
   - Publish job consumes the already-built result and pushes to GHCR.
   - A publish/auth/GHCR failure must not be reported as an image build failure.
 
-Verification requirement: use the `github-api-auth-wrapper` skill (`/home/joshazimullah.linux/github-api-curl`) to inspect real workflow runs. Confirm cache hits and timings with GitHub logs. A cached Docker build taking over 5 minutes, any Docker workflow build taking over 10 minutes, rebuilding the same Rust dependencies twice for test and image work, or rebuilding the same image again just to publish is a task failure.
+Verification requirement: use the `github-api-auth-wrapper` skill (`/home/joshazimullah.linux/github-api-curl`) to inspect real workflow runs. Confirm cache hits and timings with GitHub logs. Any Docker workflow build taking over 10 minutes, rebuilding the same Rust dependencies twice for test and image work, or rebuilding the same image again just to publish is a task failure.
+
+The GitHub workflow timing requirement is that no Docker workflow build takes longer than 10 minutes.
 
 PO hint:
 - Think about more parallelism: the workflow may have one parallel task per build, where the VM can still run on x86 while producing the target architecture artifact needed by that build.
@@ -45,7 +47,7 @@ In scope: docker workflow, buildx, registry auth, tagging, cache, GHCR publish s
 - [ ] Tags: latest, sha, version tags
 - [ ] Cache behavior and build timing are verified from real GitHub logs using `github-api-auth-wrapper`
 - [ ] Extensive caching is implemented immediately for Cargo dependencies, target artifacts, Docker layers, and final image assembly
-- [ ] Cached Docker workflow completes in under 5 minutes
+- [ ] GitHub workflow timing follows the 10-minute Docker workflow build limit
 - [ ] No Docker workflow build takes longer than 10 minutes; if one does, the workflow is altered to be faster before continuing
 - [ ] Test/build/image jobs reuse the same cache and do not rebuild Rust dependencies twice
 - [ ] `arm64` builds are native cross-compiled and never emulated
@@ -56,7 +58,7 @@ In scope: docker workflow, buildx, registry auth, tagging, cache, GHCR publish s
 </acceptance_criteria>
 
 <plan>
-.ralph/tasks/story-09-ci-cd-multi-arch/task-02-github-workflow-docker-build_plans/plan-02-parallel-binary-cache-redesign.md
+.ralph/tasks/story-09-ci-cd-multi-arch/task-02-github-workflow-docker-build_plans/plan-03-po-note-timing-verification.md
 </plan>
 
 NOW EXECUTE

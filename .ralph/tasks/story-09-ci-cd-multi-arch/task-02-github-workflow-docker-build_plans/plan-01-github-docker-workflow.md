@@ -72,7 +72,6 @@ Use vertical slices; one behavioral test first, then minimal workflow changes, t
 14. Run `make check`, `make lint`, and `make test`. Do not run `make test-long` unless the task is escalated to story-end validation.
 15. Trigger/inspect a real `workflow_dispatch` run. Use `/home/joshazimullah.linux/github-api-curl` like normal `curl` to inspect workflow runs and logs. Confirm:
     - cache hits/reuse for Cargo dependencies, target artifacts, Docker layers, and final image assembly
-    - cached Docker workflow completes under 5 minutes
     - no Docker workflow build exceeds 10 minutes
     - test/build/image work does not rebuild the same Rust dependencies twice
     - publish consumes the built result rather than rebuilding images

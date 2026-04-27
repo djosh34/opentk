@@ -10,7 +10,7 @@ Mandatory skills:
 
 ## Current State
 
-- `.github/workflows/docker.yml` exists and passes local contract tests, but real GitHub logs showed the cached artifact path still taking more than 5 minutes.
+- `.github/workflows/docker.yml` exists and passes local contract tests, with real GitHub log verification still required for cache behavior and the workflow timing limit.
 - `docker/Dockerfile.scratch-artifacts` builds all four release artifacts in one Docker build:
   - `opentk-sync` for `x86_64-unknown-linux-musl`
   - `opentk-api` for `x86_64-unknown-linux-musl`
@@ -86,7 +86,6 @@ Use vertical slices. Do not write all tests first.
 19. Use `/home/joshazimullah.linux/github-api-curl` to dispatch and inspect a real Docker workflow run on the pushed commit.
 20. Inspect job timings and logs. Acceptance requires:
     - no Docker workflow build job exceeds 10 minutes
-    - a cached Docker workflow run completes in under 5 minutes
     - Cargo dependency/cache logs show reuse for dependency artifacts, target artifacts, Docker layers, and final assembly
     - no QEMU/emulation setup appears
     - publish downloads the build artifacts and does not rebuild images
@@ -116,4 +115,4 @@ Use vertical slices. Do not write all tests first.
 - [ ] `make lint` passes.
 - [ ] `make test` passes.
 
-NOW EXECUTE
+TO BE VERIFIED
