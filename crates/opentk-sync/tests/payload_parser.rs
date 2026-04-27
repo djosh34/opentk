@@ -227,6 +227,39 @@ fn toezegging_live_expanded_empty_toegezegd_aan_relation_is_absent() {
 }
 
 #[test]
+fn toezegging_live_duplicate_kamerbrief_nakoming_scalars_keep_ordinals() {
+    let parsed = parse_entity_xml(
+        "Toezegging",
+        r#"<toezegging xmlns="http://www.tweedekamer.nl/xsd/tkData/v1-0"
+            id="aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+            verwijderd="false"
+            bijgewerkt="2026-04-26T00:00:00Z">
+            <kamerbriefNakoming>2026Z00001</kamerbriefNakoming>
+            <kamerbriefNakoming>2026Z00002</kamerbriefNakoming>
+            <tekst>De live feed kan meerdere Kamerbrieven voor dezelfde toezegging leveren.</tekst>
+        </toezegging>"#,
+    )
+    .expect("live Toezegging payload with duplicate kamerbriefNakoming parses");
+
+    let kamerbrieven = parsed
+        .scalars
+        .iter()
+        .filter(|scalar| scalar.name == "kamerbriefNakoming")
+        .collect::<Vec<_>>();
+    assert_eq!(kamerbrieven.len(), 2);
+    assert_eq!(
+        kamerbrieven[0].value,
+        ParsedValue::Text("2026Z00001".to_owned())
+    );
+    assert_eq!(kamerbrieven[0].ordinal, 1);
+    assert_eq!(
+        kamerbrieven[1].value,
+        ParsedValue::Text("2026Z00002".to_owned())
+    );
+    assert_eq!(kamerbrieven[1].ordinal, 2);
+}
+
+#[test]
 fn scalar_datatypes_are_validated_and_typed() {
     let activiteit = parse_entity_xml(
         "Activiteit",

@@ -1,6 +1,6 @@
 # Done Tasks Summary
 
-Generated: Mon Apr 27 02:36:07 AM CEST 2026
+Generated: Mon Apr 27 03:00:18 AM CEST 2026
 
 # Task `/home/joshazimullah.linux/work_mounts/patroni_rewrite/opentk/.ralph/tasks/bugs/bug-cargo-run-opentk-sync-linker-missing-objects.md`
 
@@ -10,6 +10,18 @@ Generated: Mon Apr 27 02:36:07 AM CEST 2026
 <description>
 While executing Story 10 Task 1 on 2026-04-26, the preliminary command
 `cargo run -p opentk-db --bin opentk-sync -- --help` failed before any sync work
+```
+
+==============
+
+# Task `/home/joshazimullah.linux/work_mounts/patroni_rewrite/opentk/.ralph/tasks/bugs/bug-full-sync-fails-on-duplicate-toezegging-kamerbrief-nakoming.md`
+
+```
+## Bug: full sync fails on duplicate Toezegging kamerbriefNakoming field <status>done</status> <passes>true</passes> <priority>high</priority>
+
+<description>
+Story 10 Task 1 attempted a clean full SyncFeed-to-PostgreSQL sync from a fresh
+database and the public sync runner exited nonzero after 305 seconds.
 ```
 
 ==============

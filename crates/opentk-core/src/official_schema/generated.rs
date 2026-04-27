@@ -2697,7 +2697,7 @@ const TOEZEGGING_FIELDS: &[Field] = &[
         name: "kamerbriefNakoming",
         kind: FieldKind::Attribute,
         min_occurs: 0,
-        max_occurs: Occurs::Exactly(1),
+        max_occurs: Occurs::Unbounded,
         nillable: true,
         xsd_type: "stringType",
         order: 20,

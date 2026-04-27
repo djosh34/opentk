@@ -1,4 +1,4 @@
-## Bug: full sync fails on duplicate Toezegging kamerbriefNakoming field <status>not_started</status> <passes>false</passes> <priority>high</priority>
+## Bug: full sync fails on duplicate Toezegging kamerbriefNakoming field <status>done</status> <passes>true</passes> <priority>high</priority>
 
 <description>
 Story 10 Task 1 attempted a clean full SyncFeed-to-PostgreSQL sync from a fresh
@@ -32,6 +32,10 @@ The full sync did not complete cleanly, so Story 10 Task 1 stopped before
 post-sync measurement, final report generation, or email.
 </description>
 
+<plan>
+.ralph/tasks/bugs/bug-full-sync-fails-on-duplicate-toezegging-kamerbrief-nakoming_plans/plan.md
+</plan>
+
 <mandatory_red_green_tdd>
 Use Red-Green TDD to solve the problem.
 You must make ONE test, and then make ONE test green at the time.
@@ -40,11 +44,11 @@ Then verify if bug still holds. If yes, create new Red test, and continue with R
 </mandatory_red_green_tdd>
 
 <acceptance_criteria>
-- [ ] I created a Red unit and/or integration test that captures the bug
-- [ ] I made the test green by fixing
-- [ ] I manually verified the bug, and created a new Red test if not working still
-- [ ] `make check` — passes cleanly
-- [ ] `make test` — passes cleanly (default suite; excludes only ultra-long tests moved to `make test-long`)
-- [ ] `make lint` — passes cleanly
-- [ ] If this bug impacts ultra-long tests (or their selection): `make test-long` — passes cleanly (ultra-long-only)
+- [x] I created a Red unit and/or integration test that captures the bug
+- [x] I made the test green by fixing
+- [x] I manually verified the bug, and created a new Red test if not working still
+- [x] `make check` — passes cleanly
+- [x] `make test` — passes cleanly (default suite; excludes only ultra-long tests moved to `make test-long`)
+- [x] `make lint` — passes cleanly
+- [x] If this bug impacts ultra-long tests (or their selection): `make test-long` — passes cleanly (ultra-long-only; not required for this default-lane parser/schema bug)
 </acceptance_criteria>

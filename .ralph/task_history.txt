@@ -39,3 +39,4 @@
 .ralph/tasks/bugs/bug-cargo-run-opentk-sync-linker-missing-objects.md
 .ralph/tasks/bugs/bug-full-sync-plan-assumes-usr-bin-time-exists.md
 .ralph/tasks/story-10-full-sync-backup/task-1-run-one-time-clean-full-sync-report.md
+.ralph/tasks/bugs/bug-full-sync-fails-on-duplicate-toezegging-kamerbrief-nakoming.md

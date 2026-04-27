@@ -1,7 +1,7 @@
 use opentk_core::official_schema::{self, FieldKind, Occurs};
 use opentk_sync::official_schema::{
     extract_entities_from_dir, official_xsd_dir, source_gap_report, verify_checked_in_model,
-    verify_model_against_dir, TASK_DOCUMENTED_SOURCE_GAPS,
+    verify_model_against_dir, TASK_DOCUMENTED_LIVE_FIELD_DRIFTS, TASK_DOCUMENTED_SOURCE_GAPS,
 };
 use std::{env, fs};
 
@@ -47,6 +47,25 @@ fn all_vendored_official_entities_have_matching_model_entries() {
     let mismatches = verify_checked_in_model().expect("official XSDs parse");
 
     assert_eq!(mismatches, Vec::new());
+}
+
+#[test]
+fn documented_live_field_drifts_are_applied_to_schema_source_comparison() {
+    let mismatches = verify_checked_in_model().expect("official XSDs parse");
+    assert_eq!(mismatches, Vec::new());
+
+    let kamerbrief_drift = TASK_DOCUMENTED_LIVE_FIELD_DRIFTS
+        .iter()
+        .find(|drift| drift.category == "Toezegging" && drift.field_name == "kamerbriefNakoming")
+        .expect("Toezegging.kamerbriefNakoming live drift is documented");
+    assert_eq!(kamerbrief_drift.kind, FieldKind::Attribute);
+    assert_eq!(kamerbrief_drift.max_occurs, Occurs::Unbounded);
+
+    let field = official_schema::entity_named("Toezegging")
+        .expect("Toezegging model exists")
+        .field_named("kamerbriefNakoming")
+        .expect("Toezegging.kamerbriefNakoming model field exists");
+    assert_eq!(field.max_occurs, Occurs::Unbounded);
 }
 
 #[test]

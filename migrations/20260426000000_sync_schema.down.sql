@@ -19,6 +19,7 @@ DROP TABLE IF EXISTS "verslag__vergadering" CASCADE;
 DROP TABLE IF EXISTS "verslag" CASCADE;
 DROP TABLE IF EXISTS "vergadering" CASCADE;
 DROP TABLE IF EXISTS "toezegging__toegezegd_aan" CASCADE;
+DROP TABLE IF EXISTS "toezegging__kamerbrief_nakoming" CASCADE;
 DROP TABLE IF EXISTS "toezegging__activiteit" CASCADE;
 DROP TABLE IF EXISTS "toezegging__is_wijziging_van" CASCADE;
 DROP TABLE IF EXISTS "toezegging__is_aanvulling_op" CASCADE;

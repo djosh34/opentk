@@ -37,17 +37,30 @@ pub const TASK_DOCUMENTED_SOURCE_GAPS: &[SourceGap] = &[
     },
 ];
 
-pub const TASK_DOCUMENTED_LIVE_FIELD_DRIFTS: &[LiveFieldDrift] = &[LiveFieldDrift {
-    category: "Toezegging",
-    field_name: "toegezegdAan",
-    kind: FieldKind::Relation,
-    min_occurs: 0,
-    max_occurs: Occurs::Exactly(1),
-    nillable: true,
-    xsd_type: "referentieLiteral",
-    order: 23,
-    reason: "live SyncFeed payload exposes this relation although the pinned official XSD only lists toegezegdAanFractie and toegezegdAanPersoon",
-}];
+pub const TASK_DOCUMENTED_LIVE_FIELD_DRIFTS: &[LiveFieldDrift] = &[
+    LiveFieldDrift {
+        category: "Toezegging",
+        field_name: "kamerbriefNakoming",
+        kind: FieldKind::Attribute,
+        min_occurs: 0,
+        max_occurs: Occurs::Unbounded,
+        nillable: true,
+        xsd_type: "stringType",
+        order: 20,
+        reason: "live SyncFeed payload emitted this field more than once during full sync run 20260427-022641 although the pinned official XSD says maxOccurs=1",
+    },
+    LiveFieldDrift {
+        category: "Toezegging",
+        field_name: "toegezegdAan",
+        kind: FieldKind::Relation,
+        min_occurs: 0,
+        max_occurs: Occurs::Exactly(1),
+        nillable: true,
+        xsd_type: "referentieLiteral",
+        order: 23,
+        reason: "live SyncFeed payload exposes this relation although the pinned official XSD only lists toegezegdAanFractie and toegezegdAanPersoon",
+    },
+];
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct SourceGap {
@@ -380,17 +393,7 @@ fn compare_fields(
     mismatches: &mut Vec<SchemaMismatch>,
 ) {
     let model_fields = model.fields.iter().map(field_key).collect::<Vec<_>>();
-    let mut source_fields = source
-        .fields
-        .iter()
-        .map(extracted_field_key)
-        .collect::<Vec<_>>();
-    source_fields.extend(
-        TASK_DOCUMENTED_LIVE_FIELD_DRIFTS
-            .iter()
-            .filter(|drift| drift.category == source.category)
-            .map(live_field_drift_key),
-    );
+    let source_fields = source_fields_with_documented_live_drifts(source);
 
     if model_fields != source_fields {
         mismatches.push(SchemaMismatch {
@@ -398,6 +401,33 @@ fn compare_fields(
             detail: format!("fields differ: model={model_fields:?} source={source_fields:?}"),
         });
     }
+}
+
+fn source_fields_with_documented_live_drifts(
+    source: &ExtractedEntity,
+) -> Vec<(&str, FieldKind, u32, Occurs, bool, &str, u32)> {
+    let mut source_fields = source
+        .fields
+        .iter()
+        .map(extracted_field_key)
+        .collect::<Vec<_>>();
+
+    for drift in TASK_DOCUMENTED_LIVE_FIELD_DRIFTS
+        .iter()
+        .filter(|drift| drift.category == source.category)
+    {
+        let drift_key = live_field_drift_key(drift);
+        if let Some(existing) = source_fields
+            .iter_mut()
+            .find(|field| field.0 == drift.field_name)
+        {
+            *existing = drift_key;
+        } else {
+            source_fields.push(drift_key);
+        }
+    }
+
+    source_fields
 }
 
 fn push_mismatch(
