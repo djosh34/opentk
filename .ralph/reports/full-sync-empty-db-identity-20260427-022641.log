@@ -1,0 +1,9 @@
+$ SELECT current_database(), current_user, inet_server_addr(), inet_server_port(), version()
+-[ RECORD 1 ]----+----------------------------------------------------------------------------------------------------------------
+current_database | opentk_full_sync_20260427_022641
+current_user     | postgres
+inet_server_addr | 127.0.0.1
+inet_server_port | 55432
+version          | PostgreSQL 16.11 on aarch64-redhat-linux-gnu, compiled by gcc (GCC) 11.5.0 20240719 (Red Hat 11.5.0-11), 64-bit
+
+$ migration evidence

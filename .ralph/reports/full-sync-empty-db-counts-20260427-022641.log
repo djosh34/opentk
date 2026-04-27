@@ -1,0 +1,531 @@
+$ row counts for public tables before sync
+    table_name     | rows 
+-------------------+------
+ public.activiteit |    0
+(1 row)
+
+             table_name              | rows 
+-------------------------------------+------
+ public.activiteit__vervangen_vanuit |    0
+(1 row)
+
+              table_name              | rows 
+--------------------------------------+------
+ public.activiteit__voortgezet_vanuit |    0
+(1 row)
+
+              table_name              | rows 
+--------------------------------------+------
+ public.activiteit__voortouwcommissie |    0
+(1 row)
+
+       table_name        | rows 
+-------------------------+------
+ public.activiteit_actor |    0
+(1 row)
+
+             table_name              | rows 
+-------------------------------------+------
+ public.activiteit_actor__activiteit |    0
+(1 row)
+
+             table_name             | rows 
+------------------------------------+------
+ public.activiteit_actor__commissie |    0
+(1 row)
+
+            table_name            | rows 
+----------------------------------+------
+ public.activiteit_actor__fractie |    0
+(1 row)
+
+            table_name            | rows 
+----------------------------------+------
+ public.activiteit_actor__persoon |    0
+(1 row)
+
+    table_name     | rows 
+-------------------+------
+ public.agendapunt |    0
+(1 row)
+
+          table_name           | rows 
+-------------------------------+------
+ public.agendapunt__activiteit |    0
+(1 row)
+
+   table_name   | rows 
+----------------+------
+ public.besluit |    0
+(1 row)
+
+         table_name         | rows 
+----------------------------+------
+ public.besluit__agendapunt |    0
+(1 row)
+
+      table_name      | rows 
+----------------------+------
+ public.besluit__zaak |    0
+(1 row)
+
+    table_name    | rows 
+------------------+------
+ public.commissie |    0
+(1 row)
+
+             table_name             | rows 
+------------------------------------+------
+ public.commissie_contactinformatie |    0
+(1 row)
+
+                  table_name                   | rows 
+-----------------------------------------------+------
+ public.commissie_contactinformatie__commissie |    0
+(1 row)
+
+       table_name       | rows 
+------------------------+------
+ public.commissie_zetel |    0
+(1 row)
+
+            table_name             | rows 
+-----------------------------------+------
+ public.commissie_zetel__commissie |    0
+(1 row)
+
+             table_name              | rows 
+-------------------------------------+------
+ public.commissie_zetel_vast_persoon |    0
+(1 row)
+
+                      table_name                      | rows 
+------------------------------------------------------+------
+ public.commissie_zetel_vast_persoon__commissie_zetel |    0
+(1 row)
+
+                  table_name                  | rows 
+----------------------------------------------+------
+ public.commissie_zetel_vast_persoon__persoon |    0
+(1 row)
+
+              table_name              | rows 
+--------------------------------------+------
+ public.commissie_zetel_vast_vacature |    0
+(1 row)
+
+                      table_name                       | rows 
+-------------------------------------------------------+------
+ public.commissie_zetel_vast_vacature__commissie_zetel |    0
+(1 row)
+
+                  table_name                   | rows 
+-----------------------------------------------+------
+ public.commissie_zetel_vast_vacature__fractie |    0
+(1 row)
+
+                table_name                | rows 
+------------------------------------------+------
+ public.commissie_zetel_vervanger_persoon |    0
+(1 row)
+
+                        table_name                         | rows 
+-----------------------------------------------------------+------
+ public.commissie_zetel_vervanger_persoon__commissie_zetel |    0
+(1 row)
+
+                    table_name                     | rows 
+---------------------------------------------------+------
+ public.commissie_zetel_vervanger_persoon__persoon |    0
+(1 row)
+
+                table_name                 | rows 
+-------------------------------------------+------
+ public.commissie_zetel_vervanger_vacature |    0
+(1 row)
+
+                         table_name                         | rows 
+------------------------------------------------------------+------
+ public.commissie_zetel_vervanger_vacature__commissie_zetel |    0
+(1 row)
+
+                     table_name                     | rows 
+----------------------------------------------------+------
+ public.commissie_zetel_vervanger_vacature__fractie |    0
+(1 row)
+
+   table_name    | rows 
+-----------------+------
+ public.document |    0
+(1 row)
+
+         table_name          | rows 
+-----------------------------+------
+ public.document__activiteit |    0
+(1 row)
+
+         table_name          | rows 
+-----------------------------+------
+ public.document__agendapunt |    0
+(1 row)
+
+           table_name           | rows 
+--------------------------------+------
+ public.document__bron_document |    0
+(1 row)
+
+                table_name                | rows 
+------------------------------------------+------
+ public.document__huidige_document_versie |    0
+(1 row)
+
+            table_name             | rows 
+-----------------------------------+------
+ public.document__kamerstukdossier |    0
+(1 row)
+
+      table_name       | rows 
+-----------------------+------
+ public.document__zaak |    0
+(1 row)
+
+      table_name       | rows 
+-----------------------+------
+ public.document_actor |    0
+(1 row)
+
+            table_name            | rows 
+----------------------------------+------
+ public.document_actor__commissie |    0
+(1 row)
+
+           table_name            | rows 
+---------------------------------+------
+ public.document_actor__document |    0
+(1 row)
+
+           table_name           | rows 
+--------------------------------+------
+ public.document_actor__fractie |    0
+(1 row)
+
+           table_name           | rows 
+--------------------------------+------
+ public.document_actor__persoon |    0
+(1 row)
+
+      table_name       | rows 
+-----------------------+------
+ public.document_asset |    0
+(1 row)
+
+       table_name        | rows 
+-------------------------+------
+ public.document_content |    0
+(1 row)
+
+       table_name       | rows 
+------------------------+------
+ public.document_versie |    0
+(1 row)
+
+            table_name            | rows 
+----------------------------------+------
+ public.document_versie__document |    0
+(1 row)
+
+   table_name   | rows 
+----------------+------
+ public.fractie |    0
+(1 row)
+
+      table_name      | rows 
+----------------------+------
+ public.fractie_zetel |    0
+(1 row)
+
+          table_name           | rows 
+-------------------------------+------
+ public.fractie_zetel__fractie |    0
+(1 row)
+
+          table_name          | rows 
+------------------------------+------
+ public.fractie_zetel_persoon |    0
+(1 row)
+
+                 table_name                  | rows 
+---------------------------------------------+------
+ public.fractie_zetel_persoon__fractie_zetel |    0
+(1 row)
+
+              table_name               | rows 
+---------------------------------------+------
+ public.fractie_zetel_persoon__persoon |    0
+(1 row)
+
+          table_name           | rows 
+-------------------------------+------
+ public.fractie_zetel_vacature |    0
+(1 row)
+
+                  table_name                  | rows 
+----------------------------------------------+------
+ public.fractie_zetel_vacature__fractie_zetel |    0
+(1 row)
+
+     table_name      | rows 
+---------------------+------
+ public.ingest_error |    0
+(1 row)
+
+       table_name        | rows 
+-------------------------+------
+ public.kamerstukdossier |    0
+(1 row)
+
+   table_name   | rows 
+----------------+------
+ public.persoon |    0
+(1 row)
+
+            table_name            | rows 
+----------------------------------+------
+ public.persoon_contactinformatie |    0
+(1 row)
+
+                table_name                 | rows 
+-------------------------------------------+------
+ public.persoon_contactinformatie__persoon |    0
+(1 row)
+
+       table_name        | rows 
+-------------------------+------
+ public.persoon_geschenk |    0
+(1 row)
+
+            table_name            | rows 
+----------------------------------+------
+ public.persoon_geschenk__persoon |    0
+(1 row)
+
+       table_name        | rows 
+-------------------------+------
+ public.persoon_loopbaan |    0
+(1 row)
+
+            table_name            | rows 
+----------------------------------+------
+ public.persoon_loopbaan__persoon |    0
+(1 row)
+
+         table_name          | rows 
+-----------------------------+------
+ public.persoon_nevenfunctie |    0
+(1 row)
+
+              table_name              | rows 
+--------------------------------------+------
+ public.persoon_nevenfunctie__persoon |    0
+(1 row)
+
+              table_name               | rows 
+---------------------------------------+------
+ public.persoon_nevenfunctie_inkomsten |    0
+(1 row)
+
+                         table_name                          | rows 
+-------------------------------------------------------------+------
+ public.persoon_nevenfunctie_inkomsten__persoon_nevenfunctie |    0
+(1 row)
+
+        table_name        | rows 
+--------------------------+------
+ public.persoon_onderwijs |    0
+(1 row)
+
+            table_name             | rows 
+-----------------------------------+------
+ public.persoon_onderwijs__persoon |    0
+(1 row)
+
+     table_name      | rows 
+---------------------+------
+ public.persoon_reis |    0
+(1 row)
+
+          table_name          | rows 
+------------------------------+------
+ public.persoon_reis__persoon |    0
+(1 row)
+
+     table_name     | rows 
+--------------------+------
+ public.reservering |    0
+(1 row)
+
+           table_name           | rows 
+--------------------------------+------
+ public.reservering__activiteit |    0
+(1 row)
+
+        table_name        | rows 
+--------------------------+------
+ public.reservering__zaal |    0
+(1 row)
+
+         table_name         | rows 
+----------------------------+------
+ public.search_index_cursor |    0
+(1 row)
+
+         table_name          | rows 
+-----------------------------+------
+ public.search_index_failure |    0
+(1 row)
+
+   table_name    | rows 
+-----------------+------
+ public.stemming |    0
+(1 row)
+
+        table_name        | rows 
+--------------------------+------
+ public.stemming__besluit |    0
+(1 row)
+
+        table_name        | rows 
+--------------------------+------
+ public.stemming__fractie |    0
+(1 row)
+
+        table_name        | rows 
+--------------------------+------
+ public.stemming__persoon |    0
+(1 row)
+
+      table_name      | rows 
+----------------------+------
+ public.sync_category |    0
+(1 row)
+
+     table_name     | rows 
+--------------------+------
+ public.sync_entity |    0
+(1 row)
+
+    table_name     | rows 
+-------------------+------
+ public.toezegging |    0
+(1 row)
+
+          table_name           | rows 
+-------------------------------+------
+ public.toezegging__activiteit |    0
+(1 row)
+
+             table_name              | rows 
+-------------------------------------+------
+ public.toezegging__is_aanvulling_op |    0
+(1 row)
+
+             table_name              | rows 
+-------------------------------------+------
+ public.toezegging__is_herhaling_van |    0
+(1 row)
+
+             table_name              | rows 
+-------------------------------------+------
+ public.toezegging__is_wijziging_van |    0
+(1 row)
+
+            table_name            | rows 
+----------------------------------+------
+ public.toezegging__toegezegd_aan |    0
+(1 row)
+
+                table_name                | rows 
+------------------------------------------+------
+ public.toezegging__toegezegd_aan_fractie |    0
+(1 row)
+
+                table_name                | rows 
+------------------------------------------+------
+ public.toezegging__toegezegd_aan_persoon |    0
+(1 row)
+
+     table_name     | rows 
+--------------------+------
+ public.vergadering |    0
+(1 row)
+
+   table_name   | rows 
+----------------+------
+ public.verslag |    0
+(1 row)
+
+         table_name          | rows 
+-----------------------------+------
+ public.verslag__vergadering |    0
+(1 row)
+
+ table_name  | rows 
+-------------+------
+ public.zaak |    0
+(1 row)
+
+       table_name        | rows 
+-------------------------+------
+ public.zaak__activiteit |    0
+(1 row)
+
+       table_name        | rows 
+-------------------------+------
+ public.zaak__agendapunt |    0
+(1 row)
+
+           table_name            | rows 
+---------------------------------+------
+ public.zaak__gerelateerd_vanuit |    0
+(1 row)
+
+          table_name           | rows 
+-------------------------------+------
+ public.zaak__kamerstukdossier |    0
+(1 row)
+
+          table_name           | rows 
+-------------------------------+------
+ public.zaak__vervangen_vanuit |    0
+(1 row)
+
+    table_name     | rows 
+-------------------+------
+ public.zaak_actor |    0
+(1 row)
+
+          table_name          | rows 
+------------------------------+------
+ public.zaak_actor__commissie |    0
+(1 row)
+
+         table_name         | rows 
+----------------------------+------
+ public.zaak_actor__fractie |    0
+(1 row)
+
+         table_name         | rows 
+----------------------------+------
+ public.zaak_actor__persoon |    0
+(1 row)
+
+       table_name        | rows 
+-------------------------+------
+ public.zaak_actor__zaak |    0
+(1 row)
+
+ table_name  | rows 
+-------------+------
+ public.zaal |    0
+(1 row)
+

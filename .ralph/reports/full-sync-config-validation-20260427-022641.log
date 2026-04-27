@@ -1,0 +1,9 @@
+$ cargo run -p opentk-db --bin opentk-sync -- --config <config> --validate-config
+   Compiling opentk-config v0.1.0 (/home/joshazimullah.linux/work_mounts/patroni_rewrite/opentk/crates/opentk-config)
+   Compiling opentk-search v0.1.0 (/home/joshazimullah.linux/work_mounts/patroni_rewrite/opentk/crates/opentk-search)
+   Compiling opentk-sync v0.1.0 (/home/joshazimullah.linux/work_mounts/patroni_rewrite/opentk/crates/opentk-sync)
+   Compiling opentk-db v0.1.0 (/home/joshazimullah.linux/work_mounts/patroni_rewrite/opentk/crates/opentk-db)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 17.47s
+     Running `target/debug/opentk-sync --config .ralph/reports/full-sync-config-20260427-022641.toml --validate-config`
+Database at postgres://postgres@127.0.0.1:55432/opentk_full_sync_20260427_022641 is reachable
+SyncFeed base URL at https://gegevensmagazijn.tweedekamer.nl/ is reachable

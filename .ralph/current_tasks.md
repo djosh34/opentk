@@ -1,6 +1,18 @@
 # Current Tasks Summary
 
-Generated: Mon Apr 27 02:23:22 AM CEST 2026
+Generated: Mon Apr 27 02:35:24 AM CEST 2026
+
+# Task `/home/joshazimullah.linux/work_mounts/patroni_rewrite/opentk/.ralph/tasks/bugs/bug-full-sync-fails-on-duplicate-toezegging-kamerbrief-nakoming.md`
+
+```
+## Bug: full sync fails on duplicate Toezegging kamerbriefNakoming field <status>not_started</status> <passes>false</passes> <priority>high</priority>
+
+<description>
+Story 10 Task 1 attempted a clean full SyncFeed-to-PostgreSQL sync from a fresh
+database and the public sync runner exited nonzero after 305 seconds.
+```
+
+==============
 
 # Task `/home/joshazimullah.linux/work_mounts/patroni_rewrite/opentk/.ralph/tasks/story-10-full-sync-backup/task-1-run-one-time-clean-full-sync-report.md`
 

@@ -1,0 +1,2 @@
+$ SELECT pg_database_size
+85176803	81 MB

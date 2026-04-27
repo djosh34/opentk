@@ -1,0 +1,8 @@
+SYNC_START=2026-04-27T02:27:33+02:00
+$ CARGO_INCREMENTAL=0 cargo run -p opentk-db --bin opentk-sync -- --config <config> run
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.68s
+     Running `target/debug/opentk-sync --config .ralph/reports/full-sync-config-20260427-022641.toml run`
+Error: Parse { category: "Toezegging", source: DuplicateSingleField { category: "Toezegging", field: "kamerbriefNakoming" } }
+SYNC_END=2026-04-27T02:32:38+02:00
+DURATION_SECONDS=305
+COMMAND_STATUS=1

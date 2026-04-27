@@ -1,0 +1,11 @@
+$ SELECT * FROM ingest_error ORDER BY created_at DESC LIMIT 20
+-[ RECORD 1 ]----+-------------------------------------------------------------------------------
+id               | 1
+phase            | parse
+source_category  | Toezegging
+source_id        | 
+latest_skiptoken | 24757735
+message          | Toezegging.kamerbriefNakoming appeared more than once but is single-occurrence
+payload          | 
+created_at       | 2026-04-27 02:32:38.955988+02
+

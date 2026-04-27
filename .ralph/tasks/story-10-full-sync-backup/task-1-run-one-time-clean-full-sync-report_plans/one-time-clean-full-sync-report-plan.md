@@ -29,21 +29,21 @@ If any sync or measurement command fails, or any result is questionable, stop ex
 
 ## Execution Checklist
 
-- [ ] Record initial metadata:
-  - [ ] `date -Is`
-  - [ ] `git rev-parse HEAD`
-  - [ ] `git status --short`
-  - [ ] exact chosen config path and redacted database target
-  - [ ] `cargo run -p opentk-db --bin opentk-sync -- --config <config> --validate-config`
-- [ ] Create or reset a dedicated empty PostgreSQL database for the run, for example `opentk_full_sync_YYYYMMDD_HHMMSS`.
-- [ ] Write a temporary local TOML config under `.ralph/reports/` for the run if no suitable config exists. Keep it report-adjacent, not product code. It must point to the dedicated database and either omit `sync.categories` to use all official categories or explicitly list the official categories discovered from the existing config/model.
-- [ ] Apply the existing migration to the empty database using the existing migration artifact. Prefer `sqlx migrate run --source migrations --database-url <url>` if `sqlx` CLI is available; otherwise use `psql <url> -v ON_ERROR_STOP=1 -f migrations/20260426000000_sync_schema.up.sql` and record that schema version as `20260426000000_sync_schema`.
-- [ ] Prove the database is empty of SyncFeed data before sync:
-  - [ ] database identity: `SELECT current_database(), current_user, inet_server_addr(), inet_server_port(), version();`
-  - [ ] schema/migration version: `_sqlx_migrations` if present, otherwise the applied migration filename and checksum evidence from `sha256sum migrations/20260426000000_sync_schema.up.sql`
-  - [ ] storage size: `SELECT pg_database_size(current_database()), pg_size_pretty(pg_database_size(current_database()));`
-  - [ ] pre-sync row counts for `sync_category`, `sync_entity`, `ingest_error`, generated category tables, relation tables, `document_asset`, and `document_content`
-- [ ] Start the full sync:
+- [x] Record initial metadata:
+  - [x] `date -Is`
+  - [x] `git rev-parse HEAD`
+  - [x] `git status --short`
+  - [x] exact chosen config path and redacted database target
+  - [x] `cargo run -p opentk-db --bin opentk-sync -- --config <config> --validate-config`
+- [x] Create or reset a dedicated empty PostgreSQL database for the run, for example `opentk_full_sync_YYYYMMDD_HHMMSS`.
+- [x] Write a temporary local TOML config under `.ralph/reports/` for the run if no suitable config exists. Keep it report-adjacent, not product code. It must point to the dedicated database and either omit `sync.categories` to use all official categories or explicitly list the official categories discovered from the existing config/model.
+- [x] Apply the existing migration to the empty database using the existing migration artifact. Prefer `sqlx migrate run --source migrations --database-url <url>` if `sqlx` CLI is available; otherwise use `psql <url> -v ON_ERROR_STOP=1 -f migrations/20260426000000_sync_schema.up.sql` and record that schema version as `20260426000000_sync_schema`.
+- [x] Prove the database is empty of SyncFeed data before sync:
+  - [x] database identity: `SELECT current_database(), current_user, inet_server_addr(), inet_server_port(), version();`
+  - [x] schema/migration version: `_sqlx_migrations` if present, otherwise the applied migration filename and checksum evidence from `sha256sum migrations/20260426000000_sync_schema.up.sql`
+  - [x] storage size: `SELECT pg_database_size(current_database()), pg_size_pretty(pg_database_size(current_database()));`
+  - [x] pre-sync row counts for `sync_category`, `sync_entity`, `ingest_error`, generated category tables, relation tables, `document_asset`, and `document_content`
+- [x] Start the full sync:
   - [ ] run this wrapper from the repo root, replacing `<config>` and capture stdout/stderr to report evidence under `.ralph/reports/`:
     ```bash
     SYNC_START=$(date -Is)
@@ -62,7 +62,7 @@ If any sync or measurement command fails, or any result is questionable, stop ex
     echo "COMMAND_STATUS=${COMMAND_STATUS}"
     exit "${COMMAND_STATUS}"
     ```
-  - [ ] record `SYNC_START`, `SYNC_END`, `DURATION_SECONDS`, and `COMMAND_STATUS` from the captured evidence
+  - [x] record `SYNC_START`, `SYNC_END`, `DURATION_SECONDS`, and `COMMAND_STATUS` from the captured evidence
 - [ ] Confirm clean completion:
   - [ ] run `cargo run -p opentk-db --bin opentk-sync -- --config <config> status`
   - [ ] every configured category must report caught-up state with no last error
@@ -104,6 +104,16 @@ If any sync or measurement command fails, or any result is questionable, stop ex
   - [ ] commit as `task finished task-1-run-one-time-clean-full-sync-report: ran clean full sync and reported measurements`
   - [ ] include evidence for sync completion, report email, `make check`, `make lint`, and `make test` in the commit message
   - [ ] `git push`
+
+## Execution Stop
+
+Stopped on `2026-04-27T02:32:38+02:00` because the clean full sync exited
+nonzero after `305` seconds:
+
+`Error: Parse { category: "Toezegging", source: DuplicateSingleField { category: "Toezegging", field: "kamerbriefNakoming" } }`
+
+Filed blocker bug:
+`.ralph/tasks/bugs/bug-full-sync-fails-on-duplicate-toezegging-kamerbrief-nakoming.md`
 
 ## Boundary Notes
 

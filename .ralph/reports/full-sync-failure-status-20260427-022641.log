@@ -1,0 +1,38 @@
+$ cargo run -p opentk-db --bin opentk-sync -- --config <config> status
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.67s
+     Running `target/debug/opentk-sync --config .ralph/reports/full-sync-config-20260427-022641.toml status`
+Activiteit	state=running	latest_skiptoken=9414870	lag_seconds=13	last_fetch_at=2026-04-27T00:32:37.616686+00:00	last_error=none
+ActiviteitActor	state=running	latest_skiptoken=8097210	lag_seconds=22	last_fetch_at=2026-04-27T00:32:29.289006+00:00	last_error=none
+Agendapunt	state=running	latest_skiptoken=76753	lag_seconds=22	last_fetch_at=2026-04-27T00:32:28.902907+00:00	last_error=none
+Besluit	state=running	latest_skiptoken=69510	lag_seconds=22	last_fetch_at=2026-04-27T00:32:28.818705+00:00	last_error=none
+Commissie	state=not_started	latest_skiptoken=null	lag_seconds=null	last_fetch_at=null	last_error=none
+CommissieContactinformatie	state=caught_up	latest_skiptoken=25391021	lag_seconds=14	last_fetch_at=2026-04-27T00:32:37.160091+00:00	last_error=none
+CommissieZetel	state=running	latest_skiptoken=16675194	lag_seconds=13	last_fetch_at=2026-04-27T00:32:38.395439+00:00	last_error=none
+CommissieZetelVastPersoon	state=running	latest_skiptoken=16677874	lag_seconds=15	last_fetch_at=2026-04-27T00:32:36.268826+00:00	last_error=none
+CommissieZetelVastVacature	state=running	latest_skiptoken=24108683	lag_seconds=13	last_fetch_at=2026-04-27T00:32:38.085949+00:00	last_error=none
+CommissieZetelVervangerPersoon	state=running	latest_skiptoken=16682429	lag_seconds=24	last_fetch_at=2026-04-27T00:32:26.614228+00:00	last_error=none
+CommissieZetelVervangerVacature	state=running	latest_skiptoken=24115872	lag_seconds=24	last_fetch_at=2026-04-27T00:32:27.249830+00:00	last_error=none
+Document	state=running	latest_skiptoken=5477886	lag_seconds=14	last_fetch_at=2026-04-27T00:32:36.978705+00:00	last_error=none
+DocumentActor	state=running	latest_skiptoken=5479223	lag_seconds=22	last_fetch_at=2026-04-27T00:32:29.039942+00:00	last_error=none
+DocumentVersie	state=running	latest_skiptoken=5336598	lag_seconds=14	last_fetch_at=2026-04-27T00:32:37.122337+00:00	last_error=none
+Fractie	state=caught_up	latest_skiptoken=24971385	lag_seconds=134	last_fetch_at=2026-04-27T00:30:37.293994+00:00	last_error=none
+FractieZetel	state=caught_up	latest_skiptoken=25174188	lag_seconds=95	last_fetch_at=2026-04-27T00:31:15.943503+00:00	last_error=none
+FractieZetelPersoon	state=caught_up	latest_skiptoken=25174174	lag_seconds=45	last_fetch_at=2026-04-27T00:32:05.660363+00:00	last_error=none
+FractieZetelVacature	state=not_started	latest_skiptoken=null	lag_seconds=null	last_fetch_at=null	last_error=none
+Kamerstukdossier	state=running	latest_skiptoken=80759	lag_seconds=23	last_fetch_at=2026-04-27T00:32:28.428532+00:00	last_error=none
+Persoon	state=running	latest_skiptoken=16661227	lag_seconds=15	last_fetch_at=2026-04-27T00:32:36.107217+00:00	last_error=none
+PersoonContactinformatie	state=running	latest_skiptoken=17271968	lag_seconds=61	last_fetch_at=2026-04-27T00:31:50.034004+00:00	last_error=none
+PersoonGeschenk	state=running	latest_skiptoken=16664958	lag_seconds=22	last_fetch_at=2026-04-27T00:32:28.642748+00:00	last_error=none
+PersoonLoopbaan	state=running	latest_skiptoken=17373441	lag_seconds=23	last_fetch_at=2026-04-27T00:32:28.239668+00:00	last_error=none
+PersoonNevenfunctie	state=running	latest_skiptoken=19556345	lag_seconds=46	last_fetch_at=2026-04-27T00:32:05.373845+00:00	last_error=none
+PersoonNevenfunctieInkomsten	state=caught_up	latest_skiptoken=25228676	lag_seconds=97	last_fetch_at=2026-04-27T00:31:14.441114+00:00	last_error=none
+PersoonOnderwijs	state=caught_up	latest_skiptoken=24897442	lag_seconds=94	last_fetch_at=2026-04-27T00:31:17.178511+00:00	last_error=none
+PersoonReis	state=running	latest_skiptoken=16669073	lag_seconds=24	last_fetch_at=2026-04-27T00:32:26.950748+00:00	last_error=none
+Reservering	state=running	latest_skiptoken=5377376	lag_seconds=13	last_fetch_at=2026-04-27T00:32:38.341690+00:00	last_error=none
+Stemming	state=running	latest_skiptoken=3609637	lag_seconds=13	last_fetch_at=2026-04-27T00:32:38.504811+00:00	last_error=none
+Toezegging	state=error	latest_skiptoken=24757475	lag_seconds=24	last_fetch_at=2026-04-27T00:32:27.050489+00:00	last_error=parse skiptoken=24757735 entity=null Toezegging.kamerbriefNakoming appeared more than once but is single-occurrence
+Vergadering	state=running	latest_skiptoken=47624	lag_seconds=13	last_fetch_at=2026-04-27T00:32:38.205323+00:00	last_error=none
+Verslag	state=running	latest_skiptoken=35573	lag_seconds=24	last_fetch_at=2026-04-27T00:32:26.868522+00:00	last_error=none
+Zaak	state=running	latest_skiptoken=18122977	lag_seconds=13	last_fetch_at=2026-04-27T00:32:37.988404+00:00	last_error=none
+ZaakActor	state=running	latest_skiptoken=164534	lag_seconds=24	last_fetch_at=2026-04-27T00:32:26.778363+00:00	last_error=none
+Zaal	state=not_started	latest_skiptoken=null	lag_seconds=null	last_fetch_at=null	last_error=none
