@@ -1,6 +1,6 @@
 # Done Tasks Summary
 
-Generated: Mon Apr 27 07:29:15 PM CEST 2026
+Generated: Mon Apr 27 19:42:00 CEST 2026
 
 # Task `/home/joshazimullah.linux/work_mounts/patroni_rewrite/opentk/.ralph/tasks/bugs/bug-cargo-run-opentk-sync-linker-missing-objects.md`
 
@@ -93,6 +93,17 @@ database and the public sync runner exited nonzero on the initial `Toezegging`
 <description>
 Story 10 Task 01 attempted one clean full SyncFeed-to-PostgreSQL sync from a
 fresh migrated database on 2026-04-26. The actual sync command failed after
+```
+
+==============
+
+# Task `/home/joshazimullah.linux/work_mounts/patroni_rewrite/opentk/.ralph/tasks/bugs/bug-remove-bs-text-assert-tests.md`
+
+```
+## Bug: Remove bs text-assert tests <status>done</status> <passes>true</passes> <priority>high</priority>
+
+<description>
+This is a non-code file/test-suite cleanup bug. Do not use Red-Green TDD for this task, because the work is to remove brittle text-assert tests rather than to add new behavior. Do not add new Rust tests that assert source/docs/config text fragments as acceptance coverage for this cleanup.
 ```
 
 ==============

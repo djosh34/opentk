@@ -1,4 +1,4 @@
-## Bug: Remove bs text-assert tests <status>not_started</status> <passes>false</passes> <priority>high</priority>
+## Bug: Remove bs text-assert tests <status>done</status> <passes>true</passes> <priority>high</priority>
 
 <description>
 This is a non-code file/test-suite cleanup bug. Do not use Red-Green TDD for this task, because the work is to remove brittle text-assert tests rather than to add new behavior. Do not add new Rust tests that assert source/docs/config text fragments as acceptance coverage for this cleanup.
@@ -160,12 +160,28 @@ Manual verification must include targeted searches for patterns such as `fs::rea
 </manual_verification_required>
 
 <acceptance_criteria>
-- [ ] Removed the listed Dockerfile, GitHub Actions, shell script, docs, README, Cargo manifest, and production source substring tests
-- [ ] Swept the repo for other bs-tests that assert particular text strings exist or do not exist in files
-- [ ] Removed any additional tests found that do dumb source/docs/config text-fragment assertions instead of behavior
-- [ ] Preserved tests that genuinely exercise actual code/logic/behavior, including legitimate fixture-driven parser/extractor tests where they add behavioral coverage
-- [ ] Manually verified with repository searches that no targeted brittle source/docs/config text-assert tests remain
-- [ ] Documented any borderline fixture-driven tests that were inspected and intentionally preserved as behavior tests
-- [ ] `make check` — passes cleanly
-- [ ] `make lint` — passes cleanly
+- [x] Removed the listed Dockerfile, GitHub Actions, shell script, docs, README, Cargo manifest, and production source substring tests
+- [x] Swept the repo for other bs-tests that assert particular text strings exist or do not exist in files
+- [x] Removed any additional tests found that do dumb source/docs/config text-fragment assertions instead of behavior
+- [x] Preserved tests that genuinely exercise actual code/logic/behavior, including legitimate fixture-driven parser/extractor tests where they add behavioral coverage
+- [x] Manually verified with repository searches that no targeted brittle source/docs/config text-assert tests remain
+- [x] Documented any borderline fixture-driven tests that were inspected and intentionally preserved as behavior tests
+- [x] `make check` — passes cleanly
+- [x] `make lint` — passes cleanly
 </acceptance_criteria>
+
+<plan>
+.ralph/tasks/bugs/bug-remove-bs-text-assert-tests_plans/remove-bs-text-assert-tests-plan.md
+</plan>
+
+<verification>
+- `cargo test -p opentk-config dockerfiles_declare_runtime_healthchecks` reports no matching test in `opentk-config`, confirming the named Dockerfile text contract test is gone.
+- `cargo test -p opentk-config github_docker_workflow_declares_trigger_contract` reports no matching test in `opentk-config`, confirming the named workflow text contract test is gone.
+- `cargo test -p opentk-config --test config_loading` passes with the remaining six config behavior tests.
+- `cargo test -p opentk-core --test workspace_smoke documented_opentk_sync_cargo_command_links_and_prints_help` passes after weakening the exact help prose assertion to a CLI behavior check.
+- `rg -n "docker/|Dockerfile|\\.github|workflows|README\\.md|docs/|Cargo\\.toml|scripts/|src/|serde_yaml|read_to_string" crates/*/tests -g '*.rs'` returns no matches.
+- `rg -n "fs::read_to_string|include_str!|\\.contains\\(|starts_with\\(|ends_with\\(|serde_yaml::to_string" crates/*/tests -g '*.rs'` was manually inspected; remaining hits are runtime behavior, parser/extractor fixtures, protocol request assertions, error reporting, or generated migration drift checks.
+- `make check` passes cleanly.
+- `make test` passes cleanly.
+- `make lint` passes cleanly.
+</verification>
