@@ -1,4 +1,4 @@
-## Task: Story 08 Task 01 - Dockerfiles for Local Development <status>not_started</status> <passes>false</passes>
+## Task: Story 08 Task 01 - Dockerfiles for Local Development <status>done</status> <passes>true</passes>
 
 <description>
 Must use tdd skill to complete
@@ -26,14 +26,20 @@ In scope: scratch Dockerfiles, .dockerignore, build script. Out of scope: docker
 
 
 <acceptance_criteria>
-- [ ] `docker/Dockerfile.sync` builds and runs `opentk-sync --help`
-- [ ] `docker/Dockerfile.api` builds and runs `opentk-api --help`
-- [ ] BuildKit cache mounts used for cargo registry and target
-- [ ] Runtime images use `scratch` and run as non-root uid 1000
-- [ ] Dockerfiles and docs describe only static scratch runtime images
-- [ ] `scripts/docker-build.sh` builds both images
-- [ ] `.dockerignore` properly excludes unnecessary files
-- [ ] `make check` — passes cleanly
-- [ ] `make test` — passes cleanly (default suite)
-- [ ] `make lint` — passes cleanly
+- [x] `docker/Dockerfile.sync` builds and runs `opentk-sync --help`
+- [x] `docker/Dockerfile.api` builds and runs `opentk-api --help`
+- [x] BuildKit cache mounts used for cargo registry and target
+- [x] Runtime images use `scratch` and run as non-root uid 1000
+- [x] Dockerfiles and docs describe only static scratch runtime images
+- [x] `scripts/docker-build.sh` builds both images
+- [x] `.dockerignore` properly excludes unnecessary files
+- [x] `make check` — passes cleanly
+- [x] `make test` — passes cleanly (default suite)
+- [x] `make lint` — passes cleanly
 </acceptance_criteria>
+
+<plan>
+.ralph/tasks/story-08-docker-local-dev/task-01-dockerfiles_plans/dockerfiles-local-dev-plan.md
+</plan>
+
+DONE

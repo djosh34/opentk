@@ -1,6 +1,6 @@
 # Done Tasks Summary
 
-Generated: Mon Apr 27 11:42:05 AM CEST 2026
+Generated: Mon Apr 27 12:01:41 CEST 2026
 
 # Task `/home/joshazimullah.linux/work_mounts/patroni_rewrite/opentk/.ralph/tasks/bugs/bug-cargo-run-opentk-sync-linker-missing-objects.md`
 
@@ -453,6 +453,17 @@ Must use tdd skill to complete
 
 ```
 ## Task: Story 07 Task 03 - Integrate Search CDC Background Task into opentk-api <status>done</status> <passes>true</passes>
+
+<description>
+Must use tdd skill to complete
+```
+
+==============
+
+# Task `/home/joshazimullah.linux/work_mounts/patroni_rewrite/opentk/.ralph/tasks/story-08-docker-local-dev/task-01-dockerfiles.md`
+
+```
+## Task: Story 08 Task 01 - Dockerfiles for Local Development <status>done</status> <passes>true</passes>
 
 <description>
 Must use tdd skill to complete

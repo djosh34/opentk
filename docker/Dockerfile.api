@@ -1,0 +1,77 @@
+# syntax=docker/dockerfile:1.7
+
+FROM rust:1-bookworm AS builder
+
+ARG TARGETARCH
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends ca-certificates musl-tools pkg-config \
+    && rm -rf /var/lib/apt/lists/* \
+    && case "${TARGETARCH:-$(dpkg --print-architecture)}" in \
+        amd64) rust_target="x86_64-unknown-linux-musl" ;; \
+        arm64) rust_target="aarch64-unknown-linux-musl" ;; \
+        *) echo "unsupported Docker TARGETARCH: ${TARGETARCH}" >&2; exit 1 ;; \
+    esac \
+    && rustup target add "${rust_target}"
+
+WORKDIR /workspace
+
+COPY Cargo.toml Cargo.lock ./
+COPY crates/opentk-api/Cargo.toml crates/opentk-api/Cargo.toml
+COPY crates/opentk-config/Cargo.toml crates/opentk-config/Cargo.toml
+COPY crates/opentk-core/Cargo.toml crates/opentk-core/Cargo.toml
+COPY crates/opentk-db/Cargo.toml crates/opentk-db/Cargo.toml
+COPY crates/opentk-search/Cargo.toml crates/opentk-search/Cargo.toml
+COPY crates/opentk-search-eval/Cargo.toml crates/opentk-search-eval/Cargo.toml
+COPY crates/opentk-sync/Cargo.toml crates/opentk-sync/Cargo.toml
+
+RUN mkdir -p \
+        crates/opentk-api/src/bin \
+        crates/opentk-config/src \
+        crates/opentk-core/src \
+        crates/opentk-db/src/bin \
+        crates/opentk-search/src \
+        crates/opentk-search-eval/src/bin \
+        crates/opentk-sync/src/bin \
+    && for crate in opentk-api opentk-config opentk-core opentk-db opentk-search opentk-search-eval opentk-sync; do \
+        printf 'pub fn dependency_cache_placeholder() {}\n' > "crates/${crate}/src/lib.rs"; \
+    done \
+    && printf 'fn main() {}\n' > crates/opentk-api/src/bin/opentk-api.rs \
+    && printf 'fn main() {}\n' > crates/opentk-db/src/bin/opentk-sync.rs \
+    && printf 'fn main() {}\n' > crates/opentk-search-eval/src/bin/search-eval.rs \
+    && printf 'fn main() {}\n' > crates/opentk-sync/src/bin/official-schema.rs
+
+RUN --mount=type=cache,target=/usr/local/cargo/registry \
+    --mount=type=cache,target=/usr/local/cargo/git \
+    --mount=type=cache,id=opentk-api-deps-target,target=/workspace/target-deps \
+    case "${TARGETARCH:-$(dpkg --print-architecture)}" in \
+        amd64) rust_target="x86_64-unknown-linux-musl" ;; \
+        arm64) rust_target="aarch64-unknown-linux-musl" ;; \
+        *) echo "unsupported Docker TARGETARCH: ${TARGETARCH}" >&2; exit 1 ;; \
+    esac \
+    && CARGO_TARGET_DIR=/workspace/target-deps cargo build --release --target "${rust_target}" -p opentk-api --bin opentk-api
+
+COPY crates crates
+COPY migrations migrations
+
+RUN --mount=type=cache,target=/usr/local/cargo/registry \
+    --mount=type=cache,target=/usr/local/cargo/git \
+    --mount=type=cache,id=opentk-api-final-target,target=/workspace/target \
+    case "${TARGETARCH:-$(dpkg --print-architecture)}" in \
+        amd64) rust_target="x86_64-unknown-linux-musl" ;; \
+        arm64) rust_target="aarch64-unknown-linux-musl" ;; \
+        *) echo "unsupported Docker TARGETARCH: ${TARGETARCH}" >&2; exit 1 ;; \
+    esac \
+    && cargo build --release --target "${rust_target}" -p opentk-api --bin opentk-api \
+    && mkdir -p /runtime/etc /runtime/bin \
+    && cp "/workspace/target/${rust_target}/release/opentk-api" /runtime/bin/opentk-api \
+    && cp /etc/ssl/certs/ca-certificates.crt /runtime/etc/ca-certificates.crt \
+    && printf 'opentk:x:1000:1000:opentk:/nonexistent:/sbin/nologin\n' > /runtime/etc/passwd \
+    && printf 'opentk:x:1000:\n' > /runtime/etc/group
+
+FROM scratch
+
+COPY --from=builder /runtime/ /
+
+USER 1000:1000
+ENTRYPOINT ["/bin/opentk-api"]

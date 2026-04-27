@@ -49,3 +49,4 @@
 .ralph/tasks/story-10-full-sync-backup/task-1-run-one-time-clean-full-sync-report.md
 .ralph/tasks/bugs/bug-full-sync-post-measurement-query-used-invalid-columns.md
 .ralph/tasks/bugs/bug-full-sync-post-measurement-query-used-invalid-columns.md
+.ralph/tasks/story-08-docker-local-dev/task-01-dockerfiles.md
