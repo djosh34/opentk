@@ -130,6 +130,22 @@ Use vertical slices. Do not write all tests first.
     - push
     - quit immediately
 
+## Failed Verification Evidence
+
+GitHub Docker workflow run `25002033554` on pushed commit `a1cf096fdc8b2ad15ecfacc0c13aff50a0885bae` completed successfully, but did not satisfy the cache-reuse acceptance condition.
+
+- `warm-dependency-cache`: `2026-04-27T14:49:08Z` to `2026-04-27T14:53:39Z` (`4m31s`)
+- `build (opentk-sync)`: `2026-04-27T14:53:42Z` to `2026-04-27T15:00:17Z` (`6m35s`)
+- `build (opentk-api)`: `2026-04-27T14:53:42Z` to `2026-04-27T15:00:47Z` (`7m05s`)
+- `publish`: `2026-04-27T15:00:50Z` to `2026-04-27T15:01:11Z` (`21s`)
+
+Timing, sequencing, no-emulation, final assembly, and publish/build split were acceptable. Cache verification failed because both matrix artifact builds still rebuilt the dependency-cache stage:
+
+- `/tmp/opentk-docker-run-25002033554/logs/build (opentk-sync)/5_Build cross-compiled scratch artifacts.txt`: `383` `Downloaded` lines and `609` `Compiling` lines; dependency-cache cook ran for about `222.2s`.
+- `/tmp/opentk-docker-run-25002033554/logs/build (opentk-api)/5_Build cross-compiled scratch artifacts.txt`: `383` `Downloaded` lines and `611` `Compiling` lines; dependency-cache cook ran for about `222.7s`.
+
+Next design pass should not rely on `cache-to type=gha` for the dependency-cache target alone. The dependency output probably needs to be transported as an explicit image/artifact or the artifact-builder boundary needs to avoid re-running the dependency-cache stage in each matrix job.
+
 ## Acceptance Checklist
 
 - [ ] `.github/workflows/docker.yml` is valid YAML.
@@ -151,4 +167,4 @@ Use vertical slices. Do not write all tests first.
 - [ ] `make lint` passes.
 - [ ] `make test` passes.
 
-NOW EXECUTE
+TO BE VERIFIED

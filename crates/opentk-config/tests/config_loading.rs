@@ -555,8 +555,11 @@ fn github_docker_workflow_caches_cargo_targets_layers_and_final_assembly() {
     let build = path_mapping(jobs, "build");
 
     for required in [
-        "--target dependency-cache",
+        "--target built-dependency-cache",
         "--cache-to \"type=gha,scope=opentk-scratch-deps,mode=max\"",
+        "type=oci,dest=/tmp/opentk-scratch-deps.oci.tar",
+        "actions/upload-artifact",
+        "opentk-scratch-deps-oci",
         "docker/Dockerfile.scratch-artifacts",
     ] {
         assert!(
@@ -570,6 +573,9 @@ fn github_docker_workflow_caches_cargo_targets_layers_and_final_assembly() {
     );
 
     for required in [
+        "actions/download-artifact",
+        "opentk-scratch-deps-oci",
+        "--build-context dependency-cache-context=",
         "--cache-from \"type=gha,scope=opentk-scratch-deps\"",
         "--cache-from \"type=gha,scope=opentk-scratch-artifacts-${{ matrix.binary }}\"",
         "--cache-to \"type=gha,scope=opentk-scratch-artifacts-${{ matrix.binary }},mode=max\"",
@@ -595,6 +601,8 @@ fn github_docker_workflow_caches_cargo_targets_layers_and_final_assembly() {
         "cargo chef prepare --recipe-path recipe.json",
         "cargo chef cook --release --target x86_64-unknown-linux-musl --recipe-path recipe.json",
         "cargo chef cook --release --target aarch64-unknown-linux-musl --recipe-path recipe.json",
+        "FROM builder AS built-dependency-cache",
+        "COPY --from=dependency-cache-context /workspace/target /workspace/deps-target",
         "--mount=type=cache,target=/usr/local/cargo/registry",
         "--mount=type=cache,target=/usr/local/cargo/git",
         "--mount=type=cache,id=opentk-scratch-deps-target,target=/workspace/target",
@@ -608,6 +616,10 @@ fn github_docker_workflow_caches_cargo_targets_layers_and_final_assembly() {
     assert!(
         !artifacts.contains("id=opentk-scratch-target,target=/workspace/target"),
         "parallel matrix builds should not share one mutable final target cache"
+    );
+    assert!(
+        !artifacts.contains("COPY --from=dependency-cache /workspace/target"),
+        "artifact builds should consume the explicit dependency-cache-context instead of rebuilding an internal dependency-cache stage"
     );
 }
 
@@ -717,6 +729,10 @@ fn assert_scratch_build_script_contract(script: &str) {
         "set -euo pipefail",
         "docker buildx create",
         "docker buildx build",
+        "build_dependency_context",
+        "--target built-dependency-cache",
+        "--output \"type=oci,dest=${dependency_context_archive}\"",
+        "--build-context \"dependency-cache-context=oci-layout://${dependency_context_dir}\"",
         "-f \"${repo_root}/docker/Dockerfile.scratch-artifacts\"",
         "-f \"${repo_root}/docker/Dockerfile.scratch\"",
         "platforms=\"linux/amd64,linux/arm64\"",

@@ -25,11 +25,18 @@ jobs:
           set -euo pipefail
           docker buildx build \
             --platform linux/amd64 \
-            --target dependency-cache \
+            --target built-dependency-cache \
             --cache-from "type=gha,scope=opentk-scratch-deps" \
             --cache-to "type=gha,scope=opentk-scratch-deps,mode=max" \
             -f docker/Dockerfile.scratch-artifacts \
+            --output "type=oci,dest=/tmp/opentk-scratch-deps.oci.tar" \
             .
+      - name: Upload scratch dependency artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: opentk-scratch-deps-oci
+          path: /tmp/opentk-scratch-deps.oci.tar
+          if-no-files-found: error
 
   build:
     runs-on: ubuntu-24.04
@@ -53,12 +60,23 @@ jobs:
         uses: docker/setup-buildx-action@v3
         with:
           driver-opts: network=host
+      - name: Download scratch dependency artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: opentk-scratch-deps-oci
+          path: /tmp/opentk-scratch-deps
+      - name: Unpack scratch dependency artifact
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/opentk-scratch-deps-oci-layout
+          tar -xf /tmp/opentk-scratch-deps/opentk-scratch-deps.oci.tar -C /tmp/opentk-scratch-deps-oci-layout
       - name: Build cross-compiled scratch artifacts
         run: |
           set -euo pipefail
           artifact_image="localhost:5000/opentk-scratch-artifacts-${{ matrix.binary }}:${GITHUB_SHA}"
           docker buildx build \
             --platform linux/amd64 \
+            --build-context dependency-cache-context=oci-layout:///tmp/opentk-scratch-deps-oci-layout \
             --cache-from "type=gha,scope=opentk-scratch-deps" \
             --cache-from "type=gha,scope=opentk-scratch-artifacts-${{ matrix.binary }}" \
             --cache-to "type=gha,scope=opentk-scratch-artifacts-${{ matrix.binary }},mode=max" \

@@ -7,6 +7,15 @@ artifact_image_prefix="${OPENTK_ARTIFACT_IMAGE_PREFIX:-opentk-scratch-artifacts}
 builder_name="${OPENTK_BUILDX_BUILDER:-default}"
 platforms="linux/amd64,linux/arm64"
 max_image_size_bytes=50000000
+dependency_context_archive="$(mktemp)"
+dependency_context_dir="$(mktemp -d)"
+
+cleanup() {
+  rm -f "${dependency_context_archive}"
+  rm -rf "${dependency_context_dir}"
+}
+
+trap cleanup EXIT
 
 require_command() {
   if ! command -v "$1" >/dev/null 2>&1; then
@@ -51,6 +60,18 @@ assert_no_qemu_builder() {
   fi
 }
 
+build_dependency_context() {
+  docker buildx build \
+    --builder "${builder_name}" \
+    --platform "$(host_platform)" \
+    --target built-dependency-cache \
+    -f "${repo_root}/docker/Dockerfile.scratch-artifacts" \
+    --output "type=oci,dest=${dependency_context_archive}" \
+    "${repo_root}"
+
+  tar -xf "${dependency_context_archive}" -C "${dependency_context_dir}"
+}
+
 build_artifacts() {
   local binary="$1"
   local artifact_image="${artifact_image_prefix}-${binary}:local"
@@ -58,6 +79,7 @@ build_artifacts() {
   docker buildx build \
     --builder "${builder_name}" \
     --load \
+    --build-context "dependency-cache-context=oci-layout://${dependency_context_dir}" \
     --build-arg "BINARY=${binary}" \
     -f "${repo_root}/docker/Dockerfile.scratch-artifacts" \
     -t "${artifact_image}" \
@@ -117,6 +139,7 @@ require_command docker
 docker buildx version >/dev/null
 ensure_builder
 assert_no_qemu_builder
+build_dependency_context
 build_artifacts opentk-sync
 build_final_image opentk-sync
 build_artifacts opentk-api

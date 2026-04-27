@@ -27,7 +27,7 @@ COPY migrations migrations
 
 RUN cargo chef prepare --recipe-path recipe.json
 
-FROM builder AS dependency-cache
+FROM builder AS built-dependency-cache
 
 COPY --from=planner /workspace/recipe.json recipe.json
 
@@ -46,7 +46,7 @@ COPY Cargo.toml Cargo.lock ./
 COPY .cargo .cargo
 COPY crates crates
 COPY migrations migrations
-COPY --from=dependency-cache /workspace/target /workspace/deps-target
+COPY --from=dependency-cache-context /workspace/target /workspace/deps-target
 
 RUN case "${BINARY}" in \
         opentk-sync|opentk-api) ;; \

@@ -58,7 +58,7 @@ In scope: docker workflow, buildx, registry auth, tagging, cache, GHCR publish s
 </acceptance_criteria>
 
 <plan>
-.ralph/tasks/story-09-ci-cd-multi-arch/task-02-github-workflow-docker-build_plans/plan-04-single-dependency-cache-warmup.md
+.ralph/tasks/story-09-ci-cd-multi-arch/task-02-github-workflow-docker-build_plans/plan-05-explicit-dependency-oci-context.md
 </plan>
 
 NOW EXECUTE
