@@ -134,6 +134,27 @@ Failure evidence:
 Filed blocker bug:
 `.ralph/tasks/bugs/bug-full-sync-fails-on-duplicate-toezegging-toegezegd-aan.md`
 
+Stopped again on `2026-04-27T03:46:20+02:00` after rerunning from a fresh
+empty database for run `20260427-033618`. The clean full sync exited nonzero
+after `540` seconds:
+
+`Error: Fetch { phase: Fetch, category: "FractieZetelVacature", source: Timeout { request_url: "https://gegevensmagazijn.tweedekamer.nl/SyncFeed/2.0/Feed?category=FractieZetelVacature&content=internal", message: "error sending request for url (https://gegevensmagazijn.tweedekamer.nl/SyncFeed/2.0/Feed?category=FractieZetelVacature&content=internal)" } }`
+
+Failure evidence:
+
+- Run log: `.ralph/reports/full-sync-run-20260427-033618.log`
+- Status log: `.ralph/reports/full-sync-failure-status-20260427-033618.log`
+- Ingest error log: `.ralph/reports/full-sync-failure-ingest-errors-20260427-033618.log`
+- Config: `.ralph/reports/full-sync-config-20260427-033618.toml`
+- Fresh database: `opentk_full_sync_20260427_033618`
+- Pre-sync size: `15520227` bytes / `15 MB`
+- Persisted ingest error: `phase=fetch`,
+  `source_category=FractieZetelVacature`, `latest_skiptoken=null`, message
+  `SyncFeed request timed out for https://gegevensmagazijn.tweedekamer.nl/SyncFeed/2.0/Feed?category=FractieZetelVacature&content=internal: error sending request for url (https://gegevensmagazijn.tweedekamer.nl/SyncFeed/2.0/Feed?category=FractieZetelVacature&content=internal)`
+
+Filed blocker bug:
+`.ralph/tasks/bugs/bug-full-sync-fractie-zetel-vacature-initial-feed-timeout.md`
+
 ## Boundary Notes
 
 - The public operational interface is already deep enough: the sync binary owns config loading, runner construction, status printing, and verification printing.

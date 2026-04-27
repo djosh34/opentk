@@ -1,0 +1,134 @@
+RUN_ID=20260427-033618
+DB_NAME=opentk_full_sync_20260427_033618
+DB_URL_REDACTED=postgres://postgres@127.0.0.1:55432/opentk_full_sync_20260427_033618
+PRE_SYNC_CAPTURED_AT=2026-04-27T03:37:05+02:00
+--- identity ---
+-[ RECORD 1 ]----+----------------------------------------------------------------------------------------------------------------
+current_database | opentk_full_sync_20260427_033618
+current_user     | postgres
+inet_server_addr | 127.0.0.1
+inet_server_port | 55432
+version          | PostgreSQL 16.11 on aarch64-redhat-linux-gnu, compiled by gcc (GCC) 11.5.0 20240719 (Red Hat 11.5.0-11), 64-bit
+
+--- migration evidence ---
+403b2a1c89f8c11f61da5e12d622f5caf3cb8ec76388eefdef4423337a79f980  migrations/20260426000000_sync_schema.up.sql
+ sqlx_migrations_table 
+-----------------------
+ 
+(1 row)
+
+--- database size ---
+  bytes   | pretty 
+----------+--------
+ 15520227 | 15 MB
+(1 row)
+
+--- all public base table row counts before sync ---
+Output format is unaligned.
+public.activiteit|0
+public.activiteit__vervangen_vanuit|0
+public.activiteit__voortgezet_vanuit|0
+public.activiteit__voortouwcommissie|0
+public.activiteit_actor|0
+public.activiteit_actor__activiteit|0
+public.activiteit_actor__commissie|0
+public.activiteit_actor__fractie|0
+public.activiteit_actor__persoon|0
+public.agendapunt|0
+public.agendapunt__activiteit|0
+public.besluit|0
+public.besluit__agendapunt|0
+public.besluit__zaak|0
+public.commissie|0
+public.commissie_contactinformatie|0
+public.commissie_contactinformatie__commissie|0
+public.commissie_zetel|0
+public.commissie_zetel__commissie|0
+public.commissie_zetel_vast_persoon|0
+public.commissie_zetel_vast_persoon__commissie_zetel|0
+public.commissie_zetel_vast_persoon__persoon|0
+public.commissie_zetel_vast_vacature|0
+public.commissie_zetel_vast_vacature__commissie_zetel|0
+public.commissie_zetel_vast_vacature__fractie|0
+public.commissie_zetel_vervanger_persoon|0
+public.commissie_zetel_vervanger_persoon__commissie_zetel|0
+public.commissie_zetel_vervanger_persoon__persoon|0
+public.commissie_zetel_vervanger_vacature|0
+public.commissie_zetel_vervanger_vacature__commissie_zetel|0
+public.commissie_zetel_vervanger_vacature__fractie|0
+public.document|0
+public.document__activiteit|0
+public.document__agendapunt|0
+public.document__bron_document|0
+public.document__huidige_document_versie|0
+public.document__kamerstukdossier|0
+public.document__zaak|0
+public.document_actor|0
+public.document_actor__commissie|0
+public.document_actor__document|0
+public.document_actor__fractie|0
+public.document_actor__persoon|0
+public.document_asset|0
+public.document_content|0
+public.document_versie|0
+public.document_versie__document|0
+public.fractie|0
+public.fractie_zetel|0
+public.fractie_zetel__fractie|0
+public.fractie_zetel_persoon|0
+public.fractie_zetel_persoon__fractie_zetel|0
+public.fractie_zetel_persoon__persoon|0
+public.fractie_zetel_vacature|0
+public.fractie_zetel_vacature__fractie_zetel|0
+public.ingest_error|0
+public.kamerstukdossier|0
+public.persoon|0
+public.persoon_contactinformatie|0
+public.persoon_contactinformatie__persoon|0
+public.persoon_geschenk|0
+public.persoon_geschenk__persoon|0
+public.persoon_loopbaan|0
+public.persoon_loopbaan__persoon|0
+public.persoon_nevenfunctie|0
+public.persoon_nevenfunctie__persoon|0
+public.persoon_nevenfunctie_inkomsten|0
+public.persoon_nevenfunctie_inkomsten__persoon_nevenfunctie|0
+public.persoon_onderwijs|0
+public.persoon_onderwijs__persoon|0
+public.persoon_reis|0
+public.persoon_reis__persoon|0
+public.reservering|0
+public.reservering__activiteit|0
+public.reservering__zaal|0
+public.search_index_cursor|0
+public.search_index_failure|0
+public.stemming|0
+public.stemming__besluit|0
+public.stemming__fractie|0
+public.stemming__persoon|0
+public.sync_category|0
+public.sync_entity|0
+public.toezegging|0
+public.toezegging__activiteit|0
+public.toezegging__is_aanvulling_op|0
+public.toezegging__is_herhaling_van|0
+public.toezegging__is_wijziging_van|0
+public.toezegging__kamerbrief_nakoming|0
+public.toezegging__toegezegd_aan|0
+public.toezegging__toegezegd_aan_fractie|0
+public.toezegging__toegezegd_aan_persoon|0
+public.vergadering|0
+public.verslag|0
+public.verslag__vergadering|0
+public.zaak|0
+public.zaak__activiteit|0
+public.zaak__agendapunt|0
+public.zaak__gerelateerd_vanuit|0
+public.zaak__kamerstukdossier|0
+public.zaak__vervangen_vanuit|0
+public.zaak_actor|0
+public.zaak_actor__commissie|0
+public.zaak_actor__fractie|0
+public.zaak_actor__persoon|0
+public.zaak_actor__zaak|0
+public.zaal|0

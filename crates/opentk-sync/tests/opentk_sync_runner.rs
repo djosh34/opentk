@@ -173,12 +173,18 @@ async fn empty_resume_page_marks_category_caught_up() {
 }
 
 #[tokio::test]
-async fn transient_initial_fetch_timeout_retries_same_cursor_without_durable_error() {
+async fn fractie_zetel_vacature_initial_fetch_timeouts_retry_same_cursor_without_durable_error() {
     let server = TestServer::start(Vec::new()).await;
-    let resume = server.cursor("Toezegging", 11);
-    let initial = "/SyncFeed/2.0/Feed?category=Toezegging&content=internal";
+    let resume = server.cursor("FractieZetelVacature", 11);
+    let initial = "/SyncFeed/2.0/Feed?category=FractieZetelVacature&content=internal";
     server
         .replace_responses(vec![
+            resume_page(&resume)
+                .for_target(initial)
+                .with_delay(Duration::from_millis(80)),
+            resume_page(&resume)
+                .for_target(initial)
+                .with_delay(Duration::from_millis(80)),
             resume_page(&resume)
                 .for_target(initial)
                 .with_delay(Duration::from_millis(80)),
@@ -192,21 +198,29 @@ async fn transient_initial_fetch_timeout_retries_same_cursor_without_durable_err
     let runner = runner_with_client_config(
         client_config,
         store.clone(),
-        ["Toezegging"],
+        ["FractieZetelVacature"],
         Duration::from_millis(1),
     );
 
     let report = runner.run_once().await.expect("sync recovers");
 
     assert!(report.categories[0].caught_up);
-    let cursor = store.cursor("Toezegging").await.expect("stored cursor");
+    let cursor = store
+        .cursor("FractieZetelVacature")
+        .await
+        .expect("stored cursor");
     assert!(cursor.caught_up);
     assert_eq!(cursor.latest_skiptoken, 11);
     assert_eq!(cursor.next_url.as_str(), resume);
     assert!(store.errors().await.is_empty());
     assert_eq!(
         server.requests().await,
-        vec![initial.to_owned(), initial.to_owned()]
+        vec![
+            initial.to_owned(),
+            initial.to_owned(),
+            initial.to_owned(),
+            initial.to_owned()
+        ]
     );
 }
 

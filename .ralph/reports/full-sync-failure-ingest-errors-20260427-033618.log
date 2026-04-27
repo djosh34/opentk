@@ -1,0 +1,15 @@
+INGEST_ERRORS_CAPTURED_AT=2026-04-27T03:46:35+02:00
+ERROR:  column "skiptoken" does not exist
+LINE 1: SELECT id, phase, source_category, skiptoken, entity_id, mes...
+                                           ^
+--- corrected ingest_error query ---
+INGEST_ERRORS_CORRECTED_CAPTURED_AT=2026-04-27T03:46:57+02:00
+-[ RECORD 1 ]----+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+id               | 1
+phase            | fetch
+source_category  | FractieZetelVacature
+source_id        | 
+latest_skiptoken | 
+message          | SyncFeed request timed out for https://gegevensmagazijn.tweedekamer.nl/SyncFeed/2.0/Feed?category=FractieZetelVacature&content=internal: error sending request for url (https://gegevensmagazijn.tweedekamer.nl/SyncFeed/2.0/Feed?category=FractieZetelVacature&content=internal)
+created_at       | 2026-04-27 03:46:20.910344+02
+

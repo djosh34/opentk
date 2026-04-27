@@ -1,0 +1,30 @@
+2026-04-27T04:18:54+02:00
+manual command log: .ralph/reports/full-sync-fractie-zetel-vacature-timeout-manual-20260427-codex.log
+category state counts:
+   state   | count 
+-----------+-------
+ caught_up |    26
+ running   |     9
+(2 rows)
+
+scoped categories:
+   source_category    |   state   | latest_skiptoken |         last_fetch_at         
+----------------------+-----------+------------------+-------------------------------
+ FractieZetelVacature | caught_up |         25174173 | 2026-04-27 04:05:53.237539+02
+ Toezegging           | caught_up |         25401126 | 2026-04-27 04:06:49.144448+02
+(2 rows)
+
+remaining running categories at interrupt:
+ source_category |  state  | latest_skiptoken 
+-----------------+---------+------------------
+ ActiviteitActor | running |         19035623
+ Agendapunt      | running |          5802514
+ Besluit         | running |          1268528
+ Document        | running |         18516849
+ DocumentActor   | running |          6109335
+ DocumentVersie  | running |         14521364
+ Stemming        | running |          6052079
+ Zaak            | running |         18301800
+ ZaakActor       | running |          4557154
+(9 rows)
+

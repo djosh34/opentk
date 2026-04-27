@@ -11,7 +11,8 @@ use crate::{
     syncfeed::{SyncFeedClient, SyncFeedClientError, SyncFeedCursor},
 };
 
-const TRANSIENT_FETCH_RECOVERY_ATTEMPTS: u32 = 3;
+const TRANSIENT_FETCH_RECOVERY_MAX_ATTEMPTS: u32 = 8;
+const TRANSIENT_FETCH_RECOVERY_MAX_DELAY: Duration = Duration::from_secs(30);
 
 pub type SyncStoreFuture<'a, T> =
     Pin<Box<dyn Future<Output = Result<T, SyncStoreError>> + Send + 'a>>;
@@ -359,18 +360,22 @@ async fn run_category<S: SyncStore>(
 async fn fetch_page_with_transient_recovery(
     client: &SyncFeedClient,
     cursor: SyncFeedCursor,
-    recovery_delay: Duration,
+    initial_recovery_delay: Duration,
 ) -> Result<crate::syncfeed::SyncFeedPage, SyncFeedClientError> {
     let mut attempt = 1;
+    let mut recovery_delay = initial_recovery_delay.max(Duration::from_millis(1));
     loop {
         match client.fetch_page(cursor.clone()).await {
             Ok(page) => return Ok(page),
             Err(source)
                 if is_transient_fetch_error(&source)
-                    && attempt < TRANSIENT_FETCH_RECOVERY_ATTEMPTS =>
+                    && attempt < TRANSIENT_FETCH_RECOVERY_MAX_ATTEMPTS =>
             {
                 attempt += 1;
                 sleep(recovery_delay).await;
+                recovery_delay = recovery_delay
+                    .saturating_mul(2)
+                    .min(TRANSIENT_FETCH_RECOVERY_MAX_DELAY);
             }
             Err(source) => return Err(source),
         }

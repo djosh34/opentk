@@ -1,0 +1,4 @@
+   Compiling opentk-sync v0.1.0 (/home/joshazimullah.linux/work_mounts/patroni_rewrite/opentk/crates/opentk-sync)
+   Compiling opentk-db v0.1.0 (/home/joshazimullah.linux/work_mounts/patroni_rewrite/opentk/crates/opentk-db)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 16.60s
+     Running `target/debug/opentk-sync --config .ralph/reports/full-sync-config-20260427-033618.toml run`

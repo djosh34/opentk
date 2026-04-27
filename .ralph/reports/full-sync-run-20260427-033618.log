@@ -1,0 +1,7 @@
+SYNC_START=2026-04-27T03:37:20+02:00
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.44s
+     Running `target/debug/opentk-sync --config .ralph/reports/full-sync-config-20260427-033618.toml run`
+Error: Fetch { phase: Fetch, category: "FractieZetelVacature", source: Timeout { request_url: "https://gegevensmagazijn.tweedekamer.nl/SyncFeed/2.0/Feed?category=FractieZetelVacature&content=internal", message: "error sending request for url (https://gegevensmagazijn.tweedekamer.nl/SyncFeed/2.0/Feed?category=FractieZetelVacature&content=internal)" } }
+SYNC_END=2026-04-27T03:46:20+02:00
+DURATION_SECONDS=540
+COMMAND_STATUS=1

@@ -1,6 +1,6 @@
 # Done Tasks Summary
 
-Generated: Mon Apr 27 03:33:58 AM CEST 2026
+Generated: Mon Apr 27 04:19:46 AM CEST 2026
 
 # Task `/home/joshazimullah.linux/work_mounts/patroni_rewrite/opentk/.ralph/tasks/bugs/bug-cargo-run-opentk-sync-linker-missing-objects.md`
 
@@ -33,6 +33,18 @@ database and the public sync runner exited nonzero after 305 seconds.
 
 <description>
 Story 10 Task 1 clean full sync run `20260427-030235` failed while parsing the live SyncFeed `Toezegging` category.
+```
+
+==============
+
+# Task `/home/joshazimullah.linux/work_mounts/patroni_rewrite/opentk/.ralph/tasks/bugs/bug-full-sync-fractie-zetel-vacature-initial-feed-timeout.md`
+
+```
+## Bug: full sync fails on FractieZetelVacature initial SyncFeed timeout <status>done</status> <passes>true</passes> <priority>high</priority>
+
+<description>
+Story 10 Task 1 attempted one clean full SyncFeed-to-PostgreSQL sync from a
+fresh migrated database on 2026-04-27. The actual sync command failed after
 ```
 
 ==============

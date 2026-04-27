@@ -42,3 +42,5 @@
 .ralph/tasks/bugs/bug-full-sync-fails-on-duplicate-toezegging-kamerbrief-nakoming.md
 .ralph/tasks/story-10-full-sync-backup/task-1-run-one-time-clean-full-sync-report.md
 .ralph/tasks/bugs/bug-full-sync-fails-on-duplicate-toezegging-toegezegd-aan.md
+.ralph/tasks/story-10-full-sync-backup/task-1-run-one-time-clean-full-sync-report.md
+.ralph/tasks/bugs/bug-full-sync-fractie-zetel-vacature-initial-feed-timeout.md
