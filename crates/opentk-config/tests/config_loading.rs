@@ -466,11 +466,14 @@ fn github_docker_workflow_declares_trigger_contract() {
 fn github_docker_workflow_splits_build_from_publish_auth() {
     let workflow = docker_workflow();
     let jobs = path_mapping(&workflow, "jobs");
+    let warm_dependency_cache = path_mapping(jobs, "warm-dependency-cache");
     let build = path_mapping(jobs, "build");
     let publish = path_mapping(jobs, "publish");
 
+    assert_eq!(scalar(warm_dependency_cache, "runs-on"), "ubuntu-24.04");
     assert_eq!(scalar(build, "runs-on"), "ubuntu-24.04");
     assert_eq!(scalar(publish, "runs-on"), "ubuntu-24.04");
+    assert_sequence_contains(build, "needs", "warm-dependency-cache");
     assert_eq!(scalar(publish, "needs"), "build");
     assert!(
         !job_contains(build, "ghcr.io") && !job_contains(build, "docker/login-action"),
@@ -547,11 +550,27 @@ fn github_docker_workflow_caches_cargo_targets_layers_and_final_assembly() {
     let artifacts = fs::read_to_string(workspace_path("docker/Dockerfile.scratch-artifacts"))
         .expect("scratch artifact Dockerfile should exist");
     let workflow = docker_workflow();
-    let build = path_mapping(path_mapping(&workflow, "jobs"), "build");
+    let jobs = path_mapping(&workflow, "jobs");
+    let warm_dependency_cache = path_mapping(jobs, "warm-dependency-cache");
+    let build = path_mapping(jobs, "build");
+
+    for required in [
+        "--target dependency-cache",
+        "--cache-to \"type=gha,scope=opentk-scratch-deps,mode=max\"",
+        "docker/Dockerfile.scratch-artifacts",
+    ] {
+        assert!(
+            job_contains(warm_dependency_cache, required),
+            "warm dependency cache job should contain {required}"
+        );
+    }
+    assert!(
+        !job_contains(warm_dependency_cache, "${{ matrix.binary }}"),
+        "warm dependency cache job should not depend on matrix binary fan-out"
+    );
 
     for required in [
         "--cache-from \"type=gha,scope=opentk-scratch-deps\"",
-        "--cache-to \"type=gha,scope=opentk-scratch-deps,mode=max\"",
         "--cache-from \"type=gha,scope=opentk-scratch-artifacts-${{ matrix.binary }}\"",
         "--cache-to \"type=gha,scope=opentk-scratch-artifacts-${{ matrix.binary }},mode=max\"",
         "--cache-from \"type=gha,scope=opentk-scratch-${{ matrix.binary }}\"",
@@ -564,6 +583,13 @@ fn github_docker_workflow_caches_cargo_targets_layers_and_final_assembly() {
             "workflow cache contract should contain {required}"
         );
     }
+    assert!(
+        !job_contains(
+            build,
+            "--cache-to \"type=gha,scope=opentk-scratch-deps,mode=max\""
+        ),
+        "binary matrix builds should read, not write, the shared dependency cache"
+    );
     for required in [
         "cargo install cargo-chef --locked",
         "cargo chef prepare --recipe-path recipe.json",

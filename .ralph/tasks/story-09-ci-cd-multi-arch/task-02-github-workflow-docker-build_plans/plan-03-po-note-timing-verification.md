@@ -80,6 +80,35 @@ Use vertical slices. Do not write all tests first.
     - push
     - quit immediately
 
+## Verification Evidence From Execution
+
+- Local focused workflow contract test passed:
+  `CARGO_INCREMENTAL=0 cargo test -p opentk-config --test config_loading github_docker_workflow -- --nocapture`
+- Local gates passed:
+  - `make check`
+  - `make lint`
+  - `make test`
+- Real GitHub Docker workflow run `25000953101` on pushed commit `279b91bc36ec4d7e9f8b4b3776e6696852a7ae22` completed successfully.
+- Timing passed the 10-minute Docker build job limit:
+  - `build (opentk-sync)`: `2026-04-27T14:28:37Z` to `2026-04-27T14:35:22Z` (`6m45s`)
+  - `build (opentk-api)`: `2026-04-27T14:28:37Z` to `2026-04-27T14:35:41Z` (`7m04s`)
+  - `publish`: `2026-04-27T14:35:45Z` to `2026-04-27T14:36:10Z` (`25s`)
+- Publish/build separation passed in the logs:
+  - build uploaded `opentk-sync-oci-archive` and `opentk-api-oci-archive`
+  - publish downloaded those artifacts
+  - GHCR login occurred only in publish
+  - publish used `skopeo copy --all` from `oci-archive:${binary}.oci.tar`
+  - publish logs did not contain `docker buildx build`
+- Native/no-emulation evidence passed:
+  - logs showed Buildx builder `OS/Arch: linux/amd64`
+  - no `setup-qemu`, `qemu`, or `emulat` log matches were present
+- Cache verification did not pass strongly enough:
+  - final scratch assembly logs showed a cached metadata step (`#4 CACHED`) and 2-3 second assembly steps
+  - artifact build logs still showed dependency downloads and long dependency compilation in `dependency-cache`, including `Downloaded string_cache...` and `Compiling string_cache...`
+  - both matrix artifact jobs still ran long dependency-cache work, so Cargo dependency/target cache reuse is not yet proven effective
+
+Design must be revisited before the task can pass. The next plan should make Cargo dependency and target cache reuse visibly effective in GitHub logs, or replace the cache approach with one that does.
+
 ## Acceptance Checklist
 
 - [ ] `.github/workflows/docker.yml` is valid YAML.
@@ -99,4 +128,4 @@ Use vertical slices. Do not write all tests first.
 - [ ] `make lint` passes.
 - [ ] `make test` passes.
 
-NOW EXECUTE
+TO BE VERIFIED

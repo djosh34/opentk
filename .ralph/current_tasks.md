@@ -1,17 +1,6 @@
 # Current Tasks Summary
 
-Generated: Mon Apr 27 04:17:19 PM CEST 2026
-
-# Task `/home/joshazimullah.linux/work_mounts/patroni_rewrite/opentk/.ralph/tasks/bugs/bug-github-token-lacks-workflow-scope-for-docker-verification.md`
-
-```
-## Bug: GitHub Token Lacks Workflow Scope For Docker Verification <status>not_started</status> <passes>false</passes> <priority>high</priority>
-
-<description>
-Story 09 Task 02 requires pushing `.github/workflows/docker.yml`, triggering `workflow_dispatch`, and verifying Docker workflow cache behavior/timings from real GitHub logs using `/home/joshazimullah.linux/github-api-curl`.
-```
-
-==============
+Generated: Mon Apr 27 04:48:21 PM CEST 2026
 
 # Task `/home/joshazimullah.linux/work_mounts/patroni_rewrite/opentk/.ralph/tasks/story-09-ci-cd-multi-arch/task-02-github-workflow-docker-build.md`
 
