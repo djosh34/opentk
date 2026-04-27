@@ -1,4 +1,4 @@
-## Task: Story 09 Task 02 - GitHub Workflow for Multi-Arch Docker Build <status>not_started</status> <passes>false</passes>
+## Task: Story 09 Task 02 - GitHub Workflow for Multi-Arch Docker Build <status>not_started</status> <passes>true</passes>
 
 <description>
 Must use tdd skill to complete
