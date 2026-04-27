@@ -73,7 +73,7 @@ pub struct StorageVerification {
     pub index_bytes: i64,
     pub link_metadata_bytes: i64,
     pub extracted_text_bytes: i64,
-    pub stored_html_bytes: i64,
+    pub extracted_html_bytes: i64,
     pub constraint_count: i64,
     pub binary_asset_metadata_rows: i64,
     pub document_content_rows: i64,
@@ -440,7 +440,7 @@ async fn verify_storage(
     )
     .fetch_one(pool)
     .await?;
-    let stored_html_bytes: i64 = sqlx::query_scalar(
+    let extracted_html_bytes: i64 = sqlx::query_scalar(
         "SELECT COALESCE(sum(octet_length(extracted_html)), 0)::bigint FROM document_content",
     )
     .fetch_one(pool)
@@ -466,7 +466,7 @@ async fn verify_storage(
         index_bytes,
         link_metadata_bytes,
         extracted_text_bytes,
-        stored_html_bytes,
+        extracted_html_bytes,
         constraint_count,
         binary_asset_metadata_rows,
         document_content_rows,

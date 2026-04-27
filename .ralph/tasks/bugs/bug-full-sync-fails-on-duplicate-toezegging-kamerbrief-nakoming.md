@@ -1,7 +1,7 @@
 ## Bug: full sync fails on duplicate Toezegging kamerbriefNakoming field <status>done</status> <passes>true</passes> <priority>high</priority>
 
 <description>
-Story 010 Task 01 attempted a clean full SyncFeed-to-PostgreSQL sync from a fresh
+Story 10 Task 01 attempted a clean full SyncFeed-to-PostgreSQL sync from a fresh
 database and the public sync runner exited nonzero after 305 seconds.
 
 Run evidence:
@@ -28,7 +28,7 @@ Post-failure `opentk-sync status` recorded `Toezegging` in `error` state:
 - status log: `.ralph/reports/full-sync-failure-status-20260427-022641.log`
 - ingest error log: `.ralph/reports/full-sync-failure-ingest-errors-20260427-022641.log`
 
-The full sync did not complete cleanly, so Story 010 Task 01 stopped before
+The full sync did not complete cleanly, so Story 10 Task 01 stopped before
 post-sync measurement, final report generation, or email.
 </description>
 

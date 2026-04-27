@@ -219,7 +219,7 @@ async fn document_content_returns_extracted_text_and_source_metadata(
 }
 
 #[tokio::test]
-async fn document_content_returns_stored_html_for_official_html_source(
+async fn document_content_returns_extracted_html_for_official_html_source(
 ) -> Result<(), Box<dyn std::error::Error>> {
     let pool = migrated_pool("api_document_content_html").await?;
     insert_document(&pool).await?;
@@ -241,8 +241,8 @@ async fn document_content_returns_stored_html_for_official_html_source(
             source_hash: "sha256-html-source",
             output_hash: Some("sha256-html-output"),
             extraction_error: None,
-            extracted_text: Some("Stored HTML text"),
-            extracted_html: Some("<main><p>Stored HTML text</p></main>"),
+            extracted_text: Some("Extracted HTML text"),
+            extracted_html: Some("<main><p>Extracted HTML text</p></main>"),
         },
     )
     .await?;
@@ -259,10 +259,10 @@ async fn document_content_returns_stored_html_for_official_html_source(
     assert_eq!(body["content"]["official_source"], true);
     assert_eq!(body["content"]["source_rank"], 0);
     assert_eq!(body["content"]["extraction_tool"], "official-source");
-    assert_eq!(body["content"]["extracted_text"], "Stored HTML text");
+    assert_eq!(body["content"]["extracted_text"], "Extracted HTML text");
     assert_eq!(
         body["content"]["extracted_html"],
-        "<main><p>Stored HTML text</p></main>"
+        "<main><p>Extracted HTML text</p></main>"
     );
 
     Ok(())

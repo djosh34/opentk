@@ -1,7 +1,7 @@
 ## Bug: full sync operational plan assumes /usr/bin/time exists <status>done</status> <passes>true</passes> <priority>medium</priority>
 
 <description>
-While executing Story 010 Task 01 on 2026-04-26, the sync command wrapper failed
+While executing Story 10 Task 01 on 2026-04-26, the sync command wrapper failed
 before starting the sync binary because `/usr/bin/time` was not available:
 
 ```text
@@ -32,7 +32,7 @@ Then verify if bug still holds. If yes, create new Red test, and continue with R
     shows `/usr/bin/time` missing with `COMMAND_STATUS=127`, and
     `/bin/bash -lc '/usr/bin/time true'` still exits 127 in this environment.
 - [x] I made the test green by fixing
-  - The Story 010 operational plan now uses `date -Is` / `date +%s` timestamp
+  - The Story 10 operational plan now uses `date -Is` / `date +%s` timestamp
     arithmetic, records `COMMAND_STATUS`, and exits with that same status.
 - [x] I manually verified the bug, and created a new Red test if not working still
   - Verified the wrapper around `true` exits 0 with all timing evidence, the

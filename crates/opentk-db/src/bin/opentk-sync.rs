@@ -1,4 +1,4 @@
-use std::{path::PathBuf, time::Duration};
+use std::{fmt::Write as _, path::PathBuf, time::Duration};
 
 use clap::{Parser, Subcommand};
 use opentk_config::{Config, ConfigLoader};
@@ -6,7 +6,7 @@ use opentk_db::{
     connect,
     startup_validation::validate_sync_dependencies,
     sync_state::PostgresSyncStore,
-    sync_verification::{verify_sync_database, SyncVerificationConfig},
+    sync_verification::{verify_sync_database, SyncVerificationConfig, SyncVerificationReport},
     DatabaseConfig,
 };
 use opentk_sync::{
@@ -147,8 +147,15 @@ async fn print_verification(
         },
     )
     .await?;
-    println!(
-        "categories={}\trelations={}\tdirect_queries={}\ttable_bytes={}\tindex_bytes={}\tlink_metadata_bytes={}\textracted_text_bytes={}\tstored_html_bytes={}\tconstraint_count={}\tbinary_asset_metadata_rows={}\tdocument_content_rows={}",
+    print!("{}", format_verification_report(&report));
+    Ok(())
+}
+
+fn format_verification_report(report: &SyncVerificationReport) -> String {
+    let mut output = String::new();
+    writeln!(
+        output,
+        "categories={}\trelations={}\tdirect_queries={}\ttable_bytes={}\tindex_bytes={}\tlink_metadata_bytes={}\textracted_text_bytes={}\textracted_html_bytes={}\tconstraint_count={}\tbinary_asset_metadata_rows={}\tdocument_content_rows={}\tingest_error_count={}",
         report.categories.len(),
         report.relation_tables.len(),
         report.direct_queries.len(),
@@ -156,13 +163,32 @@ async fn print_verification(
         report.storage.index_bytes,
         report.storage.link_metadata_bytes,
         report.storage.extracted_text_bytes,
-        report.storage.stored_html_bytes,
+        report.storage.extracted_html_bytes,
         report.storage.constraint_count,
         report.storage.binary_asset_metadata_rows,
-        report.storage.document_content_rows
-    );
-    for category in report.categories {
-        println!(
+        report.storage.document_content_rows,
+        report.ingest_error_count
+    )
+    .expect("writing verification report line to String cannot fail");
+    for error in &report.recent_ingest_errors {
+        writeln!(
+            output,
+            "ingest_error_id={}\tphase={}\tsource_category={}\tsource_id={}\tlatest_skiptoken={}\tmessage={}\tcreated_at={}",
+            error.id,
+            error.phase,
+            error.source_category,
+            error
+                .source_id
+                .map_or_else(|| "null".to_owned(), |source_id| source_id.to_string()),
+            display_optional_i64(error.latest_skiptoken),
+            error.message,
+            error.created_at.to_rfc3339()
+        )
+        .expect("writing ingest-error verification line to String cannot fail");
+    }
+    for category in &report.categories {
+        writeln!(
+            output,
             "category={}\ttable={}\tcurrent_rows={}\tregistry_rows={}\tstate={}\tlatest_skiptoken={}",
             category.category,
             category.table_name,
@@ -170,10 +196,12 @@ async fn print_verification(
             category.registry_rows,
             category.state.as_str(),
             display_optional_i64(category.latest_skiptoken)
-        );
+        )
+        .expect("writing category verification line to String cannot fail");
     }
-    for relation in report.relation_tables {
-        println!(
+    for relation in &report.relation_tables {
+        writeln!(
+            output,
             "relation={}.{}\ttable={}\trows={}\tqueryable_from_source={}\tqueryable_from_target={}",
             relation.source_category,
             relation.relation_name,
@@ -181,12 +209,14 @@ async fn print_verification(
             relation.rows,
             relation.queryable_from_source,
             relation.queryable_from_target
-        );
+        )
+        .expect("writing relation verification line to String cannot fail");
     }
-    for query in report.direct_queries {
-        println!("direct_query={}\trows={}", query.name, query.rows);
+    for query in &report.direct_queries {
+        writeln!(output, "direct_query={}\trows={}", query.name, query.rows)
+            .expect("writing direct-query verification line to String cannot fail");
     }
-    Ok(())
+    output
 }
 
 async fn build_runner(
@@ -229,8 +259,14 @@ fn display_optional_i64(value: Option<i64>) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::{Cli, Command};
+    use super::{format_verification_report, Cli, Command};
+    use chrono::{DateTime, Utc};
     use clap::Parser;
+    use opentk_db::sync_verification::{
+        DirectQueryVerification, IngestErrorVerification, StorageVerification,
+        SyncVerificationReport,
+    };
+    use uuid::Uuid;
 
     #[test]
     fn run_command_accepts_config_path_only() {
@@ -295,5 +331,55 @@ mod tests {
             panic!("expected verify command");
         };
         assert_eq!(args.required_relation_samples, 1);
+    }
+
+    #[test]
+    fn verify_output_reports_schema_backed_ingest_errors_and_extracted_html_bytes() {
+        let created_at: DateTime<Utc> = "2026-04-26T03:04:05Z".parse().expect("valid timestamp");
+        let source_id =
+            Uuid::parse_str("aaaaaaaa-aaaa-4aaa-8aaa-000000000001").expect("valid uuid");
+        let report = SyncVerificationReport {
+            categories: Vec::new(),
+            relation_tables: Vec::new(),
+            direct_queries: vec![DirectQueryVerification {
+                name: "recent_registry_changes".to_owned(),
+                rows: 7,
+            }],
+            table_snapshots: Vec::new(),
+            storage: StorageVerification {
+                table_bytes: 100,
+                index_bytes: 20,
+                link_metadata_bytes: 10,
+                extracted_text_bytes: 30,
+                extracted_html_bytes: 40,
+                constraint_count: 5,
+                binary_asset_metadata_rows: 2,
+                document_content_rows: 3,
+            },
+            ingest_error_count: 1,
+            recent_ingest_errors: vec![IngestErrorVerification {
+                id: 9,
+                phase: "parse_entity".to_owned(),
+                source_category: "Document".to_owned(),
+                source_id: Some(source_id),
+                latest_skiptoken: Some(42),
+                message: "invalid source payload".to_owned(),
+                created_at,
+            }],
+        };
+
+        let output = format_verification_report(&report);
+
+        assert!(output.contains("extracted_html_bytes=40"));
+        assert!(output.contains("ingest_error_count=1"));
+        assert!(output.contains("ingest_error_id=9"));
+        assert!(output.contains("phase=parse_entity"));
+        assert!(output.contains("source_category=Document"));
+        assert!(output.contains("source_id=aaaaaaaa-aaaa-4aaa-8aaa-000000000001"));
+        assert!(output.contains("latest_skiptoken=42"));
+        assert!(output.contains("message=invalid source payload"));
+        assert!(output.contains("created_at=2026-04-26T03:04:05+00:00"));
+        assert!(!output.contains(&["stored", "_html"].concat()));
+        assert!(!output.contains(&["occurred", "_at"].concat()));
     }
 }

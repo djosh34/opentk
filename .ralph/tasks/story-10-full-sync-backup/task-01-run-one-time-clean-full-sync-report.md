@@ -1,4 +1,4 @@
-## Task: Story 010 Task 01 - Run One-Time Clean Full Sync and Report Results <status>done</status> <passes>true</passes>
+## Task: Story 10 Task 01 - Run One-Time Clean Full Sync and Report Results <status>done</status> <passes>true</passes>
 
 <description>
 **Goal:** Run one clean full SyncFeed-to-PostgreSQL sync once, measure the result, write a human-readable report under `.ralph/reports/`, and email that report to the user.
@@ -47,7 +47,7 @@ In scope: running the sync once, measuring the fully synced database, writing th
 </acceptance_criteria>
 
 <plan>
-.ralph/tasks/story-010-full-sync-backup/task-01-run-one-time-clean-full-sync-report_plans/one-time-clean-full-sync-report-plan.md
+.ralph/tasks/story-10-full-sync-backup/task-01-run-one-time-clean-full-sync-report_plans/one-time-clean-full-sync-report-plan.md
 </plan>
 
 NOW EXECUTE

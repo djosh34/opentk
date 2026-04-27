@@ -1,4 +1,4 @@
-## Task: Story 011 Task 02 - Structured Logging, Metrics, and JSON Log Format <status>not_started</status> <passes>false</passes>
+## Task: Story 11 Task 02 - Structured Logging, Metrics, and JSON Log Format <status>not_started</status> <passes>false</passes>
 
 <description>
 Must use tdd skill to complete

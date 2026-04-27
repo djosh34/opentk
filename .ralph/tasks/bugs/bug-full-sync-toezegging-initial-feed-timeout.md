@@ -1,7 +1,7 @@
 ## Bug: full sync fails on Toezegging initial SyncFeed timeout <status>done</status> <passes>true</passes> <priority>high</priority>
 
 <description>
-Story 010 Task 01 attempted one clean full SyncFeed-to-PostgreSQL sync from a
+Story 10 Task 01 attempted one clean full SyncFeed-to-PostgreSQL sync from a
 fresh migrated database on 2026-04-26. The actual sync command failed after
 281 seconds with exit status 1:
 
@@ -49,7 +49,7 @@ sync_entity rows: 53480
 ingest_error rows: 1
 ```
 
-The full sync did not complete cleanly, so Story 010 Task 01 was stopped before
+The full sync did not complete cleanly, so Story 10 Task 01 was stopped before
 status/verify/final measurement/report/email. The run log is
 `.ralph/reports/full-sync-20260426-213953-actual-run.log`.
 </description>

@@ -1,7 +1,7 @@
 ## Bug: cargo run opentk-sync can fail linking with missing target object files <status>done</status> <passes>true</passes> <priority>medium</priority>
 
 <description>
-While executing Story 010 Task 01 on 2026-04-26, the preliminary command
+While executing Story 10 Task 01 on 2026-04-26, the preliminary command
 `cargo run -p opentk-db --bin opentk-sync -- --help` failed before any sync work
 started. Cargo compiled `opentk-db`, then `cc`/`ld` returned exit status 1
 because several expected object files under `target/debug/deps/` were missing.

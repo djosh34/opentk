@@ -1,12 +1,12 @@
-## Task: Story 010 Task 02 - Create One-Time Dumb Dump of Fully Synced Database <status>done</status> <passes>true</passes>
+## Task: Story 10 Task 02 - Create One-Time Dumb Dump of Fully Synced Database <status>done</status> <passes>true</passes>
 
 <description>
-**Goal:** After Story 010 Task 01 has produced a fully synced database, take one plain operational database dump of that exact state so development can revert after accidental wipe/truncate or other destructive mistakes.
+**Goal:** After Story 10 Task 01 has produced a fully synced database, take one plain operational database dump of that exact state so development can revert after accidental wipe/truncate or other destructive mistakes.
 
 This is an operational safeguard, not a product feature. Do not add a CLI command. Do not add a script. Do not add application code. Do not add restore/catch-up logic. Use standard PostgreSQL tooling manually.
 
 Requirements:
-1. Confirm Story 010 Task 01 completed successfully and identify the report file it produced.
+1. Confirm Story 10 Task 01 completed successfully and identify the report file it produced.
 2. Confirm the database being dumped is the same fully synced database measured in that report.
 3. Use standard PostgreSQL dump tooling directly to create a dump file from the fully synced database.
 4. Store the dump in a clearly named local path appropriate for Ralph/development artifacts.
@@ -33,7 +33,7 @@ In scope: one-time manual dump, dump verification, report update, email notifica
 </description>
 
 <acceptance_criteria>
-- [x] Story 010 Task 01 completed successfully before the dump was taken
+- [x] Story 10 Task 01 completed successfully before the dump was taken
 - [x] Dump was created from the exact fully synced database measured in the full-sync report
 - [x] Dump file is stored outside tracked source paths or under a git-ignored path
 - [x] Dump file is not committed, staged, tracked, or shown as untracked by `git status --short`

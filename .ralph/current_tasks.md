@@ -1,40 +1,6 @@
 # Current Tasks Summary
 
-Generated: Mon Apr 27 11:23:50 CEST 2026
-
-# Task `/home/joshazimullah.linux/work_mounts/patroni_rewrite/opentk/.ralph/tasks/bugs/bug-full-sync-post-measurement-query-used-invalid-columns.md`
-
-```
-## Bug: Full Sync Post-Measurement Query Used Invalid Columns <status>not_started</status> <passes>false</passes> <priority>medium</priority>
-
-<description>
-During Story 010 Task 01 full-sync post-run measurement for run `20260427-044908`,
-the first post-sync evidence command guessed two column names that do not exist
-```
-
-==============
-
-# Task `/home/joshazimullah.linux/work_mounts/patroni_rewrite/opentk/.ralph/tasks/story-011-search-observability/task-01-enhance-health-endpoint.md`
-
-```
-## Task: Story 011 Task 01 - Enhance Health Endpoint and Add Admin Search Sync Status <status>not_started</status> <passes>false</passes>
-
-<description>
-Must use tdd skill to complete
-```
-
-==============
-
-# Task `/home/joshazimullah.linux/work_mounts/patroni_rewrite/opentk/.ralph/tasks/story-011-search-observability/task-02-structured-logging-and-metrics.md`
-
-```
-## Task: Story 011 Task 02 - Structured Logging, Metrics, and JSON Log Format <status>not_started</status> <passes>false</passes>
-
-<description>
-Must use tdd skill to complete
-```
-
-==============
+Generated: Mon Apr 27 11:42:05 AM CEST 2026
 
 # Task `/home/joshazimullah.linux/work_mounts/patroni_rewrite/opentk/.ralph/tasks/story-08-docker-local-dev/task-01-dockerfiles.md`
 
@@ -117,6 +83,28 @@ Must use tdd skill to complete
 
 ```
 ## Task: Story 09 Task 04 - Publish Scratch Images to GHCR <status>not_started</status> <passes>false</passes>
+
+<description>
+Must use tdd skill to complete
+```
+
+==============
+
+# Task `/home/joshazimullah.linux/work_mounts/patroni_rewrite/opentk/.ralph/tasks/story-11-search-observability/task-01-enhance-health-endpoint.md`
+
+```
+## Task: Story 11 Task 01 - Enhance Health Endpoint and Add Admin Search Sync Status <status>not_started</status> <passes>false</passes>
+
+<description>
+Must use tdd skill to complete
+```
+
+==============
+
+# Task `/home/joshazimullah.linux/work_mounts/patroni_rewrite/opentk/.ralph/tasks/story-11-search-observability/task-02-structured-logging-and-metrics.md`
+
+```
+## Task: Story 11 Task 02 - Structured Logging, Metrics, and JSON Log Format <status>not_started</status> <passes>false</passes>
 
 <description>
 Must use tdd skill to complete

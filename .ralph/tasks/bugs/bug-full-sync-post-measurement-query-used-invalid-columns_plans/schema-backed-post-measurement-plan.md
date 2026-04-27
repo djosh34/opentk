@@ -46,7 +46,7 @@ without ad hoc SQL:
 
 ## TDD Slices
 
-- [ ] RED 1: Add one focused behavior test for the verification report public
+- [x] RED 1: Add one focused behavior test for the verification report public
   API in `crates/opentk-db/tests/sync_verification.rs`.
   - Seed a migrated test schema with one durable `ingest_error` row using the
     real `created_at` column.
@@ -56,13 +56,13 @@ without ad hoc SQL:
     `created_at`.
   - Confirm this fails because `SyncVerificationReport` has no ingest-error
     evidence yet.
-- [ ] GREEN 1: Add the minimal schema-backed ingest-error evidence to
+- [x] GREEN 1: Add the minimal schema-backed ingest-error evidence to
   `opentk-db::sync_verification`.
   - Add report types inside `sync_verification`, not a new reporting module.
   - Query only current schema columns; do not use `occurred_at`.
   - Order recent errors by `created_at DESC, id DESC` and cap the detail list to
     a small fixed number such as 20 so full-sync output remains readable.
-- [ ] RED 2: Add one focused CLI/public-output behavior test in
+- [x] RED 2: Add one focused CLI/public-output behavior test in
   `crates/opentk-db/src/bin/opentk-sync.rs` or another existing binary-facing
   test location if the current private functions make a cleaner public test
   possible.
@@ -70,29 +70,29 @@ without ad hoc SQL:
     constructed report or formatting helper.
   - It must assert that output uses `created_at` and does not mention
     `occurred_at`.
-- [ ] GREEN 2: Extract the verify output formatting behind a small internal
+- [x] GREEN 2: Extract the verify output formatting behind a small internal
   function if needed, then make the CLI print the new ingest-error lines.
   - Keep `main` thin and keep database querying in `sync_verification`.
   - Do not add a parallel DTO that mirrors the report just for printing.
-- [ ] RED 3: If `stored_html_bytes` remains confusing after the first two
+- [x] RED 3: If `stored_html_bytes` remains confusing after the first two
   slices, add a compile/test slice that expects the report/CLI/docs term to be
   `extracted_html_bytes`.
-- [ ] GREEN 3: Rename the field and output key from `stored_html_bytes` to
+- [x] GREEN 3: Rename the field and output key from `stored_html_bytes` to
   `extracted_html_bytes` everywhere it is application/reporting truth.
   - Update docs that describe the current verification interface.
   - Historical `.ralph/reports` may keep old text as evidence.
 
 ## Manual Verification
 
-- [ ] Run a narrow test after each RED and each GREEN slice.
-- [ ] Run the final `opentk-sync verify` path against an available migrated test
+- [x] Run a narrow test after each RED and each GREEN slice.
+- [x] Run the final `opentk-sync verify` path against an available migrated test
   database/config if feasible; otherwise rely on the integration test that
   exercises `verify_sync_database` against PostgreSQL.
-- [ ] Grep current source and docs for the invalid schema names:
+- [x] Grep current source and docs for the invalid schema names:
   `occurred_at` and `stored_html`.
   - They may remain only in historical reports/task text that documents the bug.
   - Current executable code and current operational guidance must not use them.
-- [ ] If manual verification shows another guessed-column gap, add the next RED
+- [x] If manual verification shows another guessed-column gap, add the next RED
   test before fixing it.
 
 ## Boundary Review
@@ -107,18 +107,18 @@ without ad hoc SQL:
 
 ## Required Gates
 
-- [ ] `make check`
-- [ ] `make test`
-- [ ] `make lint`
+- [x] `make check`
+- [x] `make test`
+- [x] `make lint`
 - [ ] Do not run `make test-long`; this is not a story-ending validation task
   and the bug does not explicitly require the e2e/ultra-long lane.
 
 ## Completion
 
-- [ ] Update this plan checklist as slices are completed.
-- [ ] Update the bug task acceptance criteria with concrete red/green/manual
+- [x] Update this plan checklist as slices are completed.
+- [x] Update the bug task acceptance criteria with concrete red/green/manual
   evidence.
-- [ ] Set `<passes>true</passes>` only after all required gates pass.
+- [x] Set `<passes>true</passes>` only after all required gates pass.
 - [ ] Run `/bin/bash .ralph/task_switch.sh`.
 - [ ] `git add --all`.
 - [ ] Commit with:

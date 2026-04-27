@@ -2,7 +2,7 @@
 
 ## Context
 
-Story 010 Task 01 failed during a clean full sync with:
+Story 10 Task 01 failed during a clean full sync with:
 
 `DuplicateSingleField { category: "Toezegging", field: "toegezegdAan" }`
 

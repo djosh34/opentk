@@ -247,7 +247,7 @@ async fn verification_records_storage_and_asset_metadata_evidence() -> Result<()
     assert!(report.storage.index_bytes > 0);
     assert!(report.storage.link_metadata_bytes > 0);
     assert_eq!(report.storage.extracted_text_bytes, 11);
-    assert_eq!(report.storage.stored_html_bytes, 18);
+    assert_eq!(report.storage.extracted_html_bytes, 18);
     assert!(report.storage.constraint_count > 0);
     assert_eq!(report.storage.binary_asset_metadata_rows, 1);
     assert_eq!(report.storage.document_content_rows, 1);

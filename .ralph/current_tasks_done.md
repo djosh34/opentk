@@ -1,6 +1,6 @@
 # Done Tasks Summary
 
-Generated: Mon Apr 27 11:23:50 CEST 2026
+Generated: Mon Apr 27 11:42:05 AM CEST 2026
 
 # Task `/home/joshazimullah.linux/work_mounts/patroni_rewrite/opentk/.ralph/tasks/bugs/bug-cargo-run-opentk-sync-linker-missing-objects.md`
 
@@ -8,7 +8,7 @@ Generated: Mon Apr 27 11:23:50 CEST 2026
 ## Bug: cargo run opentk-sync can fail linking with missing target object files <status>done</status> <passes>true</passes> <priority>medium</priority>
 
 <description>
-While executing Story 010 Task 01 on 2026-04-26, the preliminary command
+While executing Story 10 Task 01 on 2026-04-26, the preliminary command
 `cargo run -p opentk-db --bin opentk-sync -- --help` failed before any sync work
 ```
 
@@ -20,7 +20,7 @@ While executing Story 010 Task 01 on 2026-04-26, the preliminary command
 ## Bug: full sync fails on duplicate Toezegging kamerbriefNakoming field <status>done</status> <passes>true</passes> <priority>high</priority>
 
 <description>
-Story 010 Task 01 attempted a clean full SyncFeed-to-PostgreSQL sync from a fresh
+Story 10 Task 01 attempted a clean full SyncFeed-to-PostgreSQL sync from a fresh
 database and the public sync runner exited nonzero after 305 seconds.
 ```
 
@@ -32,7 +32,7 @@ database and the public sync runner exited nonzero after 305 seconds.
 ## Bug: Full Sync Fails on Duplicate Toezegging toegezegdAan <status>done</status> <passes>true</passes> <priority>high</priority>
 
 <description>
-Story 010 Task 01 clean full sync run `20260427-030235` failed while parsing the live SyncFeed `Toezegging` category.
+Story 10 Task 01 clean full sync run `20260427-030235` failed while parsing the live SyncFeed `Toezegging` category.
 ```
 
 ==============
@@ -43,7 +43,7 @@ Story 010 Task 01 clean full sync run `20260427-030235` failed while parsing the
 ## Bug: full sync fails on FractieZetelVacature initial SyncFeed timeout <status>done</status> <passes>true</passes> <priority>high</priority>
 
 <description>
-Story 010 Task 01 attempted one clean full SyncFeed-to-PostgreSQL sync from a
+Story 10 Task 01 attempted one clean full SyncFeed-to-PostgreSQL sync from a
 fresh migrated database on 2026-04-27. The actual sync command failed after
 ```
 
@@ -55,8 +55,20 @@ fresh migrated database on 2026-04-27. The actual sync command failed after
 ## Bug: full sync operational plan assumes /usr/bin/time exists <status>done</status> <passes>true</passes> <priority>medium</priority>
 
 <description>
-While executing Story 010 Task 01 on 2026-04-26, the sync command wrapper failed
+While executing Story 10 Task 01 on 2026-04-26, the sync command wrapper failed
 before starting the sync binary because `/usr/bin/time` was not available:
+```
+
+==============
+
+# Task `/home/joshazimullah.linux/work_mounts/patroni_rewrite/opentk/.ralph/tasks/bugs/bug-full-sync-post-measurement-query-used-invalid-columns.md`
+
+```
+## Bug: Full Sync Post-Measurement Query Used Invalid Columns <status>not_started</status> <passes>true</passes> <priority>medium</priority>
+
+<description>
+During Story 10 Task 01 full-sync post-run measurement for run `20260427-044908`,
+the first post-sync evidence command guessed two column names that do not exist
 ```
 
 ==============
@@ -67,7 +79,7 @@ before starting the sync binary because `/usr/bin/time` was not available:
 ## Bug: Full sync fails on Toezegging HTTP transport decode error <status>done</status> <passes>true</passes> <priority>high</priority>
 
 <description>
-Story 010 Task 01 attempted a fresh one-time clean full sync from an empty
+Story 10 Task 01 attempted a fresh one-time clean full sync from an empty
 database and the public sync runner exited nonzero on the initial `Toezegging`
 ```
 
@@ -79,7 +91,7 @@ database and the public sync runner exited nonzero on the initial `Toezegging`
 ## Bug: full sync fails on Toezegging initial SyncFeed timeout <status>done</status> <passes>true</passes> <priority>high</priority>
 
 <description>
-Story 010 Task 01 attempted one clean full SyncFeed-to-PostgreSQL sync from a
+Story 10 Task 01 attempted one clean full SyncFeed-to-PostgreSQL sync from a
 fresh migrated database on 2026-04-26. The actual sync command failed after
 ```
 
@@ -126,7 +138,7 @@ While manually verifying
 ## Bug: Full sync fails on deleted PersoonNevenfunctie body content <status>not_started</status> <passes>true</passes> <priority>high</priority>
 
 <description>
-Story 010 Task 01 attempted one clean full SyncFeed-to-PostgreSQL sync from an
+Story 10 Task 01 attempted one clean full SyncFeed-to-PostgreSQL sync from an
 empty dedicated database:
 ```
 
@@ -150,7 +162,7 @@ reran the captured full-sync command on 2026-04-27:
 ## Bug: Full sync fails on unknown Toezegging toegezegdAan field <status>done</status> <passes>true</passes> <priority>high</priority>
 
 <description>
-Story 010 Task 01 attempted one clean full SyncFeed-to-PostgreSQL sync from an
+Story 10 Task 01 attempted one clean full SyncFeed-to-PostgreSQL sync from an
 empty dedicated database after the previous PersoonNevenfunctie deleted-body
 ```
 
@@ -162,30 +174,8 @@ empty dedicated database after the previous PersoonNevenfunctie deleted-body
 ## Bug: Startup validation swallows response body errors <status>done</status> <passes>true</passes> <priority>medium</priority>
 
 <description>
-During Story 010 Task 01 operational sync preparation, inspection found
+During Story 10 Task 01 operational sync preparation, inspection found
 `crates/opentk-db/src/startup_validation.rs` using
-```
-
-==============
-
-# Task `/home/joshazimullah.linux/work_mounts/patroni_rewrite/opentk/.ralph/tasks/story-010-full-sync-backup/task-01-run-one-time-clean-full-sync-report.md`
-
-```
-## Task: Story 010 Task 01 - Run One-Time Clean Full Sync and Report Results <status>done</status> <passes>true</passes>
-
-<description>
-**Goal:** Run one clean full SyncFeed-to-PostgreSQL sync once, measure the result, write a human-readable report under `.ralph/reports/`, and email that report to the user.
-```
-
-==============
-
-# Task `/home/joshazimullah.linux/work_mounts/patroni_rewrite/opentk/.ralph/tasks/story-010-full-sync-backup/task-02-create-one-time-dumb-database-dump.md`
-
-```
-## Task: Story 010 Task 02 - Create One-Time Dumb Dump of Fully Synced Database <status>done</status> <passes>true</passes>
-
-<description>
-**Goal:** After Story 010 Task 01 has produced a fully synced database, take one plain operational database dump of that exact state so development can revert after accidental wipe/truncate or other destructive mistakes.
 ```
 
 ==============
@@ -466,5 +456,27 @@ Must use tdd skill to complete
 
 <description>
 Must use tdd skill to complete
+```
+
+==============
+
+# Task `/home/joshazimullah.linux/work_mounts/patroni_rewrite/opentk/.ralph/tasks/story-10-full-sync-backup/task-01-run-one-time-clean-full-sync-report.md`
+
+```
+## Task: Story 10 Task 01 - Run One-Time Clean Full Sync and Report Results <status>done</status> <passes>true</passes>
+
+<description>
+**Goal:** Run one clean full SyncFeed-to-PostgreSQL sync once, measure the result, write a human-readable report under `.ralph/reports/`, and email that report to the user.
+```
+
+==============
+
+# Task `/home/joshazimullah.linux/work_mounts/patroni_rewrite/opentk/.ralph/tasks/story-10-full-sync-backup/task-02-create-one-time-dumb-database-dump.md`
+
+```
+## Task: Story 10 Task 02 - Create One-Time Dumb Dump of Fully Synced Database <status>done</status> <passes>true</passes>
+
+<description>
+**Goal:** After Story 10 Task 01 has produced a fully synced database, take one plain operational database dump of that exact state so development can revert after accidental wipe/truncate or other destructive mistakes.
 ```
 

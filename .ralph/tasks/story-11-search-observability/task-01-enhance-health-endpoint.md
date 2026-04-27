@@ -1,4 +1,4 @@
-## Task: Story 011 Task 01 - Enhance Health Endpoint and Add Admin Search Sync Status <status>not_started</status> <passes>false</passes>
+## Task: Story 11 Task 01 - Enhance Health Endpoint and Add Admin Search Sync Status <status>not_started</status> <passes>false</passes>
 
 <description>
 Must use tdd skill to complete

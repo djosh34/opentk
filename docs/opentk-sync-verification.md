@@ -85,7 +85,7 @@ lane remains selectable in isolated environments.
 - `link_metadata_bytes`: approximate bytes used by durable document asset link
   and retrieval metadata;
 - `extracted_text_bytes`: stored extracted text bytes in `document_content`;
-- `stored_html_bytes`: stored extracted HTML bytes in `document_content`;
+- `extracted_html_bytes`: stored extracted HTML bytes in `document_content`;
 - `constraint_count`: generated table constraints present in PostgreSQL;
 - `binary_asset_metadata_rows`: rows with linked download metadata such as
   enclosure URL, content type, or content length;
