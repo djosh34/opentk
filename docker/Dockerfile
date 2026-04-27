@@ -56,9 +56,18 @@ RUN --mount=type=cache,target=/usr/local/cargo/registry,sharing=locked \
     cp "target/${rust_target}/release/opentk-api" /out/bin/opentk-api && \
     cp "target/${rust_target}/release/opentk-sync" /out/bin/opentk-sync
 
-FROM scratch
+FROM scratch AS api
+
+USER 1000:1000
 
 COPY --from=build /out/bin/opentk-api /bin/opentk-api
-COPY --from=build /out/bin/opentk-sync /bin/opentk-sync
 
 CMD ["/bin/opentk-api"]
+
+FROM scratch AS sync
+
+USER 1001:1001
+
+COPY --from=build /out/bin/opentk-sync /bin/opentk-sync
+
+CMD ["/bin/opentk-sync"]

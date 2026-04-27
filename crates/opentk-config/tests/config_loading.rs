@@ -253,7 +253,12 @@ fn compose_config_uses_service_hostnames_and_explicit_sync_scope() {
     assert_eq!(loaded.config.api.bind_address.to_string(), "0.0.0.0:3000");
     for category in ["Document", "Zaak", "Activiteit", "Stemming"] {
         assert!(
-            loaded.config.sync.categories.iter().any(|loaded| loaded == category),
+            loaded
+                .config
+                .sync
+                .categories
+                .iter()
+                .any(|loaded| loaded == category),
             "compose sync categories should include {category}"
         );
     }

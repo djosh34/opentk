@@ -1,6 +1,6 @@
 # Done Tasks Summary
 
-Generated: Mon Apr 27 06:03:02 PM CEST 2026
+Generated: Mon Apr 27 07:29:15 PM CEST 2026
 
 # Task `/home/joshazimullah.linux/work_mounts/patroni_rewrite/opentk/.ralph/tasks/bugs/bug-cargo-run-opentk-sync-linker-missing-objects.md`
 
@@ -497,17 +497,6 @@ Must use tdd skill to complete
 
 ```
 ## Task: Story 08 Task 04 - Docker Health Checks and Graceful Shutdown <status>done</status> <passes>true</passes>
-
-<description>
-Must use tdd skill to complete
-```
-
-==============
-
-# Task `/home/joshazimullah.linux/work_mounts/patroni_rewrite/opentk/.ralph/tasks/story-09-ci-cd-multi-arch/task-02-github-workflow-docker-build.md`
-
-```
-## Task: Story 09 Task 02 - GitHub Workflow for Multi-Arch Docker Build <status>not_started</status> <passes>true</passes>
 
 <description>
 Must use tdd skill to complete

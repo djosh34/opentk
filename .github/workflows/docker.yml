@@ -9,12 +9,9 @@ on:
 permissions:
   contents: read
 
-env:
-  IMAGE_NAME: opentk
-
 jobs:
   build:
-    name: Build ${{ matrix.platform }}
+    name: Build ${{ matrix.image_name }} ${{ matrix.platform }}
     runs-on: ${{ matrix.runner }}
     permissions:
       contents: read
@@ -26,9 +23,23 @@ jobs:
           - platform: linux/amd64
             platform_tag: amd64
             runner: ubuntu-24.04
+            image_name: opentk-api
+            docker_target: api
           - platform: linux/arm64
             platform_tag: arm64
             runner: ubuntu-24.04-arm
+            image_name: opentk-api
+            docker_target: api
+          - platform: linux/amd64
+            platform_tag: amd64
+            runner: ubuntu-24.04
+            image_name: opentk-sync
+            docker_target: sync
+          - platform: linux/arm64
+            platform_tag: arm64
+            runner: ubuntu-24.04-arm
+            image_name: opentk-sync
+            docker_target: sync
     steps:
       - name: Checkout
         uses: actions/checkout@v6.0.2
@@ -41,10 +52,10 @@ jobs:
         uses: actions/cache@v5.0.5
         id: cache-mount
         with:
-          path: buildkit-cache-mounts/${{ matrix.platform_tag }}
-          key: buildkit-cache-mounts-${{ matrix.platform_tag }}-${{ hashFiles('docker/Dockerfile', 'Cargo.lock') }}
+          path: buildkit-cache-mounts/${{ matrix.image_name }}-${{ matrix.platform_tag }}
+          key: buildkit-cache-mounts-${{ matrix.image_name }}-${{ matrix.platform_tag }}-${{ hashFiles('docker/Dockerfile', 'Cargo.lock') }}
           restore-keys: |
-            buildkit-cache-mounts-${{ matrix.platform_tag }}-
+            buildkit-cache-mounts-${{ matrix.image_name }}-${{ matrix.platform_tag }}-
 
       - name: Inject cache-mount directories into BuildKit
         uses: reproducible-containers/buildkit-cache-dance@v3.3.2
@@ -53,69 +64,78 @@ jobs:
           skip-extraction: ${{ steps.cache-mount.outputs.cache-hit }}
           cache-map: |
             {
-              "buildkit-cache-mounts/${{ matrix.platform_tag }}/var-cache-apt": "/var/cache/apt",
-              "buildkit-cache-mounts/${{ matrix.platform_tag }}/var-lib-apt-lists": "/var/lib/apt/lists",
-              "buildkit-cache-mounts/${{ matrix.platform_tag }}/cargo-registry": "/usr/local/cargo/registry",
-              "buildkit-cache-mounts/${{ matrix.platform_tag }}/cargo-git": "/usr/local/cargo/git",
-              "buildkit-cache-mounts/${{ matrix.platform_tag }}/cargo-install-target": "/usr/local/cargo-install-target",
-              "buildkit-cache-mounts/${{ matrix.platform_tag }}/src-target": "/src/target"
+              "buildkit-cache-mounts/${{ matrix.image_name }}-${{ matrix.platform_tag }}/var-cache-apt": "/var/cache/apt",
+              "buildkit-cache-mounts/${{ matrix.image_name }}-${{ matrix.platform_tag }}/var-lib-apt-lists": "/var/lib/apt/lists",
+              "buildkit-cache-mounts/${{ matrix.image_name }}-${{ matrix.platform_tag }}/cargo-registry": "/usr/local/cargo/registry",
+              "buildkit-cache-mounts/${{ matrix.image_name }}-${{ matrix.platform_tag }}/cargo-git": "/usr/local/cargo/git",
+              "buildkit-cache-mounts/${{ matrix.image_name }}-${{ matrix.platform_tag }}/cargo-install-target": "/usr/local/cargo-install-target",
+              "buildkit-cache-mounts/${{ matrix.image_name }}-${{ matrix.platform_tag }}/src-target": "/src/target"
             }
 
-      - name: Build ${{ matrix.platform }} image
+      - name: Build ${{ matrix.image_name }} ${{ matrix.platform }} image
         id: build
         uses: docker/build-push-action@v7.1.0
         with:
           context: .
           file: docker/Dockerfile
+          target: ${{ matrix.docker_target }}
           platforms: ${{ matrix.platform }}
-          outputs: type=oci,dest=/tmp/opentk-${{ matrix.platform_tag }}.oci.tar
+          outputs: type=oci,dest=/tmp/${{ matrix.image_name }}-${{ matrix.platform_tag }}.oci.tar
           provenance: false
-          cache-from: type=gha,scope=opentk-${{ matrix.platform_tag }}
-          cache-to: type=gha,scope=opentk-${{ matrix.platform_tag }},mode=max
+          cache-from: type=gha,scope=${{ matrix.image_name }}-${{ matrix.platform_tag }}
+          cache-to: type=gha,scope=${{ matrix.image_name }}-${{ matrix.platform_tag }},mode=max
 
       - name: Verify cache-backed rebuild is incremental
         uses: docker/build-push-action@v7.1.0
         with:
           context: .
           file: docker/Dockerfile
+          target: ${{ matrix.docker_target }}
           platforms: ${{ matrix.platform }}
           outputs: type=cacheonly
           provenance: false
-          cache-from: type=gha,scope=opentk-${{ matrix.platform_tag }}
-          cache-to: type=gha,scope=opentk-${{ matrix.platform_tag }},mode=max
+          cache-from: type=gha,scope=${{ matrix.image_name }}-${{ matrix.platform_tag }}
+          cache-to: type=gha,scope=${{ matrix.image_name }}-${{ matrix.platform_tag }},mode=max
 
-      - name: Upload ${{ matrix.platform }} OCI archive
+      - name: Upload ${{ matrix.image_name }} ${{ matrix.platform }} OCI archive
         uses: actions/upload-artifact@v7.0.1
         with:
-          name: opentk-${{ matrix.platform_tag }}-oci
-          path: /tmp/opentk-${{ matrix.platform_tag }}.oci.tar
+          name: ${{ matrix.image_name }}-${{ matrix.platform_tag }}-oci
+          path: /tmp/${{ matrix.image_name }}-${{ matrix.platform_tag }}.oci.tar
           if-no-files-found: error
           retention-days: 1
 
   publish:
-    name: Publish GHCR manifest
+    name: Publish GHCR manifests
     runs-on: ubuntu-24.04
     needs: build
     permissions:
       contents: read
       packages: write
-    services:
-      registry:
-        image: registry:2
-        ports:
-          - 5000:5000
     steps:
-      - name: Download amd64 image
+      - name: Download opentk-api amd64 image
         uses: actions/download-artifact@v8.0.1
         with:
-          name: opentk-amd64-oci
-          path: /tmp/opentk-amd64
+          name: opentk-api-amd64-oci
+          path: /tmp/opentk-api-amd64
 
-      - name: Download arm64 image
+      - name: Download opentk-api arm64 image
         uses: actions/download-artifact@v8.0.1
         with:
-          name: opentk-arm64-oci
-          path: /tmp/opentk-arm64
+          name: opentk-api-arm64-oci
+          path: /tmp/opentk-api-arm64
+
+      - name: Download opentk-sync amd64 image
+        uses: actions/download-artifact@v8.0.1
+        with:
+          name: opentk-sync-amd64-oci
+          path: /tmp/opentk-sync-amd64
+
+      - name: Download opentk-sync arm64 image
+        uses: actions/download-artifact@v8.0.1
+        with:
+          name: opentk-sync-arm64-oci
+          path: /tmp/opentk-sync-arm64
 
       - name: Log in to GHCR
         uses: docker/login-action@v4.1.0
@@ -128,26 +148,49 @@ jobs:
         run: |
           set -euo pipefail
           sudo apt-get update
-          sudo apt-get install --no-install-recommends -y skopeo
+          sudo apt-get install --no-install-recommends -y jq skopeo
 
-      - name: Publish one commit-SHA multiplatform tag
+      - name: Publish commit-SHA multiplatform tags
         run: |
           set -euo pipefail
 
           owner="$(printf '%s' "${GITHUB_REPOSITORY_OWNER}" | tr '[:upper:]' '[:lower:]')"
-          image="ghcr.io/${owner}/${IMAGE_NAME}"
           tag="${GITHUB_SHA}"
 
-          skopeo copy --all \
-            "oci-archive:/tmp/opentk-amd64/opentk-amd64.oci.tar" \
-            "docker://localhost:5000/${IMAGE_NAME}:${tag}-amd64"
-          skopeo copy --all \
-            "oci-archive:/tmp/opentk-arm64/opentk-arm64.oci.tar" \
-            "docker://localhost:5000/${IMAGE_NAME}:${tag}-arm64"
+          for image_name in opentk-api opentk-sync; do
+            image="ghcr.io/${owner}/${image_name}"
+            work_dir="/tmp/${image_name}-oci"
+            amd64_dir="${work_dir}/amd64"
+            arm64_dir="${work_dir}/arm64"
+            merged_dir="${work_dir}/merged"
+            merged_archive="/tmp/${image_name}.oci.tar"
 
-          docker buildx imagetools create \
-            --tag "${image}:${tag}" \
-            "localhost:5000/${IMAGE_NAME}:${tag}-amd64" \
-            "localhost:5000/${IMAGE_NAME}:${tag}-arm64"
+            rm -rf "${work_dir}" "${merged_archive}"
+            mkdir -p "${amd64_dir}" "${arm64_dir}" "${merged_dir}/blobs/sha256"
 
-          docker buildx imagetools inspect "${image}:${tag}"
+            tar -xf "/tmp/${image_name}-amd64/${image_name}-amd64.oci.tar" -C "${amd64_dir}"
+            tar -xf "/tmp/${image_name}-arm64/${image_name}-arm64.oci.tar" -C "${arm64_dir}"
+
+            cp "${amd64_dir}/oci-layout" "${merged_dir}/oci-layout"
+            cp -R "${amd64_dir}/blobs/sha256/." "${merged_dir}/blobs/sha256/"
+            cp -R "${arm64_dir}/blobs/sha256/." "${merged_dir}/blobs/sha256/"
+
+            jq -s --arg tag "${tag}" '
+              {
+                schemaVersion: 2,
+                mediaType: "application/vnd.oci.image.index.v1+json",
+                manifests: (.[0].manifests + .[1].manifests | map(del(.annotations["org.opencontainers.image.ref.name"]))),
+                annotations: {
+                  "org.opencontainers.image.ref.name": $tag
+                }
+              }
+            ' "${amd64_dir}/index.json" "${arm64_dir}/index.json" > "${merged_dir}/index.json"
+
+            tar -C "${merged_dir}" -cf "${merged_archive}" oci-layout index.json blobs
+
+            skopeo copy --all \
+              "oci-archive:${merged_archive}" \
+              "docker://${image}:${tag}"
+
+            docker buildx imagetools inspect "${image}:${tag}"
+          done

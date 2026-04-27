@@ -41,7 +41,8 @@ services:
   api:
     build:
       context: .
-      dockerfile: docker/Dockerfile.api
+      dockerfile: docker/Dockerfile
+      target: api
     restart: always
     command: ["--config", "/etc/opentk/config.toml"]
     depends_on:
@@ -62,7 +63,8 @@ services:
   sync:
     build:
       context: .
-      dockerfile: docker/Dockerfile.sync
+      dockerfile: docker/Dockerfile
+      target: sync
     restart: unless-stopped
     command: ["--config", "/etc/opentk/config.toml", "poll"]
     depends_on:
