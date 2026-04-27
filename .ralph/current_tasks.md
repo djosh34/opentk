@@ -1,14 +1,14 @@
 # Current Tasks Summary
 
-Generated: Mon Apr 27 02:07:01 PM CEST 2026
+Generated: Mon Apr 27 03:40:04 PM CEST 2026
 
-# Task `/home/joshazimullah.linux/work_mounts/patroni_rewrite/opentk/.ralph/tasks/bugs/bug-github-api-curl-bad-credentials.md`
+# Task `/home/joshazimullah.linux/work_mounts/patroni_rewrite/opentk/.ralph/tasks/bugs/bug-github-token-lacks-workflow-scope-for-docker-verification.md`
 
 ```
-## Bug: GitHub API Curl Wrapper Has Bad Credentials <status>not_started</status> <passes>false</passes> <priority>high</priority>
+## Bug: GitHub Token Lacks Workflow Scope For Docker Verification <status>not_started</status> <passes>false</passes> <priority>high</priority>
 
 <description>
-The required GitHub workflow verification path is broken.
+Story 09 Task 02 requires pushing `.github/workflows/docker.yml`, triggering `workflow_dispatch`, and verifying Docker workflow cache behavior/timings from real GitHub logs using `/home/joshazimullah.linux/github-api-curl`.
 ```
 
 ==============

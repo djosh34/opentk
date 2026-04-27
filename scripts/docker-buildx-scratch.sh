@@ -3,7 +3,7 @@ set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 image_prefix="${OPENTK_IMAGE_PREFIX:-opentk}"
-artifact_image="${OPENTK_ARTIFACT_IMAGE:-opentk-scratch-artifacts:local}"
+artifact_image_prefix="${OPENTK_ARTIFACT_IMAGE_PREFIX:-opentk-scratch-artifacts}"
 builder_name="${OPENTK_BUILDX_BUILDER:-default}"
 platforms="linux/amd64,linux/arm64"
 max_image_size_bytes=50000000
@@ -52,9 +52,13 @@ assert_no_qemu_builder() {
 }
 
 build_artifacts() {
+  local binary="$1"
+  local artifact_image="${artifact_image_prefix}-${binary}:local"
+
   docker buildx build \
     --builder "${builder_name}" \
     --load \
+    --build-arg "BINARY=${binary}" \
     -f "${repo_root}/docker/Dockerfile.scratch-artifacts" \
     -t "${artifact_image}" \
     "${repo_root}"
@@ -62,6 +66,7 @@ build_artifacts() {
 
 build_final_image() {
   local binary="$1"
+  local artifact_image="${artifact_image_prefix}-${binary}:local"
   local tag="${image_prefix}-${binary#opentk-}:local"
   local metadata_file
   metadata_file="$(mktemp)"
@@ -112,6 +117,7 @@ require_command docker
 docker buildx version >/dev/null
 ensure_builder
 assert_no_qemu_builder
-build_artifacts
+build_artifacts opentk-sync
 build_final_image opentk-sync
+build_artifacts opentk-api
 build_final_image opentk-api

@@ -487,6 +487,10 @@ fn github_docker_workflow_builds_scratch_images_from_repository_dockerfiles() {
     let workflow = docker_workflow();
     let jobs = path_mapping(&workflow, "jobs");
     let build = path_mapping(jobs, "build");
+    let strategy = path_mapping(build, "strategy");
+    let matrix = path_mapping(strategy, "matrix");
+    assert_sequence_contains(matrix, "binary", "opentk-sync");
+    assert_sequence_contains(matrix, "binary", "opentk-api");
 
     for required in [
         "docker/setup-buildx-action",
@@ -495,16 +499,22 @@ fn github_docker_workflow_builds_scratch_images_from_repository_dockerfiles() {
         "opentk-sync",
         "opentk-api",
         "linux/amd64,linux/arm64",
-        "--build-arg \"BINARY=${binary}\"",
+        "--build-arg \"BINARY=${{ matrix.binary }}\"",
         "--build-arg \"ARTIFACT_IMAGE=${artifact_image}\"",
-        "type=oci,dest=/tmp/${binary}.oci.tar",
+        "type=oci,dest=/tmp/${{ matrix.binary }}.oci.tar",
         "actions/upload-artifact",
+        "name: ${{ matrix.binary }}-oci-archive",
+        "/tmp/${{ matrix.binary }}.oci.tar",
     ] {
         assert!(
             job_contains(build, required),
             "build job should contain {required}"
         );
     }
+    assert!(
+        !job_contains(build, "for binary in"),
+        "build job should let the matrix own binary fan-out instead of serial shell loops"
+    );
 }
 
 #[test]
@@ -540,11 +550,14 @@ fn github_docker_workflow_caches_cargo_targets_layers_and_final_assembly() {
     let build = path_mapping(path_mapping(&workflow, "jobs"), "build");
 
     for required in [
-        "--cache-from \"type=gha,scope=opentk-scratch-artifacts\"",
-        "--cache-to \"type=gha,scope=opentk-scratch-artifacts,mode=max\"",
-        "--cache-from \"type=gha,scope=opentk-scratch-${binary}\"",
-        "--cache-to \"type=gha,scope=opentk-scratch-${binary},mode=max\"",
-        "opentk-scratch-target",
+        "--cache-from \"type=gha,scope=opentk-scratch-deps\"",
+        "--cache-to \"type=gha,scope=opentk-scratch-deps,mode=max\"",
+        "--cache-from \"type=gha,scope=opentk-scratch-artifacts-${{ matrix.binary }}\"",
+        "--cache-to \"type=gha,scope=opentk-scratch-artifacts-${{ matrix.binary }},mode=max\"",
+        "--cache-from \"type=gha,scope=opentk-scratch-${{ matrix.binary }}\"",
+        "--cache-to \"type=gha,scope=opentk-scratch-${{ matrix.binary }},mode=max\"",
+        "opentk-scratch-deps-target",
+        "opentk-scratch-${BINARY}-target",
     ] {
         assert!(
             job_contains(build, required) || artifacts.contains(required),
@@ -552,15 +565,24 @@ fn github_docker_workflow_caches_cargo_targets_layers_and_final_assembly() {
         );
     }
     for required in [
+        "cargo install cargo-chef --locked",
+        "cargo chef prepare --recipe-path recipe.json",
+        "cargo chef cook --release --target x86_64-unknown-linux-musl --recipe-path recipe.json",
+        "cargo chef cook --release --target aarch64-unknown-linux-musl --recipe-path recipe.json",
         "--mount=type=cache,target=/usr/local/cargo/registry",
         "--mount=type=cache,target=/usr/local/cargo/git",
-        "--mount=type=cache,id=opentk-scratch-target,target=/workspace/target",
+        "--mount=type=cache,id=opentk-scratch-deps-target,target=/workspace/target",
+        "--mount=type=cache,id=opentk-scratch-${BINARY}-target,target=/workspace/target",
     ] {
         assert!(
             artifacts.contains(required),
             "artifact Dockerfile cache contract should contain {required}"
         );
     }
+    assert!(
+        !artifacts.contains("id=opentk-scratch-target,target=/workspace/target"),
+        "parallel matrix builds should not share one mutable final target cache"
+    );
 }
 
 #[test]
@@ -570,7 +592,8 @@ fn github_docker_workflow_publishes_oci_artifacts_with_main_sha_and_release_tags
 
     for required in [
         "actions/download-artifact",
-        "scratch-image-oci-archives",
+        "opentk-sync-oci-archive",
+        "opentk-api-oci-archive",
         "apt-get install -y --no-install-recommends skopeo",
         "oci-archive:${binary}.oci.tar",
         "docker://ghcr.io/${owner}/${binary}:${tag}",
@@ -629,16 +652,16 @@ fn assert_scratch_dockerfile_contract(scratch: &str) {
 fn assert_scratch_artifact_dockerfile_contract(artifacts: &str) {
     for required in [
         "FROM --platform=${BUILDPLATFORM} rust:1-bookworm AS builder",
+        "ARG BINARY",
+        "case \"${BINARY}\" in",
+        "opentk-sync|opentk-api)",
         "--mount=type=cache,target=/usr/local/cargo/registry",
         "--mount=type=cache,target=/usr/local/cargo/git",
-        "--mount=type=cache,id=opentk-scratch-target,target=/workspace/target",
         "rustup target add x86_64-unknown-linux-musl aarch64-unknown-linux-musl",
-        "cargo build --release --target x86_64-unknown-linux-musl -p opentk-db -p opentk-api --bin opentk-sync --bin opentk-api",
-        "cargo build --release --target aarch64-unknown-linux-musl -p opentk-db -p opentk-api --bin opentk-sync --bin opentk-api",
-        "/artifacts/x86_64-unknown-linux-musl/opentk-sync",
-        "/artifacts/x86_64-unknown-linux-musl/opentk-api",
-        "/artifacts/aarch64-unknown-linux-musl/opentk-sync",
-        "/artifacts/aarch64-unknown-linux-musl/opentk-api",
+        "cargo build --release --target x86_64-unknown-linux-musl --bin \"${BINARY}\"",
+        "cargo build --release --target aarch64-unknown-linux-musl --bin \"${BINARY}\"",
+        "cp \"/workspace/target/x86_64-unknown-linux-musl/release/${BINARY}\" \"/artifacts/x86_64-unknown-linux-musl/${BINARY}\"",
+        "cp \"/workspace/target/aarch64-unknown-linux-musl/release/${BINARY}\" \"/artifacts/aarch64-unknown-linux-musl/${BINARY}\"",
         "opentk:x:1000:1000:opentk:/nonexistent:/sbin/nologin",
     ] {
         assert!(
@@ -648,13 +671,17 @@ fn assert_scratch_artifact_dockerfile_contract(artifacts: &str) {
     }
     for forbidden in [
         "target-deps",
-        "opentk-scratch-deps-target",
         "opentk-scratch-final-target",
         "dependency_cache_placeholder",
+        "--bin opentk-sync --bin opentk-api",
+        "/artifacts/x86_64-unknown-linux-musl/opentk-sync",
+        "/artifacts/x86_64-unknown-linux-musl/opentk-api",
+        "/artifacts/aarch64-unknown-linux-musl/opentk-sync",
+        "/artifacts/aarch64-unknown-linux-musl/opentk-api",
     ] {
         assert!(
             !artifacts.contains(forbidden),
-            "artifact Dockerfile should avoid duplicate target cache {forbidden}"
+            "artifact Dockerfile should avoid all-binaries artifact output {forbidden}"
         );
     }
 }
@@ -670,7 +697,9 @@ fn assert_scratch_build_script_contract(script: &str) {
         "--platform \"${platforms}\"",
         "--metadata-file \"${metadata_file}\"",
         "--build-arg \"BINARY=${binary}\"",
+        "build_artifacts opentk-sync",
         "build_final_image opentk-sync",
+        "build_artifacts opentk-api",
         "build_final_image opentk-api",
         "docker run --rm",
         "--help",

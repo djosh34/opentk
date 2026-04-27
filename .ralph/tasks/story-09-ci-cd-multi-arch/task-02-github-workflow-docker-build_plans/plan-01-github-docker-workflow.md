@@ -97,4 +97,4 @@ Use vertical slices; one behavioral test first, then minimal workflow changes, t
 - [ ] `make lint` passes.
 - [ ] `make test` passes.
 
-NOW EXECUTE
+TO BE VERIFIED

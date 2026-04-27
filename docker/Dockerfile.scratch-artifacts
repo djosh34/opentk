@@ -6,6 +6,7 @@ RUN dpkg --add-architecture amd64 \
     && apt-get update \
     && apt-get install -y --no-install-recommends ca-certificates clang lld musl-dev:amd64 musl-tools pkg-config \
     && rm -rf /var/lib/apt/lists/* \
+    && cargo install cargo-chef --locked \
     && rustup target add x86_64-unknown-linux-musl aarch64-unknown-linux-musl
 
 ENV CC_x86_64_unknown_linux_musl=clang \
@@ -17,24 +18,53 @@ ENV CC_x86_64_unknown_linux_musl=clang \
 
 WORKDIR /workspace
 
+FROM builder AS planner
+
 COPY Cargo.toml Cargo.lock ./
 COPY .cargo .cargo
 COPY crates crates
 COPY migrations migrations
 
+RUN cargo chef prepare --recipe-path recipe.json
+
+FROM builder AS dependency-cache
+
+COPY --from=planner /workspace/recipe.json recipe.json
+
 RUN --mount=type=cache,target=/usr/local/cargo/registry \
     --mount=type=cache,target=/usr/local/cargo/git \
-    --mount=type=cache,id=opentk-scratch-target,target=/workspace/target \
-    cargo build --release --target x86_64-unknown-linux-musl -p opentk-db -p opentk-api --bin opentk-sync --bin opentk-api \
-    && cargo build --release --target aarch64-unknown-linux-musl -p opentk-db -p opentk-api --bin opentk-sync --bin opentk-api \
+    --mount=type=cache,id=opentk-scratch-deps-target,target=/workspace/target-cache \
+    CARGO_TARGET_DIR=/workspace/target-cache cargo chef cook --release --target x86_64-unknown-linux-musl --recipe-path recipe.json \
+    && CARGO_TARGET_DIR=/workspace/target-cache cargo chef cook --release --target aarch64-unknown-linux-musl --recipe-path recipe.json \
+    && cp -a /workspace/target-cache /workspace/target
+
+FROM builder AS artifact-builder
+
+ARG BINARY
+
+COPY Cargo.toml Cargo.lock ./
+COPY .cargo .cargo
+COPY crates crates
+COPY migrations migrations
+COPY --from=dependency-cache /workspace/target /workspace/deps-target
+
+RUN case "${BINARY}" in \
+        opentk-sync|opentk-api) ;; \
+        *) echo "unsupported BINARY: ${BINARY}" >&2; exit 1 ;; \
+    esac
+
+RUN --mount=type=cache,target=/usr/local/cargo/registry \
+    --mount=type=cache,target=/usr/local/cargo/git \
+    --mount=type=cache,id=opentk-scratch-${BINARY}-target,target=/workspace/target \
+    cp -a /workspace/deps-target/. /workspace/target/ \
+    && cargo build --release --target x86_64-unknown-linux-musl --bin "${BINARY}" \
+    && cargo build --release --target aarch64-unknown-linux-musl --bin "${BINARY}" \
     && mkdir -p \
         /artifacts/x86_64-unknown-linux-musl \
         /artifacts/aarch64-unknown-linux-musl \
         /runtime/etc \
-    && cp /workspace/target/x86_64-unknown-linux-musl/release/opentk-sync /artifacts/x86_64-unknown-linux-musl/opentk-sync \
-    && cp /workspace/target/x86_64-unknown-linux-musl/release/opentk-api /artifacts/x86_64-unknown-linux-musl/opentk-api \
-    && cp /workspace/target/aarch64-unknown-linux-musl/release/opentk-sync /artifacts/aarch64-unknown-linux-musl/opentk-sync \
-    && cp /workspace/target/aarch64-unknown-linux-musl/release/opentk-api /artifacts/aarch64-unknown-linux-musl/opentk-api \
+    && cp "/workspace/target/x86_64-unknown-linux-musl/release/${BINARY}" "/artifacts/x86_64-unknown-linux-musl/${BINARY}" \
+    && cp "/workspace/target/aarch64-unknown-linux-musl/release/${BINARY}" "/artifacts/aarch64-unknown-linux-musl/${BINARY}" \
     && cp /etc/ssl/certs/ca-certificates.crt /runtime/etc/ca-certificates.crt \
     && printf 'opentk:x:1000:1000:opentk:/nonexistent:/sbin/nologin\n' > /runtime/etc/passwd \
     && printf 'opentk:x:1000:\n' > /runtime/etc/group

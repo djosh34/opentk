@@ -26,6 +26,11 @@ Requirements:
 
 Verification requirement: use the `github-api-auth-wrapper` skill (`/home/joshazimullah.linux/github-api-curl`) to inspect real workflow runs. Confirm cache hits and timings with GitHub logs. A cached Docker build taking over 5 minutes, any Docker workflow build taking over 10 minutes, rebuilding the same Rust dependencies twice for test and image work, or rebuilding the same image again just to publish is a task failure.
 
+PO hint:
+- Think about more parallelism: the workflow may have one parallel task per build, where the VM can still run on x86 while producing the target architecture artifact needed by that build.
+- Consider `cargo-chef` or an equivalent dependency-planning approach if it materially reduces repeated Rust dependency compilation.
+- Investigate and reduce slow or unnecessary dependencies as part of making the Docker workflow meet the timing requirements; do not keep dependencies that are not needed.
+
 In scope: docker workflow, buildx, registry auth, tagging, cache, GHCR publish split. Out of scope: Helm, K8s.
 
 </description>
@@ -51,7 +56,7 @@ In scope: docker workflow, buildx, registry auth, tagging, cache, GHCR publish s
 </acceptance_criteria>
 
 <plan>
-.ralph/tasks/story-09-ci-cd-multi-arch/task-02-github-workflow-docker-build_plans/plan-01-github-docker-workflow.md
+.ralph/tasks/story-09-ci-cd-multi-arch/task-02-github-workflow-docker-build_plans/plan-02-parallel-binary-cache-redesign.md
 </plan>
 
 NOW EXECUTE
