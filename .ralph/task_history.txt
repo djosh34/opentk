@@ -54,3 +54,4 @@
 .ralph/tasks/story-08-docker-local-dev/task-03-multi-arch-scratch.md
 .ralph/tasks/story-08-docker-local-dev/task-04-health-checks-and-shutdown.md
 .ralph/tasks/story-09-ci-cd-multi-arch/task-02-github-workflow-docker-build.md
+.ralph/tasks/story-09-ci-cd-multi-arch/task-02-github-workflow-docker-build.md
