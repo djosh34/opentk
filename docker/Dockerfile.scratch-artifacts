@@ -19,36 +19,6 @@ WORKDIR /workspace
 
 COPY Cargo.toml Cargo.lock ./
 COPY .cargo .cargo
-COPY crates/opentk-api/Cargo.toml crates/opentk-api/Cargo.toml
-COPY crates/opentk-config/Cargo.toml crates/opentk-config/Cargo.toml
-COPY crates/opentk-core/Cargo.toml crates/opentk-core/Cargo.toml
-COPY crates/opentk-db/Cargo.toml crates/opentk-db/Cargo.toml
-COPY crates/opentk-search/Cargo.toml crates/opentk-search/Cargo.toml
-COPY crates/opentk-search-eval/Cargo.toml crates/opentk-search-eval/Cargo.toml
-COPY crates/opentk-sync/Cargo.toml crates/opentk-sync/Cargo.toml
-
-RUN mkdir -p \
-        crates/opentk-api/src/bin \
-        crates/opentk-config/src \
-        crates/opentk-core/src \
-        crates/opentk-db/src/bin \
-        crates/opentk-search/src \
-        crates/opentk-search-eval/src/bin \
-        crates/opentk-sync/src/bin \
-    && for crate in opentk-api opentk-config opentk-core opentk-db opentk-search opentk-search-eval opentk-sync; do \
-        printf 'pub fn dependency_cache_placeholder() {}\n' > "crates/${crate}/src/lib.rs"; \
-    done \
-    && printf 'fn main() {}\n' > crates/opentk-api/src/bin/opentk-api.rs \
-    && printf 'fn main() {}\n' > crates/opentk-db/src/bin/opentk-sync.rs \
-    && printf 'fn main() {}\n' > crates/opentk-search-eval/src/bin/search-eval.rs \
-    && printf 'fn main() {}\n' > crates/opentk-sync/src/bin/official-schema.rs
-
-RUN --mount=type=cache,target=/usr/local/cargo/registry \
-    --mount=type=cache,target=/usr/local/cargo/git \
-    --mount=type=cache,id=opentk-scratch-target,target=/workspace/target \
-    cargo build --release --target x86_64-unknown-linux-musl -p opentk-db -p opentk-api --bin opentk-sync --bin opentk-api \
-    && cargo build --release --target aarch64-unknown-linux-musl -p opentk-db -p opentk-api --bin opentk-sync --bin opentk-api
-
 COPY crates crates
 COPY migrations migrations
 

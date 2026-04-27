@@ -650,6 +650,7 @@ fn assert_scratch_artifact_dockerfile_contract(artifacts: &str) {
         "target-deps",
         "opentk-scratch-deps-target",
         "opentk-scratch-final-target",
+        "dependency_cache_placeholder",
     ] {
         assert!(
             !artifacts.contains(forbidden),
