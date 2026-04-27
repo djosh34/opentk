@@ -1,0 +1,61 @@
+[database]
+url = "postgres://opentk:opentk@postgres:5432/opentk"
+max_connections = 10
+
+[sync]
+base_url = "https://gegevensmagazijn.tweedekamer.nl"
+request_timeout_secs = 30
+connect_timeout_secs = 10
+max_retries = 3
+max_concurrent_requests = 4
+poll_interval_secs = 30
+categories = [
+  "Activiteit",
+  "ActiviteitActor",
+  "Agendapunt",
+  "Besluit",
+  "Commissie",
+  "CommissieContactinformatie",
+  "CommissieZetel",
+  "CommissieZetelVastPersoon",
+  "CommissieZetelVastVacature",
+  "CommissieZetelVervangerPersoon",
+  "CommissieZetelVervangerVacature",
+  "Document",
+  "DocumentActor",
+  "DocumentVersie",
+  "Fractie",
+  "FractieZetel",
+  "FractieZetelPersoon",
+  "FractieZetelVacature",
+  "Kamerstukdossier",
+  "Persoon",
+  "PersoonContactinformatie",
+  "PersoonGeschenk",
+  "PersoonLoopbaan",
+  "PersoonNevenfunctie",
+  "PersoonNevenfunctieInkomsten",
+  "PersoonOnderwijs",
+  "PersoonReis",
+  "Reservering",
+  "Stemming",
+  "Toezegging",
+  "Vergadering",
+  "Verslag",
+  "Zaak",
+  "ZaakActor",
+  "Zaal",
+]
+
+[search]
+url = "http://meilisearch:7700"
+index_name = "opentk_entities"
+batch_size = 100
+retry_limit = 3
+
+[api]
+bind_address = "0.0.0.0:3000"
+
+[log]
+format = "pretty"
+level = "info"

@@ -1,6 +1,6 @@
 # Done Tasks Summary
 
-Generated: Mon Apr 27 12:01:41 CEST 2026
+Generated: Mon Apr 27 12:30:45 CEST 2026
 
 # Task `/home/joshazimullah.linux/work_mounts/patroni_rewrite/opentk/.ralph/tasks/bugs/bug-cargo-run-opentk-sync-linker-missing-objects.md`
 
@@ -464,6 +464,17 @@ Must use tdd skill to complete
 
 ```
 ## Task: Story 08 Task 01 - Dockerfiles for Local Development <status>done</status> <passes>true</passes>
+
+<description>
+Must use tdd skill to complete
+```
+
+==============
+
+# Task `/home/joshazimullah.linux/work_mounts/patroni_rewrite/opentk/.ralph/tasks/story-08-docker-local-dev/task-02-docker-compose.md`
+
+```
+## Task: Story 08 Task 02 - Docker Compose Local Development Stack <status>completed</status> <passes>true</passes>
 
 <description>
 Must use tdd skill to complete

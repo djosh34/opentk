@@ -1,0 +1,80 @@
+services:
+  postgres:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: opentk
+      POSTGRES_USER: opentk
+      POSTGRES_PASSWORD: opentk
+    ports:
+      - "5432:5432"
+    volumes:
+      - opentk-postgres-data:/var/lib/postgresql/data
+      - ./scripts/init-db.sh:/docker-entrypoint-initdb.d/init-db.sh:ro
+      - ./migrations:/workspace/migrations:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U opentk -d opentk"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+    networks:
+      - opentk
+
+  meilisearch:
+    image: getmeili/meilisearch:latest
+    restart: unless-stopped
+    environment:
+      MEILI_ENV: development
+      MEILI_NO_ANALYTICS: "true"
+    ports:
+      - "7700:7700"
+    volumes:
+      - opentk-meilisearch-data:/meili_data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:7700/health"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+    networks:
+      - opentk
+
+  api:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.api
+    restart: always
+    command: ["--config", "/etc/opentk/config.toml"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./config/opentk.compose.toml:/etc/opentk/config.toml:ro
+    networks:
+      - opentk
+
+  sync:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.sync
+    restart: unless-stopped
+    command: ["--config", "/etc/opentk/config.toml", "poll"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./config/opentk.compose.toml:/etc/opentk/config.toml:ro
+    networks:
+      - opentk
+
+networks:
+  opentk:
+    name: opentk
+    ipam:
+      config:
+        - subnet: 10.88.0.0/24
+
+volumes:
+  opentk-postgres-data:
+  opentk-meilisearch-data:

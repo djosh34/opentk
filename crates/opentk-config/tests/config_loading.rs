@@ -6,6 +6,7 @@ use std::{
 
 use opentk_config::{Config, ConfigLoader, LogFormat};
 use serde_json::Value;
+use serde_yaml::Value as YamlValue;
 
 #[test]
 fn required_database_url_loads_with_compiled_defaults() {
@@ -239,6 +240,164 @@ fn redacted_config_masks_secrets_and_keeps_operational_settings() {
     );
 }
 
+#[test]
+fn docker_compose_declares_local_stack_contract() {
+    let compose = fs::read_to_string(workspace_path("docker-compose.yml"))
+        .expect("docker-compose.yml should be readable");
+    let compose: YamlValue = serde_yaml::from_str(&compose).expect("compose file parses as yaml");
+    let services = compose
+        .get("services")
+        .and_then(YamlValue::as_mapping)
+        .expect("compose declares services");
+
+    let postgres = service(services, "postgres");
+    assert_eq!(scalar(postgres, "image"), "postgres:16");
+    assert_sequence_contains(postgres, "ports", "5432:5432");
+    assert!(postgres.get("healthcheck").is_some());
+    assert_sequence_contains(
+        postgres,
+        "volumes",
+        "opentk-postgres-data:/var/lib/postgresql/data",
+    );
+    assert_sequence_contains(
+        postgres,
+        "volumes",
+        "./scripts/init-db.sh:/docker-entrypoint-initdb.d/init-db.sh:ro",
+    );
+
+    let meilisearch = service(services, "meilisearch");
+    assert_eq!(scalar(meilisearch, "image"), "getmeili/meilisearch:latest");
+    assert_sequence_contains(meilisearch, "ports", "7700:7700");
+    assert!(meilisearch.get("healthcheck").is_some());
+    assert_sequence_contains(
+        meilisearch,
+        "volumes",
+        "opentk-meilisearch-data:/meili_data",
+    );
+
+    let api = service(services, "api");
+    assert_eq!(
+        scalar(path_mapping(api, "build"), "dockerfile"),
+        "docker/Dockerfile.api"
+    );
+    assert_sequence_contains(api, "ports", "3000:3000");
+    assert_sequence_contains(
+        api,
+        "volumes",
+        "./config/opentk.compose.toml:/etc/opentk/config.toml:ro",
+    );
+    assert_eq!(
+        depends_condition(api, "postgres"),
+        Some("service_healthy"),
+        "api must wait for healthy postgres"
+    );
+    assert!(
+        depends_condition(api, "meilisearch").is_none(),
+        "api must not hard-block startup on meilisearch health"
+    );
+
+    let sync = service(services, "sync");
+    assert_eq!(
+        scalar(path_mapping(sync, "build"), "dockerfile"),
+        "docker/Dockerfile.sync"
+    );
+    assert_sequence_contains(
+        sync,
+        "volumes",
+        "./config/opentk.compose.toml:/etc/opentk/config.toml:ro",
+    );
+    assert_eq!(
+        depends_condition(sync, "postgres"),
+        Some("service_healthy"),
+        "sync must wait for healthy postgres"
+    );
+    assert_eq!(
+        string_sequence(sync, "command"),
+        ["--config", "/etc/opentk/config.toml", "poll"]
+    );
+}
+
+#[test]
+fn compose_config_uses_service_hostnames_and_explicit_sync_scope() {
+    let loaded = ConfigLoader::with_path(workspace_path("config/opentk.compose.toml"))
+        .load()
+        .expect("compose config should load");
+
+    assert_eq!(
+        loaded.config.database.url,
+        "postgres://opentk:opentk@postgres:5432/opentk"
+    );
+    assert_eq!(loaded.config.search.url, "http://meilisearch:7700");
+    assert_eq!(loaded.config.api.bind_address.to_string(), "0.0.0.0:3000");
+
+    let compose_config = fs::read_to_string(workspace_path("config/opentk.compose.toml"))
+        .expect("compose config should be readable");
+    let compose_config: toml::Value =
+        toml::from_str(&compose_config).expect("compose config parses as toml");
+    let categories = compose_config
+        .get("sync")
+        .and_then(|sync| sync.get("categories"))
+        .and_then(toml::Value::as_array)
+        .expect("compose config should declare sync.categories explicitly");
+    let categories: Vec<&str> = categories
+        .iter()
+        .map(|category| {
+            category
+                .as_str()
+                .expect("sync.categories entries should be strings")
+        })
+        .collect();
+    for category in ["Document", "Zaak", "Activiteit", "Stemming"] {
+        assert!(
+            categories.contains(&category),
+            "compose sync categories should include {category}"
+        );
+    }
+}
+
+#[test]
+fn docker_compose_docs_explain_polling_and_cdc_boundaries() {
+    let docs = fs::read_to_string(workspace_path("docs/docker-compose.md"))
+        .expect("docker compose documentation should exist");
+
+    for required in [
+        "docker compose up --build",
+        "opentk-sync poll",
+        "upstream SyncFeed-to-PostgreSQL",
+        "PostgreSQL-to-Meilisearch CDC",
+        "curl http://localhost:3000/health",
+        "degraded",
+        "config/opentk.compose.toml",
+    ] {
+        assert!(docs.contains(required), "docs should mention {required}");
+    }
+
+    let readme = fs::read_to_string(workspace_path("README.md")).expect("README should exist");
+    assert!(
+        readme.contains("docs/docker-compose.md"),
+        "README should link the Docker Compose documentation"
+    );
+}
+
+#[test]
+fn postgres_init_script_runs_migrations_without_ignoring_errors() {
+    let script = fs::read_to_string(workspace_path("scripts/init-db.sh"))
+        .expect("postgres init script should exist");
+
+    for required in [
+        "set -euo pipefail",
+        "sqlx migrate run --source /workspace/migrations",
+        "psql",
+        "--set ON_ERROR_STOP=1",
+        "/workspace/migrations/*.up.sql",
+    ] {
+        assert!(
+            script.contains(required),
+            "init script should contain {required}"
+        );
+    }
+}
+
 struct TempDir {
     path: PathBuf,
 }
@@ -264,4 +423,69 @@ impl Drop for TempDir {
     fn drop(&mut self) {
         fs::remove_dir_all(&self.path).expect("remove temp dir");
     }
+}
+
+fn workspace_path(path: &str) -> PathBuf {
+    Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../..")
+        .join(path)
+}
+
+fn service<'a>(services: &'a serde_yaml::Mapping, name: &'static str) -> &'a serde_yaml::Mapping {
+    services
+        .get(YamlValue::String(name.to_owned()))
+        .and_then(YamlValue::as_mapping)
+        .unwrap_or_else(|| panic!("service {name} should be declared"))
+}
+
+fn scalar<'a>(mapping: &'a serde_yaml::Mapping, key: &'static str) -> &'a str {
+    mapping
+        .get(YamlValue::String(key.to_owned()))
+        .and_then(YamlValue::as_str)
+        .unwrap_or_else(|| panic!("{key} should be a string"))
+}
+
+fn path_mapping<'a>(
+    mapping: &'a serde_yaml::Mapping,
+    key: &'static str,
+) -> &'a serde_yaml::Mapping {
+    mapping
+        .get(YamlValue::String(key.to_owned()))
+        .and_then(YamlValue::as_mapping)
+        .unwrap_or_else(|| panic!("{key} should be a mapping"))
+}
+
+fn string_sequence<'a>(mapping: &'a serde_yaml::Mapping, key: &'static str) -> Vec<&'a str> {
+    mapping
+        .get(YamlValue::String(key.to_owned()))
+        .and_then(YamlValue::as_sequence)
+        .unwrap_or_else(|| panic!("{key} should be a sequence"))
+        .iter()
+        .map(|value| {
+            value
+                .as_str()
+                .unwrap_or_else(|| panic!("{key} entries should be strings"))
+        })
+        .collect()
+}
+
+fn assert_sequence_contains(mapping: &serde_yaml::Mapping, key: &'static str, expected: &str) {
+    let entries = string_sequence(mapping, key);
+    assert!(
+        entries.contains(&expected),
+        "{key} should contain {expected:?}, got {entries:?}"
+    );
+}
+
+fn depends_condition<'a>(
+    mapping: &'a serde_yaml::Mapping,
+    service_name: &'static str,
+) -> Option<&'a str> {
+    mapping
+        .get(YamlValue::String("depends_on".to_owned()))
+        .and_then(YamlValue::as_mapping)
+        .and_then(|depends_on| depends_on.get(YamlValue::String(service_name.to_owned())))
+        .and_then(YamlValue::as_mapping)
+        .and_then(|dependency| dependency.get(YamlValue::String("condition".to_owned())))
+        .and_then(YamlValue::as_str)
 }

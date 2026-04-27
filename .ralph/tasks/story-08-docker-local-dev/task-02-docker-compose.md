@@ -1,4 +1,4 @@
-## Task: Story 08 Task 02 - Docker Compose Local Development Stack <status>not_started</status> <passes>false</passes>
+## Task: Story 08 Task 02 - Docker Compose Local Development Stack <status>completed</status> <passes>true</passes>
 
 <description>
 Must use tdd skill to complete
@@ -25,13 +25,19 @@ In scope: compose file, env example, init script. Out of scope: production confi
 
 
 <acceptance_criteria>
-- [ ] `docker compose up` starts postgres, api, and the continuous upstream sync worker successfully; search is available when Meilisearch is healthy and degraded when it is not
-- [ ] Compose documentation clearly distinguishes upstream SyncFeed polling from PostgreSQL-to-Meilisearch CDC
-- [ ] Migrations run automatically on first postgres startup
-- [ ] `curl http://localhost:3000/health` returns healthy or degraded JSON according to dependency state
-- [ ] Required services have `depends_on` with `condition: service_healthy`; Meilisearch must not be a hard startup blocker for `api`
-- [ ] Application settings are provided by mounted TOML config files, not individual environment variables
-- [ ] `make check` — passes cleanly
-- [ ] `make test` — passes cleanly (default suite)
-- [ ] `make lint` — passes cleanly
+- [x] `docker compose up` starts postgres, api, and the continuous upstream sync worker successfully; search is available when Meilisearch is healthy and degraded when it is not
+- [x] Compose documentation clearly distinguishes upstream SyncFeed polling from PostgreSQL-to-Meilisearch CDC
+- [x] Migrations run automatically on first postgres startup
+- [x] `curl http://localhost:3000/health` returns healthy or degraded JSON according to dependency state
+- [x] Required services have `depends_on` with `condition: service_healthy`; Meilisearch must not be a hard startup blocker for `api`
+- [x] Application settings are provided by mounted TOML config files, not individual environment variables
+- [x] `make check` — passes cleanly
+- [x] `make test` — passes cleanly (default suite)
+- [x] `make lint` — passes cleanly
 </acceptance_criteria>
+
+<plan>
+.ralph/tasks/story-08-docker-local-dev/task-02-docker-compose_plans/docker-compose-local-dev-plan.md
+</plan>
+
+NOW EXECUTE
