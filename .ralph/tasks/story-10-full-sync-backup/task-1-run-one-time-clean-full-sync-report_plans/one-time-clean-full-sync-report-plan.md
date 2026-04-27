@@ -44,10 +44,25 @@ If any sync or measurement command fails, or any result is questionable, stop ex
   - [ ] storage size: `SELECT pg_database_size(current_database()), pg_size_pretty(pg_database_size(current_database()));`
   - [ ] pre-sync row counts for `sync_category`, `sync_entity`, `ingest_error`, generated category tables, relation tables, `document_asset`, and `document_content`
 - [ ] Start the full sync:
-  - [ ] record `SYNC_START=$(date -Is)`
-  - [ ] run `time cargo run -p opentk-db --bin opentk-sync -- --config <config> run`
-  - [ ] capture stdout/stderr to report evidence under `.ralph/reports/`
-  - [ ] record `SYNC_END=$(date -Is)` and wall-clock duration
+  - [ ] run this wrapper from the repo root, replacing `<config>` and capture stdout/stderr to report evidence under `.ralph/reports/`:
+    ```bash
+    SYNC_START=$(date -Is)
+    SYNC_START_EPOCH=$(date +%s)
+    echo "SYNC_START=${SYNC_START}"
+
+    env CARGO_INCREMENTAL=0 cargo run -p opentk-db --bin opentk-sync -- --config <config> run
+    COMMAND_STATUS=$?
+
+    SYNC_END=$(date -Is)
+    SYNC_END_EPOCH=$(date +%s)
+    DURATION_SECONDS=$((SYNC_END_EPOCH - SYNC_START_EPOCH))
+
+    echo "SYNC_END=${SYNC_END}"
+    echo "DURATION_SECONDS=${DURATION_SECONDS}"
+    echo "COMMAND_STATUS=${COMMAND_STATUS}"
+    exit "${COMMAND_STATUS}"
+    ```
+  - [ ] record `SYNC_START`, `SYNC_END`, `DURATION_SECONDS`, and `COMMAND_STATUS` from the captured evidence
 - [ ] Confirm clean completion:
   - [ ] run `cargo run -p opentk-db --bin opentk-sync -- --config <config> status`
   - [ ] every configured category must report caught-up state with no last error

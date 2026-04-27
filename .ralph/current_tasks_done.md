@@ -1,6 +1,6 @@
 # Done Tasks Summary
 
-Generated: Mon Apr 27 02:12:53 AM CEST 2026
+Generated: Mon Apr 27 02:23:22 AM CEST 2026
 
 # Task `/home/joshazimullah.linux/work_mounts/patroni_rewrite/opentk/.ralph/tasks/bugs/bug-cargo-run-opentk-sync-linker-missing-objects.md`
 
@@ -10,6 +10,18 @@ Generated: Mon Apr 27 02:12:53 AM CEST 2026
 <description>
 While executing Story 10 Task 1 on 2026-04-26, the preliminary command
 `cargo run -p opentk-db --bin opentk-sync -- --help` failed before any sync work
+```
+
+==============
+
+# Task `/home/joshazimullah.linux/work_mounts/patroni_rewrite/opentk/.ralph/tasks/bugs/bug-full-sync-plan-assumes-usr-bin-time-exists.md`
+
+```
+## Bug: full sync operational plan assumes /usr/bin/time exists <status>done</status> <passes>true</passes> <priority>medium</priority>
+
+<description>
+While executing Story 10 Task 1 on 2026-04-26, the sync command wrapper failed
+before starting the sync binary because `/usr/bin/time` was not available:
 ```
 
 ==============

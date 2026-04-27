@@ -1,18 +1,6 @@
 # Current Tasks Summary
 
-Generated: Mon Apr 27 02:12:53 AM CEST 2026
-
-# Task `/home/joshazimullah.linux/work_mounts/patroni_rewrite/opentk/.ralph/tasks/bugs/bug-full-sync-plan-assumes-usr-bin-time-exists.md`
-
-```
-## Bug: full sync operational plan assumes /usr/bin/time exists <status>not_started</status> <passes>false</passes> <priority>medium</priority>
-
-<description>
-While executing Story 10 Task 1 on 2026-04-26, the sync command wrapper failed
-before starting the sync binary because `/usr/bin/time` was not available:
-```
-
-==============
+Generated: Mon Apr 27 02:23:22 AM CEST 2026
 
 # Task `/home/joshazimullah.linux/work_mounts/patroni_rewrite/opentk/.ralph/tasks/story-10-full-sync-backup/task-1-run-one-time-clean-full-sync-report.md`
 
