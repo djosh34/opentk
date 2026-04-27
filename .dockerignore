@@ -10,3 +10,4 @@ target
 docker
 !docker/Dockerfile.api
 !docker/Dockerfile.sync
+!docker/Dockerfile
