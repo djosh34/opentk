@@ -51,3 +51,4 @@
 .ralph/tasks/bugs/bug-full-sync-post-measurement-query-used-invalid-columns.md
 .ralph/tasks/story-08-docker-local-dev/task-01-dockerfiles.md
 .ralph/tasks/story-08-docker-local-dev/task-02-docker-compose.md
+.ralph/tasks/story-08-docker-local-dev/task-03-multi-arch-scratch.md

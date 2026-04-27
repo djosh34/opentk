@@ -1,4 +1,4 @@
-## Task: Story 08 Task 03 - Multi-Arch Scratch Dockerfiles <status>not_started</status> <passes>false</passes>
+## Task: Story 08 Task 03 - Multi-Arch Scratch Dockerfiles <status>done</status> <passes>true</passes>
 
 <description>
 Must use tdd skill to complete
@@ -24,16 +24,20 @@ In scope: scratch Dockerfile, cargo cross config, buildx script. Out of scope: G
 
 
 <acceptance_criteria>
-- [ ] `docker buildx build --platform linux/amd64,linux/arm64 -f docker/Dockerfile.scratch --build-arg BINARY=opentk-sync` succeeds
-- [ ] Same for `opentk-api`
-- [ ] Scratch images run `--help` on host architecture
-- [ ] Scratch images under 50MB each
-- [ ] `scripts/docker-buildx-scratch.sh` builds both images
-- [ ] One buildx artifact build creates both `amd64` and `arm64` binaries before final image assembly
-- [ ] Final multi-platform tags contain one platform image per architecture with the correct binary copied from artifacts
-- [ ] Builds use native cross-compilation, not QEMU or any emulation
-- [ ] Task text and produced docs describe only static scratch runtime images
-- [ ] `make check` — passes cleanly
-- [ ] `make test` — passes cleanly (default suite)
-- [ ] `make lint` — passes cleanly
+- [x] `docker buildx build --platform linux/amd64,linux/arm64 -f docker/Dockerfile.scratch --build-arg BINARY=opentk-sync` succeeds
+- [x] Same for `opentk-api`
+- [x] Scratch images run `--help` on host architecture
+- [x] Scratch images under 50MB each
+- [x] `scripts/docker-buildx-scratch.sh` builds both images
+- [x] One buildx artifact build creates both `amd64` and `arm64` binaries before final image assembly
+- [x] Final multi-platform tags contain one platform image per architecture with the correct binary copied from artifacts
+- [x] Builds use native cross-compilation, not QEMU or any emulation
+- [x] Task text and produced docs describe only static scratch runtime images
+- [x] `make check` — passes cleanly
+- [x] `make test` — passes cleanly (default suite)
+- [x] `make lint` — passes cleanly
 </acceptance_criteria>
+
+.ralph/tasks/story-08-docker-local-dev/task-03-multi-arch-scratch_plans/multi-arch-scratch-plan.md
+
+NOW EXECUTE

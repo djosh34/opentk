@@ -30,6 +30,9 @@ This setup task does not require a running PostgreSQL instance.
 For the containerized local development stack, see
 [`docs/docker-compose.md`](docs/docker-compose.md).
 
+For static multi-architecture scratch runtime images, see
+[`docs/docker-scratch.md`](docs/docker-scratch.md).
+
 ## Commands
 
 Run these before finishing normal development tasks:

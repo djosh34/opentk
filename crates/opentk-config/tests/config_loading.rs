@@ -380,6 +380,129 @@ fn docker_compose_docs_explain_polling_and_cdc_boundaries() {
 }
 
 #[test]
+fn scratch_docker_build_contract_uses_prebuilt_multi_arch_artifacts() {
+    let scratch = fs::read_to_string(workspace_path("docker/Dockerfile.scratch"))
+        .expect("scratch Dockerfile should exist");
+    let artifacts = fs::read_to_string(workspace_path("docker/Dockerfile.scratch-artifacts"))
+        .expect("scratch artifact Dockerfile should exist");
+    let script = fs::read_to_string(workspace_path("scripts/docker-buildx-scratch.sh"))
+        .expect("scratch buildx script should exist");
+
+    assert_scratch_dockerfile_contract(&scratch);
+    assert_scratch_artifact_dockerfile_contract(&artifacts);
+    assert_scratch_build_script_contract(&script);
+    assert_scratch_docs_contract();
+}
+
+fn assert_scratch_dockerfile_contract(scratch: &str) {
+    for required in [
+        "ARG BINARY",
+        "ARG ARTIFACT_IMAGE=opentk-scratch-artifacts:local",
+        "ARG TARGETARCH",
+        "FROM --platform=${BUILDPLATFORM} ${ARTIFACT_IMAGE} AS artifacts",
+        "FROM scratch",
+        "case \"${TARGETARCH}\" in",
+        "amd64) rust_target=\"x86_64-unknown-linux-musl\"",
+        "arm64) rust_target=\"aarch64-unknown-linux-musl\"",
+        "cp \"/artifacts/${rust_target}/${BINARY}\" /runtime/bin/opentk",
+        "COPY --from=artifact-selector /runtime/ /",
+        "USER 1000:1000",
+        "ENTRYPOINT [\"/bin/opentk\"]",
+    ] {
+        assert!(
+            scratch.contains(required),
+            "scratch Dockerfile should contain {required}"
+        );
+    }
+    for forbidden in [
+        "cargo build",
+        "apt-get",
+        "apk add",
+        "/bin/sh",
+        "ENTRYPOINT [\"/bin/${BINARY}\"]",
+    ] {
+        assert!(
+            !scratch.contains(forbidden),
+            "scratch Dockerfile should not contain {forbidden}"
+        );
+    }
+}
+
+fn assert_scratch_artifact_dockerfile_contract(artifacts: &str) {
+    for required in [
+        "FROM --platform=${BUILDPLATFORM} rust:1-bookworm AS builder",
+        "--mount=type=cache,target=/usr/local/cargo/registry",
+        "--mount=type=cache,target=/usr/local/cargo/git",
+        "--mount=type=cache,id=opentk-scratch-deps-target,target=/workspace/target-deps",
+        "--mount=type=cache,id=opentk-scratch-final-target,target=/workspace/target",
+        "rustup target add x86_64-unknown-linux-musl aarch64-unknown-linux-musl",
+        "cargo build --release --target x86_64-unknown-linux-musl -p opentk-db --bin opentk-sync",
+        "cargo build --release --target x86_64-unknown-linux-musl -p opentk-api --bin opentk-api",
+        "cargo build --release --target aarch64-unknown-linux-musl -p opentk-db --bin opentk-sync",
+        "cargo build --release --target aarch64-unknown-linux-musl -p opentk-api --bin opentk-api",
+        "/artifacts/x86_64-unknown-linux-musl/opentk-sync",
+        "/artifacts/x86_64-unknown-linux-musl/opentk-api",
+        "/artifacts/aarch64-unknown-linux-musl/opentk-sync",
+        "/artifacts/aarch64-unknown-linux-musl/opentk-api",
+        "opentk:x:1000:1000:opentk:/nonexistent:/sbin/nologin",
+    ] {
+        assert!(
+            artifacts.contains(required),
+            "artifact Dockerfile should contain {required}"
+        );
+    }
+}
+
+fn assert_scratch_build_script_contract(script: &str) {
+    for required in [
+        "set -euo pipefail",
+        "docker buildx create",
+        "docker buildx build",
+        "-f \"${repo_root}/docker/Dockerfile.scratch-artifacts\"",
+        "-f \"${repo_root}/docker/Dockerfile.scratch\"",
+        "platforms=\"linux/amd64,linux/arm64\"",
+        "--platform \"${platforms}\"",
+        "--metadata-file \"${metadata_file}\"",
+        "--build-arg \"BINARY=${binary}\"",
+        "build_final_image opentk-sync",
+        "build_final_image opentk-api",
+        "docker run --rm",
+        "--help",
+        "buildx.build.provenance/${platform}",
+        "linux/amd64",
+        "linux/arm64",
+        "50000000",
+        "QEMU",
+    ] {
+        assert!(
+            script.contains(required),
+            "scratch buildx script should contain {required}"
+        );
+    }
+}
+
+fn assert_scratch_docs_contract() {
+    let docs = fs::read_to_string(workspace_path("docs/docker-scratch.md"))
+        .expect("scratch Docker docs should exist");
+    for required in [
+        "scripts/docker-buildx-scratch.sh",
+        "docker buildx build --platform linux/amd64,linux/arm64 -f docker/Dockerfile.scratch --build-arg BINARY=opentk-sync",
+        "docker buildx build --platform linux/amd64,linux/arm64 -f docker/Dockerfile.scratch --build-arg BINARY=opentk-api",
+        "static scratch runtime images",
+        "native Rust cross-compilation",
+        "not QEMU",
+    ] {
+        assert!(docs.contains(required), "scratch docs should mention {required}");
+    }
+
+    let readme = fs::read_to_string(workspace_path("README.md")).expect("README should exist");
+    assert!(
+        readme.contains("docs/docker-scratch.md"),
+        "README should link the scratch Docker documentation"
+    );
+}
+
+#[test]
 fn postgres_init_script_runs_migrations_without_ignoring_errors() {
     let script = fs::read_to_string(workspace_path("scripts/init-db.sh"))
         .expect("postgres init script should exist");
