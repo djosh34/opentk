@@ -264,12 +264,29 @@ async fn listener_flushes_after_elapsed_wall_time_between_notifications(
 
     let second_receive = listener.receive_once();
     tokio::time::sleep(Duration::from_millis(75)).await;
-    insert_sync_entity(&pool, second_source_id, 44, true).await?;
     let report = timeout(Duration::from_secs(3), second_receive)
         .await??
         .expect("elapsed wall time should flush the buffered batch");
 
-    assert_eq!(report.deleted, 2);
+    assert_eq!(report.deleted, 1);
+    assert_eq!(
+        client.operations(),
+        vec![SearchIndexOperation::Delete(format!(
+            "Document_{first_source_id}"
+        ))]
+    );
+
+    insert_sync_entity(&pool, second_source_id, 44, true).await?;
+    let report = timeout(Duration::from_secs(3), listener.receive_once()).await??;
+    assert!(
+        report.is_none(),
+        "second notification should start a new batch"
+    );
+
+    let report = timeout(Duration::from_secs(3), listener.receive_once())
+        .await??
+        .expect("second batch should flush on its own timer");
+    assert_eq!(report.deleted, 1);
     assert_eq!(
         client.operations(),
         vec![
@@ -310,6 +327,49 @@ async fn daemon_records_batch_and_stops_after_shutdown() -> Result<(), Box<dyn s
 
     let snapshot = status.snapshot();
     assert_eq!(snapshot.state, SearchCdcRuntimeState::Stopped);
+    assert_eq!(snapshot.last_batch.expect("last batch").deleted, 1);
+    assert_eq!(
+        client.operations(),
+        vec![SearchIndexOperation::Delete(format!(
+            "Document_{source_id}"
+        ))]
+    );
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn daemon_flushes_single_notification_after_elapsed_window(
+) -> Result<(), Box<dyn std::error::Error>> {
+    let (pool, database_url) = migrated_pool("search_cdc_daemon_timer_flush").await?;
+    let source_id = Uuid::parse_str("11111111-1111-4111-8111-111111111111").expect("valid uuid");
+    let client = Arc::new(MemoryIndexClient::default());
+    let status = SearchCdcRuntimeStatus::new();
+    let (shutdown_tx, shutdown_rx) = broadcast::channel(1);
+    let task_status = status.clone();
+    let task = tokio::spawn(run_search_cdc_listener(
+        database_url,
+        pool.clone(),
+        client.clone(),
+        search_sync_config(),
+        SearchCdcBatchConfig {
+            flush_window: Duration::from_millis(50),
+            max_unique_records: 100,
+        },
+        shutdown_rx,
+        task_status,
+    ));
+
+    wait_for_state(&status, SearchCdcRuntimeState::Running).await;
+    insert_sync_entity(&pool, source_id, 45, true).await?;
+    wait_for_pending_count(&status, 1).await;
+    wait_for_last_batch(&status).await;
+    shutdown_tx.send(())?;
+    task.await??;
+
+    let snapshot = status.snapshot();
+    assert_eq!(snapshot.state, SearchCdcRuntimeState::Stopped);
+    assert_eq!(snapshot.pending_count, 0);
     assert_eq!(snapshot.last_batch.expect("last batch").deleted, 1);
     assert_eq!(
         client.operations(),
@@ -423,6 +483,19 @@ async fn wait_for_last_batch(status: &SearchCdcRuntimeStatus) {
     })
     .await
     .expect("daemon records a batch");
+}
+
+async fn wait_for_pending_count(status: &SearchCdcRuntimeStatus, pending_count: usize) {
+    timeout(Duration::from_secs(3), async {
+        loop {
+            if status.snapshot().pending_count == pending_count {
+                return;
+            }
+            tokio::time::sleep(Duration::from_millis(20)).await;
+        }
+    })
+    .await
+    .expect("daemon records expected pending count");
 }
 
 async fn migrated_pool(test_name: &str) -> Result<(PgPool, String), sqlx::Error> {

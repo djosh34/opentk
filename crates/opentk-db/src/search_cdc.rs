@@ -259,6 +259,16 @@ impl SearchCdcBatcher {
                 .is_some_and(|first| now.duration_since(first) >= self.config.flush_window)
     }
 
+    #[must_use]
+    pub fn time_until_flush(&self, now: Instant) -> Option<Duration> {
+        if self.notifications.is_empty() {
+            return None;
+        }
+        let first_buffered_at = self.first_buffered_at?;
+        let elapsed = now.duration_since(first_buffered_at);
+        Some(self.config.flush_window.saturating_sub(elapsed))
+    }
+
     pub fn drain(&mut self) -> Vec<SearchCdcNotification> {
         self.first_buffered_at = None;
         std::mem::take(&mut self.notifications)
@@ -285,6 +295,7 @@ pub struct SearchCdcListener<'a, C> {
     client: &'a C,
     search_config: SearchSyncConfig,
     batcher: SearchCdcBatcher,
+    last_receive_buffered_notification: bool,
 }
 
 impl<'a, C> SearchCdcListener<'a, C>
@@ -316,6 +327,7 @@ where
             client,
             search_config,
             batcher: SearchCdcBatcher::new(batch_config),
+            last_receive_buffered_notification: false,
         })
     }
 
@@ -325,28 +337,57 @@ where
     ///
     /// Returns [`SearchCdcError`] for listener, parse, or indexing failures.
     pub async fn receive_once(&mut self) -> Result<Option<SearchSyncReport>, SearchCdcError> {
-        let notification = loop {
-            let notification = self
-                .pg_listener
-                .as_mut()
-                .ok_or(SearchCdcError::ListenerNotConnected)?
-                .recv()
-                .await?;
-            let notification = SearchCdcNotification::from_payload(notification.payload())?;
-            if notification
-                .schema()
-                .is_none_or(|schema| schema == self.schema_name)
-            {
-                break notification;
+        self.last_receive_buffered_notification = false;
+
+        let notification = match self.batcher.time_until_flush(Instant::now()) {
+            None => Some(self.receive_relevant_notification().await?),
+            Some(Duration::ZERO) => None,
+            Some(delay) => {
+                match tokio::time::timeout(delay, self.receive_relevant_notification()).await {
+                    Ok(notification) => Some(notification?),
+                    Err(_) => None,
+                }
             }
         };
+
+        if let Some(notification) = notification {
+            let now = Instant::now();
+            self.batcher.push(notification, now);
+            self.last_receive_buffered_notification = true;
+        }
+
         let now = Instant::now();
-        self.batcher.push(notification, now);
         if self.batcher.should_flush(now) {
             Ok(Some(self.flush().await?))
         } else {
             Ok(None)
         }
+    }
+
+    async fn receive_relevant_notification(
+        &mut self,
+    ) -> Result<SearchCdcNotification, SearchCdcError> {
+        let schema_name = self.schema_name.as_str();
+        let pg_listener = self
+            .pg_listener
+            .as_mut()
+            .ok_or(SearchCdcError::ListenerNotConnected)?;
+
+        loop {
+            let notification = pg_listener.recv().await?;
+            let notification = SearchCdcNotification::from_payload(notification.payload())?;
+            if notification
+                .schema()
+                .is_none_or(|schema| schema == schema_name)
+            {
+                return Ok(notification);
+            }
+        }
+    }
+
+    #[must_use]
+    pub fn last_receive_buffered_notification(&self) -> bool {
+        self.last_receive_buffered_notification
     }
 
     #[must_use]
@@ -429,7 +470,9 @@ where
                 }
             }
             result = listener.receive_once() => {
-                status.record_notification(listener.pending_count());
+                if listener.last_receive_buffered_notification() {
+                    status.record_notification(listener.pending_count());
+                }
                 match result {
                     Ok(Some(report)) => {
                         status.record_batch(batch_report(&report, Duration::ZERO));
