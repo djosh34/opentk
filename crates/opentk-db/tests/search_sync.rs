@@ -330,6 +330,101 @@ async fn index_records_reuses_search_sync_validation_errors() -> Result<(), sqlx
 }
 
 #[tokio::test]
+async fn index_records_skips_relation_target_placeholders_until_detail_exists(
+) -> Result<(), sqlx::Error> {
+    let pool = migrated_pool("search_sync_target_placeholder").await?;
+    let commissie_id = Uuid::parse_str("44444444-4444-4444-8444-444444444444").expect("valid uuid");
+    sqlx::query(
+        "INSERT INTO sync_entity (
+            source_category,
+            source_id,
+            latest_skiptoken,
+            deleted,
+            source_updated_at,
+            atom_updated_at
+         )
+         VALUES ('Commissie', $1, 5, false, '2026-04-26T00:00:00Z', '2026-04-26T01:00:00Z')",
+    )
+    .bind(commissie_id)
+    .execute(&pool)
+    .await?;
+    let client = MemoryIndexClient::default();
+    let config = SearchSyncConfig {
+        index_name: "opentk_entities".to_owned(),
+        categories: vec!["Activiteit".to_owned(), "Commissie".to_owned()],
+        batch_size: 10,
+        retry_limit: 3,
+    };
+
+    let report = index_records(
+        &pool,
+        &client,
+        &config,
+        &[SearchSyncRecordKey::new(
+            "Commissie".to_owned(),
+            commissie_id,
+            5,
+        )],
+    )
+    .await
+    .expect("placeholder entity is skipped");
+
+    assert_eq!(report.indexed, 0);
+    assert_eq!(report.deleted, 0);
+    assert!(client.operations().is_empty());
+    assert!(list_failures(&pool).await?.is_empty());
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn index_records_allows_documents_without_extracted_content() -> Result<(), sqlx::Error> {
+    let pool = migrated_pool("search_sync_document_without_content").await?;
+    let client = MemoryIndexClient::default();
+    let config = SearchSyncConfig {
+        index_name: "opentk_entities".to_owned(),
+        categories: vec!["Document".to_owned()],
+        batch_size: 10,
+        retry_limit: 3,
+    };
+    write_parsed_entity(
+        &pool,
+        "Document",
+        11,
+        &document_xml(document_id(), "2026D00011"),
+    )
+    .await;
+
+    let report = index_records(
+        &pool,
+        &client,
+        &config,
+        &[SearchSyncRecordKey::new(
+            "Document".to_owned(),
+            document_id(),
+            11,
+        )],
+    )
+    .await
+    .expect("metadata-only document indexes");
+
+    assert_eq!(report.indexed, 1);
+    assert_eq!(report.deleted, 0);
+    let operations = client.operations();
+    assert_eq!(operations.len(), 1);
+    let SearchIndexOperation::Upsert(document) = &operations[0] else {
+        panic!("document is upserted");
+    };
+    assert_eq!(document.source_id, document_id());
+    assert_eq!(document.document_number.as_deref(), Some("2026D00011"));
+    assert_eq!(document.extracted_text, None);
+    assert_eq!(document.extracted_html, None);
+    assert!(list_failures(&pool).await?.is_empty());
+
+    Ok(())
+}
+
+#[tokio::test]
 async fn full_reindex_indexes_person_activity_metadata_and_relation_labels(
 ) -> Result<(), sqlx::Error> {
     let pool = migrated_pool("search_sync_entity_metadata").await?;

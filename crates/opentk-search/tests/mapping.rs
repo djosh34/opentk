@@ -67,6 +67,24 @@ fn document_mapping_reports_missing_expected_indexed_fields() {
 }
 
 #[test]
+fn document_record_without_extracted_content_still_maps_to_search_upsert() {
+    let mut record = complete_document_record();
+    record.document_content = None;
+
+    let SearchIndexOperation::Upsert(document) = map_record_to_operation(&record).unwrap() else {
+        panic!("document record must upsert");
+    };
+
+    assert_eq!(document.document_number.as_deref(), Some("2026D01234"));
+    assert_eq!(
+        document.source_url.as_deref(),
+        Some("https://example.invalid/document.pdf")
+    );
+    assert_eq!(document.extracted_text, None);
+    assert_eq!(document.extracted_html, None);
+}
+
+#[test]
 fn person_record_maps_name_metadata_and_relations_without_document_fields() {
     let source_id = Uuid::parse_str("00000000-0000-0000-0000-000000000789").unwrap();
     let record = SearchSourceRecord {

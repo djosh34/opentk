@@ -10,6 +10,7 @@ use opentk_search::{
 use serde_json::{Map, Value};
 use sqlx::{PgPool, Row};
 use thiserror::Error;
+use tracing::warn;
 use uuid::Uuid;
 
 use crate::read_model::{self, EntityChange, ReadModelError, RelationDirection};
@@ -390,7 +391,9 @@ async fn operations_for_changes(
 ) -> Result<Vec<SearchIndexOperation>, SearchSyncError> {
     let mut operations = Vec::with_capacity(changes.len());
     for change in changes {
-        let record = source_record(pool, change).await?;
+        let Some(record) = source_record(pool, change).await? else {
+            continue;
+        };
         operations.push(map_record_to_operation(&record)?);
     }
     Ok(operations)
@@ -399,11 +402,11 @@ async fn operations_for_changes(
 async fn source_record(
     pool: &PgPool,
     change: &EntityChange,
-) -> Result<SearchSourceRecord, SearchSyncError> {
+) -> Result<Option<SearchSourceRecord>, SearchSyncError> {
     let source_updated_at = parse_timestamp(&change.source_updated_at)?;
     let atom_updated_at = parse_timestamp(&change.atom_updated_at)?;
     if change.deleted {
-        return Ok(SearchSourceRecord {
+        return Ok(Some(SearchSourceRecord {
             metadata: SearchEntityMetadata {
                 category: change.category.clone(),
                 source_id: change.source_id,
@@ -415,18 +418,31 @@ async fn source_record(
             fields: Map::new(),
             document_content: None,
             relations: Vec::new(),
-        });
+        }));
     }
 
-    let detail = read_model::get_entity_detail(pool, &change.category, change.source_id).await?;
+    let detail = match read_model::get_entity_detail(pool, &change.category, change.source_id).await
+    {
+        Ok(detail) => detail,
+        Err(ReadModelError::NotFound) => {
+            warn!(
+                source_category = %change.category,
+                source_id = %change.source_id,
+                latest_skiptoken = change.latest_skiptoken,
+                "skipping search sync record until entity detail materializes"
+            );
+            return Ok(None);
+        }
+        Err(error) => return Err(error.into()),
+    };
     let document_content = if change.category == "Document" {
-        Some(search_document_content(pool, change.source_id).await?)
+        search_document_content(pool, change).await?
     } else {
         None
     };
     let relations = relation_labels(pool, &change.category, change.source_id).await?;
 
-    Ok(SearchSourceRecord {
+    Ok(Some(SearchSourceRecord {
         metadata: SearchEntityMetadata {
             category: change.category.clone(),
             source_id: change.source_id,
@@ -438,15 +454,27 @@ async fn source_record(
         fields: detail.fields,
         document_content,
         relations,
-    })
+    }))
 }
 
 async fn search_document_content(
     pool: &PgPool,
-    source_id: Uuid,
-) -> Result<SearchDocumentContent, SearchSyncError> {
-    let detail = read_model::get_document_content(pool, source_id).await?;
-    Ok(SearchDocumentContent {
+    change: &EntityChange,
+) -> Result<Option<SearchDocumentContent>, SearchSyncError> {
+    let detail = match read_model::get_document_content(pool, change.source_id).await {
+        Ok(detail) => detail,
+        Err(ReadModelError::DocumentContentNotFound) => {
+            warn!(
+                source_category = %change.category,
+                source_id = %change.source_id,
+                latest_skiptoken = change.latest_skiptoken,
+                "indexing document without extracted content"
+            );
+            return Ok(None);
+        }
+        Err(error) => return Err(error.into()),
+    };
+    Ok(Some(SearchDocumentContent {
         selected_source_url: detail.content.selected_source_url,
         selected_source_content_type: detail.content.selected_source_content_type,
         official_source: detail.content.official_source,
@@ -455,7 +483,7 @@ async fn search_document_content(
         output_hash: detail.content.output_hash,
         extracted_text: detail.content.extracted_text,
         extracted_html: detail.content.extracted_html,
-    })
+    }))
 }
 
 async fn relation_labels(

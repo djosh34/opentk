@@ -809,8 +809,6 @@ pub fn map_record_to_operation(
         require_option(document_number.as_ref(), "document_nummer")?;
         require_field(&record.fields, "content_type")?;
         require_field(&record.fields, "content_length")?;
-        require_option(extracted_text.as_ref(), "document_content.extracted_text")?;
-        require_option(extracted_html.as_ref(), "document_content.extracted_html")?;
     }
 
     let metadata_text = metadata_text(&record.fields, document_content)?;
