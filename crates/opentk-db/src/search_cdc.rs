@@ -57,12 +57,23 @@ pub struct SearchCdcBatchReport {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
+pub struct SearchCdcActiveFlushStatus {
+    pub started_at: DateTime<Utc>,
+    pub pending_count: usize,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct SearchCdcStatus {
     pub state: SearchCdcRuntimeState,
     pub last_notification_at: Option<DateTime<Utc>>,
     pub pending_count: usize,
     pub last_batch: Option<SearchCdcBatchReport>,
     pub last_error: Option<String>,
+    pub last_loop_at: Option<DateTime<Utc>>,
+    pub last_receive_started_at: Option<DateTime<Utc>>,
+    pub last_flush_started_at: Option<DateTime<Utc>>,
+    pub active_flush: Option<SearchCdcActiveFlushStatus>,
+    pub last_flush_duration_ms: Option<u64>,
 }
 
 #[derive(Clone, Debug)]
@@ -86,6 +97,11 @@ impl SearchCdcRuntimeStatus {
                 pending_count: 0,
                 last_batch: None,
                 last_error: None,
+                last_loop_at: None,
+                last_receive_started_at: None,
+                last_flush_started_at: None,
+                active_flush: None,
+                last_flush_duration_ms: None,
             })),
         }
     }
@@ -101,9 +117,30 @@ impl SearchCdcRuntimeStatus {
         status.last_error = None;
     }
 
+    pub fn record_loop(&self) {
+        let mut status = self.lock_status();
+        status.last_loop_at = Some(Utc::now());
+    }
+
+    pub fn record_receive_started(&self) {
+        let mut status = self.lock_status();
+        status.last_receive_started_at = Some(Utc::now());
+    }
+
     pub fn record_notification(&self, pending_count: usize) {
         let mut status = self.lock_status();
         status.last_notification_at = Some(Utc::now());
+        status.pending_count = pending_count;
+    }
+
+    pub fn record_flush_started(&self, pending_count: usize) {
+        let mut status = self.lock_status();
+        let started_at = Utc::now();
+        status.last_flush_started_at = Some(started_at);
+        status.active_flush = Some(SearchCdcActiveFlushStatus {
+            started_at,
+            pending_count,
+        });
         status.pending_count = pending_count;
     }
 
@@ -111,6 +148,8 @@ impl SearchCdcRuntimeStatus {
         let mut status = self.lock_status();
         status.state = SearchCdcRuntimeState::Running;
         status.pending_count = 0;
+        status.active_flush = None;
+        status.last_flush_duration_ms = Some(report.duration_ms);
         status.last_batch = Some(report);
         status.last_error = None;
     }
@@ -118,6 +157,13 @@ impl SearchCdcRuntimeStatus {
     pub fn record_error(&self, error: &impl Display) {
         let mut status = self.lock_status();
         status.state = SearchCdcRuntimeState::Degraded;
+        status.last_error = Some(error.to_string());
+    }
+
+    pub fn record_flush_error(&self, error: &impl Display) {
+        let mut status = self.lock_status();
+        status.state = SearchCdcRuntimeState::Degraded;
+        status.active_flush = None;
         status.last_error = Some(error.to_string());
     }
 
@@ -337,28 +383,98 @@ where
     ///
     /// Returns [`SearchCdcError`] for listener, parse, or indexing failures.
     pub async fn receive_once(&mut self) -> Result<Option<SearchSyncReport>, SearchCdcError> {
+        self.receive_once_observed(None).await
+    }
+
+    async fn receive_once_with_status(
+        &mut self,
+        status: &SearchCdcRuntimeStatus,
+    ) -> Result<Option<SearchSyncReport>, SearchCdcError> {
+        self.receive_once_observed(Some(status)).await
+    }
+
+    async fn receive_once_observed(
+        &mut self,
+        status: Option<&SearchCdcRuntimeStatus>,
+    ) -> Result<Option<SearchSyncReport>, SearchCdcError> {
         self.last_receive_buffered_notification = false;
+        if let Some(status) = status {
+            status.record_receive_started();
+        }
 
         let notification = match self.batcher.time_until_flush(Instant::now()) {
-            None => Some(self.receive_relevant_notification().await?),
+            None => match self.receive_relevant_notification().await {
+                Ok(notification) => Some(notification),
+                Err(error) => {
+                    if let Some(status) = status {
+                        status.record_error(&error_message(&error));
+                    }
+                    return Err(error);
+                }
+            },
             Some(Duration::ZERO) => None,
             Some(delay) => {
                 match tokio::time::timeout(delay, self.receive_relevant_notification()).await {
-                    Ok(notification) => Some(notification?),
+                    Ok(notification) => match notification {
+                        Ok(notification) => Some(notification),
+                        Err(error) => {
+                            if let Some(status) = status {
+                                status.record_error(&error_message(&error));
+                            }
+                            return Err(error);
+                        }
+                    },
                     Err(_) => None,
                 }
             }
         };
 
         if let Some(notification) = notification {
+            let source_category = notification.source_category().to_owned();
             let now = Instant::now();
             self.batcher.push(notification, now);
             self.last_receive_buffered_notification = true;
+            let pending_count = self.pending_count();
+            tracing::debug!(
+                pending_count,
+                source_category = %source_category,
+                "search CDC notification buffered"
+            );
+            if let Some(status) = status {
+                status.record_notification(pending_count);
+            }
         }
 
         let now = Instant::now();
         if self.batcher.should_flush(now) {
-            Ok(Some(self.flush().await?))
+            let pending_count = self.pending_count();
+            tracing::info!(pending_count, "search CDC flush started");
+            if let Some(status) = status {
+                status.record_flush_started(pending_count);
+            }
+            let started = Instant::now();
+            let report = match self.flush().await {
+                Ok(report) => report,
+                Err(error) => {
+                    if let Some(status) = status {
+                        status.record_flush_error(&error_message(&error));
+                    }
+                    return Err(error);
+                }
+            };
+            let duration = started.elapsed();
+            let batch = batch_report(&report, duration);
+            tracing::info!(
+                indexed = report.indexed,
+                deleted = report.deleted,
+                failed = report.failed,
+                duration_ms = batch.duration_ms,
+                "search CDC flush finished"
+            );
+            if let Some(status) = status {
+                status.record_batch(batch);
+            }
+            Ok(Some(report))
         } else {
             Ok(None)
         }
@@ -449,9 +565,16 @@ where
         batch_config,
     )
     .await?;
+    tracing::info!(
+        schema = %listener.schema_name,
+        flush_window_ms = listener.flush_window().as_millis(),
+        max_unique_records = listener.batcher.config.max_unique_records,
+        "search CDC listener connected"
+    );
     status.mark_running();
 
     loop {
+        status.record_loop();
         tokio::select! {
             biased;
             shutdown_result = shutdown.recv() => {
@@ -469,18 +592,12 @@ where
                     }
                 }
             }
-            result = listener.receive_once() => {
-                if listener.last_receive_buffered_notification() {
-                    status.record_notification(listener.pending_count());
-                }
+            result = listener.receive_once_with_status(&status) => {
                 match result {
-                    Ok(Some(report)) => {
-                        status.record_batch(batch_report(&report, Duration::ZERO));
-                    }
+                    Ok(Some(_report)) => {}
                     Ok(None) => {}
                     Err(error) => {
                         tracing::error!(%error, "search CDC listener runtime error");
-                        status.record_error(&error_message(&error));
                     }
                 }
             }
@@ -495,12 +612,25 @@ where
     if listener.pending_count() == 0 {
         return;
     }
+    let pending_count = listener.pending_count();
+    tracing::info!(pending_count, "search CDC shutdown flush started");
+    status.record_flush_started(pending_count);
     let started = Instant::now();
     match listener.flush().await {
-        Ok(report) => status.record_batch(batch_report(&report, started.elapsed())),
+        Ok(report) => {
+            let batch = batch_report(&report, started.elapsed());
+            tracing::info!(
+                indexed = report.indexed,
+                deleted = report.deleted,
+                failed = report.failed,
+                duration_ms = batch.duration_ms,
+                "search CDC shutdown flush finished"
+            );
+            status.record_batch(batch);
+        }
         Err(error) => {
             tracing::error!(%error, "search CDC listener failed to flush pending batch");
-            status.record_error(&error_message(&error));
+            status.record_flush_error(&error_message(&error));
         }
     }
 }

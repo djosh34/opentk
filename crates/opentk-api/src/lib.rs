@@ -187,6 +187,11 @@ struct SearchSyncDaemonStatusResponse {
     pending_count: usize,
     last_batch: Option<SearchSyncDaemonBatchResponse>,
     last_error: Option<String>,
+    last_loop_at: Option<String>,
+    last_receive_started_at: Option<String>,
+    last_flush_started_at: Option<String>,
+    active_flush: Option<SearchSyncDaemonActiveFlushResponse>,
+    last_flush_duration_ms: Option<u64>,
 }
 
 #[derive(Serialize, ToSchema)]
@@ -195,6 +200,12 @@ struct SearchSyncDaemonBatchResponse {
     deleted: u64,
     failed: u64,
     duration_ms: u64,
+}
+
+#[derive(Serialize, ToSchema)]
+struct SearchSyncDaemonActiveFlushResponse {
+    started_at: String,
+    pending_count: usize,
 }
 
 #[derive(Serialize, ToSchema)]
@@ -823,6 +834,7 @@ fn api_components() -> Components {
         .schema_from::<HealthResponse>()
         .schema_from::<SearchSyncDaemonStatusResponse>()
         .schema_from::<SearchSyncDaemonBatchResponse>()
+        .schema_from::<SearchSyncDaemonActiveFlushResponse>()
         .schema_from::<CategoryMetadataResponse>()
         .schema_from::<CategoryMetadata>()
         .schema_from::<SyncStatusResponse>()
@@ -944,6 +956,16 @@ fn search_sync_daemon_status_response(status: SearchCdcStatus) -> SearchSyncDaem
                 duration_ms: batch.duration_ms,
             }),
         last_error: status.last_error,
+        last_loop_at: status.last_loop_at.map(|time| time.to_rfc3339()),
+        last_receive_started_at: status.last_receive_started_at.map(|time| time.to_rfc3339()),
+        last_flush_started_at: status.last_flush_started_at.map(|time| time.to_rfc3339()),
+        active_flush: status
+            .active_flush
+            .map(|flush| SearchSyncDaemonActiveFlushResponse {
+                started_at: flush.started_at.to_rfc3339(),
+                pending_count: flush.pending_count,
+            }),
+        last_flush_duration_ms: status.last_flush_duration_ms,
     }
 }
 

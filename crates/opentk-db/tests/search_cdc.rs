@@ -1,4 +1,5 @@
 use std::{
+    sync::atomic::{AtomicBool, Ordering},
     sync::{Arc, Mutex},
     time::{Duration, Instant},
 };
@@ -27,6 +28,11 @@ fn runtime_status_starts_without_activity() {
     assert_eq!(status.pending_count, 0);
     assert_eq!(status.last_batch, None);
     assert_eq!(status.last_error, None);
+    assert_eq!(status.last_loop_at, None);
+    assert_eq!(status.last_receive_started_at, None);
+    assert_eq!(status.last_flush_started_at, None);
+    assert_eq!(status.active_flush, None);
+    assert_eq!(status.last_flush_duration_ms, None);
 }
 
 #[test]
@@ -34,7 +40,10 @@ fn runtime_status_records_transitions() {
     let status = SearchCdcRuntimeStatus::new();
 
     status.mark_running();
+    status.record_loop();
+    status.record_receive_started();
     status.record_notification(2);
+    status.record_flush_started(2);
     status.record_batch(SearchCdcBatchReport {
         indexed: 42,
         deleted: 3,
@@ -47,6 +56,11 @@ fn runtime_status_records_transitions() {
     assert_eq!(snapshot.state, SearchCdcRuntimeState::Degraded);
     assert!(snapshot.last_notification_at.is_some());
     assert_eq!(snapshot.pending_count, 0);
+    assert!(snapshot.last_loop_at.is_some());
+    assert!(snapshot.last_receive_started_at.is_some());
+    assert!(snapshot.last_flush_started_at.is_some());
+    assert_eq!(snapshot.active_flush, None);
+    assert_eq!(snapshot.last_flush_duration_ms, Some(1500));
     assert_eq!(
         snapshot.last_batch,
         Some(SearchCdcBatchReport {
@@ -327,6 +341,9 @@ async fn daemon_records_batch_and_stops_after_shutdown() -> Result<(), Box<dyn s
 
     let snapshot = status.snapshot();
     assert_eq!(snapshot.state, SearchCdcRuntimeState::Stopped);
+    assert_eq!(snapshot.pending_count, 0);
+    assert_eq!(snapshot.active_flush, None);
+    assert!(snapshot.last_flush_duration_ms.is_some());
     assert_eq!(snapshot.last_batch.expect("last batch").deleted, 1);
     assert_eq!(
         client.operations(),
@@ -370,7 +387,58 @@ async fn daemon_flushes_single_notification_after_elapsed_window(
     let snapshot = status.snapshot();
     assert_eq!(snapshot.state, SearchCdcRuntimeState::Stopped);
     assert_eq!(snapshot.pending_count, 0);
+    assert_eq!(snapshot.active_flush, None);
+    assert!(snapshot.last_flush_duration_ms.is_some());
     assert_eq!(snapshot.last_batch.expect("last batch").deleted, 1);
+    assert_eq!(
+        client.operations(),
+        vec![SearchIndexOperation::Delete(format!(
+            "Document_{source_id}"
+        ))]
+    );
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn daemon_exposes_active_flush_while_indexing_is_in_progress(
+) -> Result<(), Box<dyn std::error::Error>> {
+    let (pool, database_url) = migrated_pool("search_cdc_daemon_active_flush").await?;
+    let source_id = Uuid::parse_str("11111111-1111-4111-8111-111111111111").expect("valid uuid");
+    let client = Arc::new(BlockingIndexClient::default());
+    let status = SearchCdcRuntimeStatus::new();
+    let (shutdown_tx, shutdown_rx) = broadcast::channel(1);
+    let task_status = status.clone();
+    let task = tokio::spawn(run_search_cdc_listener(
+        database_url,
+        pool.clone(),
+        client.clone(),
+        search_sync_config(),
+        SearchCdcBatchConfig {
+            flush_window: Duration::from_secs(1),
+            max_unique_records: 1,
+        },
+        shutdown_rx,
+        task_status,
+    ));
+
+    wait_for_state(&status, SearchCdcRuntimeState::Running).await;
+    insert_sync_entity(&pool, source_id, 46, true).await?;
+    wait_for_apply_started(&client).await;
+    let active_flush = wait_for_active_flush(&status).await;
+    assert_eq!(active_flush.pending_count, 1);
+    assert!(status.snapshot().last_flush_started_at.is_some());
+    assert_eq!(status.snapshot().last_batch, None);
+
+    client.release();
+    wait_for_last_batch(&status).await;
+    shutdown_tx.send(())?;
+    task.await??;
+
+    let snapshot = status.snapshot();
+    assert_eq!(snapshot.active_flush, None);
+    assert_eq!(snapshot.pending_count, 0);
+    assert!(snapshot.last_flush_duration_ms.is_some());
     assert_eq!(
         client.operations(),
         vec![SearchIndexOperation::Delete(format!(
@@ -485,6 +553,21 @@ async fn wait_for_last_batch(status: &SearchCdcRuntimeStatus) {
     .expect("daemon records a batch");
 }
 
+async fn wait_for_active_flush(
+    status: &SearchCdcRuntimeStatus,
+) -> opentk_db::search_cdc::SearchCdcActiveFlushStatus {
+    timeout(Duration::from_secs(3), async {
+        loop {
+            if let Some(active_flush) = status.snapshot().active_flush {
+                return active_flush;
+            }
+            tokio::time::sleep(Duration::from_millis(20)).await;
+        }
+    })
+    .await
+    .expect("daemon exposes active flush")
+}
+
 async fn wait_for_pending_count(status: &SearchCdcRuntimeStatus, pending_count: usize) {
     timeout(Duration::from_secs(3), async {
         loop {
@@ -496,6 +579,19 @@ async fn wait_for_pending_count(status: &SearchCdcRuntimeStatus, pending_count: 
     })
     .await
     .expect("daemon records expected pending count");
+}
+
+async fn wait_for_apply_started(client: &BlockingIndexClient) {
+    timeout(Duration::from_secs(3), async {
+        loop {
+            if client.apply_started.load(Ordering::SeqCst) {
+                return;
+            }
+            tokio::time::sleep(Duration::from_millis(20)).await;
+        }
+    })
+    .await
+    .expect("blocking client starts applying a batch");
 }
 
 async fn migrated_pool(test_name: &str) -> Result<(PgPool, String), sqlx::Error> {
@@ -581,5 +677,41 @@ impl SearchIndexClient for FailingIndexClient {
             status: Some(503),
             message: "fixture indexing failure".to_owned(),
         })
+    }
+}
+
+#[derive(Default)]
+struct BlockingIndexClient {
+    operations: Mutex<Vec<SearchIndexOperation>>,
+    apply_started: AtomicBool,
+    release: tokio::sync::Notify,
+}
+
+impl BlockingIndexClient {
+    fn operations(&self) -> Vec<SearchIndexOperation> {
+        self.operations.lock().expect("operations mutex").clone()
+    }
+
+    fn release(&self) {
+        self.release.notify_waiters();
+    }
+}
+
+impl SearchIndexClient for BlockingIndexClient {
+    async fn reset_index(&self, _schema: &SearchIndexSchema) -> Result<(), SearchIndexError> {
+        Ok(())
+    }
+
+    async fn apply_batch(
+        &self,
+        operations: &[SearchIndexOperation],
+    ) -> Result<(), SearchIndexError> {
+        self.operations
+            .lock()
+            .expect("operations mutex")
+            .extend_from_slice(operations);
+        self.apply_started.store(true, Ordering::SeqCst);
+        self.release.notified().await;
+        Ok(())
     }
 }

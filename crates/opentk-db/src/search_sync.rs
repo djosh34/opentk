@@ -10,7 +10,7 @@ use opentk_search::{
 use serde_json::{Map, Value};
 use sqlx::{PgPool, Row};
 use thiserror::Error;
-use tracing::warn;
+use tracing::{info, warn};
 use uuid::Uuid;
 
 use crate::read_model::{self, EntityChange, ReadModelError, RelationDirection};
@@ -176,7 +176,16 @@ where
     C: SearchIndexClient + Sync,
 {
     validate_config(config)?;
+    info!(
+        record_count = records.len(),
+        "search CDC targeted changes materialization started"
+    );
     let changes = targeted_changes(pool, records).await?;
+    info!(
+        record_count = records.len(),
+        change_count = changes.len(),
+        "search CDC targeted changes materialized"
+    );
     if changes.is_empty() {
         return Ok(SearchSyncReport {
             mode: SearchSyncMode::Incremental,
@@ -196,19 +205,29 @@ where
         }
     };
 
+    let upsert_count = operations
+        .iter()
+        .filter(|operation| matches!(operation, SearchIndexOperation::Upsert(_)))
+        .count();
+    let delete_count = operations
+        .iter()
+        .filter(|operation| matches!(operation, SearchIndexOperation::Delete(_)))
+        .count();
+    info!(
+        operation_count = operations.len(),
+        upsert_count, delete_count, "Meilisearch batch apply started"
+    );
     if let Err(error) = client.apply_batch(&operations).await {
         record_batch_failure(pool, config, &changes, &error.to_string()).await?;
         return Err(error.into());
     }
+    info!(
+        operation_count = operations.len(),
+        upsert_count, delete_count, "Meilisearch batch apply finished"
+    );
 
-    let indexed = operations
-        .iter()
-        .filter(|operation| matches!(operation, SearchIndexOperation::Upsert(_)))
-        .count() as u64;
-    let deleted = operations
-        .iter()
-        .filter(|operation| matches!(operation, SearchIndexOperation::Delete(_)))
-        .count() as u64;
+    let indexed = upsert_count as u64;
+    let deleted = delete_count as u64;
 
     Ok(SearchSyncReport {
         mode: SearchSyncMode::Incremental,

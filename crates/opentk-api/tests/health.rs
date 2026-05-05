@@ -101,7 +101,10 @@ async fn admin_search_sync_status_returns_daemon_snapshot() -> Result<(), Box<dy
         .connect_lazy("postgres://opentk.invalid/opentk")?;
     let status = SearchCdcRuntimeStatus::new();
     status.mark_running();
+    status.record_loop();
+    status.record_receive_started();
     status.record_notification(2);
+    status.record_flush_started(2);
     status.record_batch(SearchCdcBatchReport {
         indexed: 42,
         deleted: 3,
@@ -109,7 +112,7 @@ async fn admin_search_sync_status_returns_daemon_snapshot() -> Result<(), Box<dy
         duration_ms: 1500,
     });
 
-    let response = router_without_search_with_status(pool, status)
+    let response = router_without_search_with_status(pool, status.clone())
         .oneshot(Request::get("/admin/search-sync/status").body(Body::empty())?)
         .await?;
 
@@ -118,6 +121,11 @@ async fn admin_search_sync_status_returns_daemon_snapshot() -> Result<(), Box<dy
     assert_eq!(body["state"], "running");
     assert!(body["last_notification_at"].as_str().is_some());
     assert_eq!(body["pending_count"], 0);
+    assert!(body["last_loop_at"].as_str().is_some());
+    assert!(body["last_receive_started_at"].as_str().is_some());
+    assert!(body["last_flush_started_at"].as_str().is_some());
+    assert_eq!(body["active_flush"], Value::Null);
+    assert_eq!(body["last_flush_duration_ms"], 1500);
     assert_eq!(
         body["last_batch"],
         serde_json::json!({
@@ -128,6 +136,21 @@ async fn admin_search_sync_status_returns_daemon_snapshot() -> Result<(), Box<dy
         })
     );
     assert_eq!(body["last_error"], Value::Null);
+
+    status.record_flush_started(4);
+    let response = router_without_search_with_status(
+        PgPoolOptions::new()
+            .max_connections(1)
+            .connect_lazy("postgres://opentk.invalid/opentk")?,
+        status,
+    )
+    .oneshot(Request::get("/admin/search-sync/status").body(Body::empty())?)
+    .await?;
+
+    assert_eq!(response.status(), StatusCode::OK);
+    let body: Value = serde_json::from_slice(&to_bytes(response.into_body(), usize::MAX).await?)?;
+    assert!(body["active_flush"]["started_at"].as_str().is_some());
+    assert_eq!(body["active_flush"]["pending_count"], 4);
 
     Ok(())
 }
