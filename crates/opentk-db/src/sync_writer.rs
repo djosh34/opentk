@@ -230,6 +230,10 @@ async fn upsert_sync_entity(
             deleted = EXCLUDED.deleted,
             source_updated_at = EXCLUDED.source_updated_at,
             atom_updated_at = EXCLUDED.atom_updated_at
+        WHERE sync_entity.latest_skiptoken IS DISTINCT FROM EXCLUDED.latest_skiptoken
+           OR sync_entity.deleted IS DISTINCT FROM EXCLUDED.deleted
+           OR sync_entity.source_updated_at IS DISTINCT FROM EXCLUDED.source_updated_at
+           OR sync_entity.atom_updated_at IS DISTINCT FROM EXCLUDED.atom_updated_at
         ",
     )
     .bind(&entity.category)
@@ -268,6 +272,9 @@ async fn upsert_relation_target(
         SET latest_skiptoken = GREATEST(sync_entity.latest_skiptoken, EXCLUDED.latest_skiptoken),
             source_updated_at = GREATEST(sync_entity.source_updated_at, EXCLUDED.source_updated_at),
             atom_updated_at = GREATEST(sync_entity.atom_updated_at, EXCLUDED.atom_updated_at)
+        WHERE EXCLUDED.latest_skiptoken > sync_entity.latest_skiptoken
+           OR EXCLUDED.source_updated_at > sync_entity.source_updated_at
+           OR EXCLUDED.atom_updated_at > sync_entity.atom_updated_at
         ",
     )
     .bind(&relation.target_category)

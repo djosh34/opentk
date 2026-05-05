@@ -117,6 +117,27 @@ async fn updated_document_replaces_current_scalar_and_relations() -> Result<(), 
 }
 
 #[tokio::test]
+async fn repeated_identical_page_does_not_rewrite_existing_sync_entity_rows(
+) -> Result<(), sqlx::Error> {
+    let pool = migrated_pool("writer_idempotent_sync_entity").await?;
+    let xml = document_xml("2026D00001", kamerstukdossier_id());
+
+    write_document(&pool, 42, xml.clone()).await;
+
+    let source_before = sync_entity_xmin(&pool, "Document", document_id()).await?;
+    let target_before = sync_entity_xmin(&pool, "Kamerstukdossier", kamerstukdossier_id()).await?;
+
+    write_document(&pool, 42, xml).await;
+
+    let source_after = sync_entity_xmin(&pool, "Document", document_id()).await?;
+    let target_after = sync_entity_xmin(&pool, "Kamerstukdossier", kamerstukdossier_id()).await?;
+    assert_eq!(source_after, source_before);
+    assert_eq!(target_after, target_before);
+
+    Ok(())
+}
+
+#[tokio::test]
 async fn delete_marker_records_delete_and_removes_current_rows() -> Result<(), sqlx::Error> {
     let pool = migrated_pool("writer_delete").await?;
     write_document(&pool, 1, document_xml("2026D00001", kamerstukdossier_id())).await;
@@ -300,6 +321,22 @@ async fn write_after_barrier(
     .await
     .map(|_| ())
     .map_err(|error| error.to_string())
+}
+
+async fn sync_entity_xmin(
+    pool: &PgPool,
+    source_category: &str,
+    source_id: Uuid,
+) -> Result<String, sqlx::Error> {
+    sqlx::query_scalar(
+        "SELECT xmin::text
+         FROM sync_entity
+         WHERE source_category = $1 AND source_id = $2",
+    )
+    .bind(source_category)
+    .bind(source_id)
+    .fetch_one(pool)
+    .await
 }
 
 async fn migrated_pool(test_name: &str) -> Result<PgPool, sqlx::Error> {

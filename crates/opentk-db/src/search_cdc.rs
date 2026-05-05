@@ -324,10 +324,7 @@ where
     /// # Errors
     ///
     /// Returns [`SearchCdcError`] for listener, parse, or indexing failures.
-    pub async fn receive_once(
-        &mut self,
-        now: Instant,
-    ) -> Result<Option<SearchSyncReport>, SearchCdcError> {
+    pub async fn receive_once(&mut self) -> Result<Option<SearchSyncReport>, SearchCdcError> {
         let notification = loop {
             let notification = self
                 .pg_listener
@@ -343,6 +340,7 @@ where
                 break notification;
             }
         };
+        let now = Instant::now();
         self.batcher.push(notification, now);
         if self.batcher.should_flush(now) {
             Ok(Some(self.flush().await?))
@@ -430,7 +428,7 @@ where
                     }
                 }
             }
-            result = listener.receive_once(Instant::now()) => {
+            result = listener.receive_once() => {
                 status.record_notification(listener.pending_count());
                 match result {
                     Ok(Some(report)) => {

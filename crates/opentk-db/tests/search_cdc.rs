@@ -217,12 +217,9 @@ async fn listener_receives_postgres_notification_and_flushes(
     .execute(&pool)
     .await?;
 
-    let report = timeout(
-        Duration::from_secs(3),
-        listener.receive_once(Instant::now()),
-    )
-    .await??
-    .expect("max unique records flushes immediately");
+    let report = timeout(Duration::from_secs(3), listener.receive_once())
+        .await??
+        .expect("max unique records flushes immediately");
 
     assert_eq!(report.deleted, 1);
     assert_eq!(
@@ -230,6 +227,55 @@ async fn listener_receives_postgres_notification_and_flushes(
         vec![SearchIndexOperation::Delete(format!(
             "Document_{source_id}"
         ))]
+    );
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn listener_flushes_after_elapsed_wall_time_between_notifications(
+) -> Result<(), Box<dyn std::error::Error>> {
+    let (pool, database_url) = migrated_pool("search_cdc_listener_elapsed_window").await?;
+    let first_source_id =
+        Uuid::parse_str("11111111-1111-4111-8111-111111111111").expect("valid uuid");
+    let second_source_id =
+        Uuid::parse_str("22222222-2222-4222-8222-222222222222").expect("valid uuid");
+    let client = MemoryIndexClient::default();
+    let mut listener = SearchCdcListener::connect(
+        &database_url,
+        pool.clone(),
+        &client,
+        SearchSyncConfig {
+            index_name: "opentk_entities".to_owned(),
+            categories: vec!["Document".to_owned()],
+            batch_size: 10,
+            retry_limit: 3,
+        },
+        SearchCdcBatchConfig {
+            flush_window: Duration::from_millis(50),
+            max_unique_records: 100,
+        },
+    )
+    .await?;
+
+    insert_sync_entity(&pool, first_source_id, 43, true).await?;
+    let report = timeout(Duration::from_secs(3), listener.receive_once()).await??;
+    assert!(report.is_none(), "single notification should stay buffered");
+
+    let second_receive = listener.receive_once();
+    tokio::time::sleep(Duration::from_millis(75)).await;
+    insert_sync_entity(&pool, second_source_id, 44, true).await?;
+    let report = timeout(Duration::from_secs(3), second_receive)
+        .await??
+        .expect("elapsed wall time should flush the buffered batch");
+
+    assert_eq!(report.deleted, 2);
+    assert_eq!(
+        client.operations(),
+        vec![
+            SearchIndexOperation::Delete(format!("Document_{first_source_id}")),
+            SearchIndexOperation::Delete(format!("Document_{second_source_id}")),
+        ]
     );
 
     Ok(())
