@@ -5,11 +5,15 @@ use opentk_config::{Config, ConfigLoader};
 use opentk_db::{
     connect,
     schema_lifecycle::ensure_schema,
+    search_sync::{
+        full_reindex, incremental_index, SearchSyncConfig, SearchSyncMode, SearchSyncReport,
+    },
     startup_validation::validate_sync_dependencies,
     sync_state::PostgresSyncStore,
     sync_verification::{verify_sync_database, SyncVerificationConfig, SyncVerificationReport},
     DatabaseConfig,
 };
+use opentk_search::MeilisearchClient;
 use opentk_sync::{
     runner::{CompleteSyncConfig, CompleteSyncRunner, SyncRunMode, SyncStore},
     syncfeed::{SyncFeedClient, SyncFeedClientConfig, SyncFeedContentMode},
@@ -35,6 +39,16 @@ enum Command {
     Poll,
     Status,
     Verify(VerifyArgs),
+    Search {
+        #[command(subcommand)]
+        command: SearchCommand,
+    },
+}
+
+#[derive(Clone, Debug, Subcommand)]
+enum SearchCommand {
+    FullReindex,
+    Incremental,
 }
 
 #[derive(Clone, Debug, Parser)]
@@ -84,6 +98,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
         Command::Verify(args) => {
             print_verification(&config, args).await?;
+        }
+        Command::Search { command } => {
+            run_search_command(&config, command).await?;
         }
     }
     Ok(())
@@ -167,6 +184,26 @@ async fn print_verification(
     Ok(())
 }
 
+async fn run_search_command(
+    config: &Config,
+    command: SearchCommand,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let pool = connect(&database_config(config)).await?;
+    ensure_schema(&pool).await?;
+    let client = MeilisearchClient::new(
+        config.search.url.clone(),
+        config.search.api_key.clone(),
+        config.search.index_name.clone(),
+    );
+    let search_config = search_sync_config(config);
+    let report = match command {
+        SearchCommand::FullReindex => full_reindex(&pool, &client, &search_config).await?,
+        SearchCommand::Incremental => incremental_index(&pool, &client, &search_config).await?,
+    };
+    print!("{}", format_search_report(&report));
+    Ok(())
+}
+
 fn format_verification_report(report: &SyncVerificationReport) -> String {
     let mut output = String::new();
     writeln!(
@@ -235,6 +272,36 @@ fn format_verification_report(report: &SyncVerificationReport) -> String {
     output
 }
 
+fn format_search_report(report: &SearchSyncReport) -> String {
+    let mut output = String::new();
+    writeln!(
+        output,
+        "mode={}\tindexed={}\tdeleted={}\tfailed={}\tcursor_count={}",
+        display_search_mode(report.mode),
+        report.indexed,
+        report.deleted,
+        report.failed,
+        report.latest_cursors.len()
+    )
+    .expect("writing search report line to String cannot fail");
+    for cursor in &report.latest_cursors {
+        writeln!(
+            output,
+            "cursor_index={}\tsource_category={}\tlatest_skiptoken={}\tstate={}\tlast_indexed_at={}\tlast_error={}",
+            cursor.index_name,
+            cursor.source_category,
+            cursor.latest_skiptoken,
+            cursor.state,
+            cursor
+                .last_indexed_at
+                .map_or_else(|| "null".to_owned(), |time| time.to_rfc3339()),
+            cursor.last_error.clone().unwrap_or_else(|| "none".to_owned()),
+        )
+        .expect("writing search cursor line to String cannot fail");
+    }
+    output
+}
+
 async fn build_runner(
     config: &Config,
     mode: SyncRunMode,
@@ -270,8 +337,24 @@ fn database_config(config: &Config) -> DatabaseConfig {
     }
 }
 
+fn search_sync_config(config: &Config) -> SearchSyncConfig {
+    SearchSyncConfig {
+        index_name: config.search.index_name.clone(),
+        categories: config.sync.categories.clone(),
+        batch_size: config.search.batch_size,
+        retry_limit: config.search.retry_limit,
+    }
+}
+
 fn display_optional_i64(value: Option<i64>) -> String {
     value.map_or_else(|| "null".to_owned(), |value| value.to_string())
+}
+
+fn display_search_mode(mode: SearchSyncMode) -> &'static str {
+    match mode {
+        SearchSyncMode::FullReindex => "full_reindex",
+        SearchSyncMode::Incremental => "incremental",
+    }
 }
 
 async fn shutdown_signal() {
@@ -306,7 +389,7 @@ async fn shutdown_signal() {
 
 #[cfg(test)]
 mod tests {
-    use super::{format_verification_report, Cli, Command};
+    use super::{format_search_report, format_verification_report, Cli, Command, SearchCommand};
     use chrono::{DateTime, Utc};
     use clap::Parser;
     use opentk_db::sync_verification::{
@@ -386,6 +469,52 @@ mod tests {
             panic!("expected verify command");
         };
         assert_eq!(args.required_relation_samples, 1);
+    }
+
+    #[test]
+    fn search_full_reindex_command_parses() {
+        let cli = Cli::try_parse_from(["opentk-sync", "search", "full-reindex"])
+            .expect("search full-reindex parses");
+
+        let Some(Command::Search { command }) = cli.command else {
+            panic!("expected search command");
+        };
+        assert!(matches!(command, SearchCommand::FullReindex));
+    }
+
+    #[test]
+    fn search_incremental_command_parses() {
+        let cli = Cli::try_parse_from(["opentk-sync", "search", "incremental"])
+            .expect("search incremental parses");
+
+        let Some(Command::Search { command }) = cli.command else {
+            panic!("expected search command");
+        };
+        assert!(matches!(command, SearchCommand::Incremental));
+    }
+
+    #[test]
+    fn search_report_output_includes_cursor_state() {
+        let report = opentk_db::search_sync::SearchSyncReport {
+            mode: opentk_db::search_sync::SearchSyncMode::FullReindex,
+            indexed: 12,
+            deleted: 3,
+            failed: 1,
+            latest_cursors: vec![opentk_db::search_sync::SearchIndexCursor {
+                index_name: "opentk_entities_prod".to_owned(),
+                source_category: "Document".to_owned(),
+                latest_skiptoken: 42,
+                last_indexed_at: Some("2026-05-05T12:34:56Z".parse().expect("valid timestamp")),
+                state: "caught_up".to_owned(),
+                last_error: None,
+            }],
+        };
+
+        let output = format_search_report(&report);
+        assert!(output.contains("mode=full_reindex\tindexed=12\tdeleted=3\tfailed=1"));
+        assert!(output.contains("cursor_index=opentk_entities_prod\tsource_category=Document"));
+        assert!(output.contains("latest_skiptoken=42\tstate=caught_up"));
+        assert!(output.contains("last_error=none"));
     }
 
     #[test]
