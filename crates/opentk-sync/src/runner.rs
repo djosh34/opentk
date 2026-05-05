@@ -342,6 +342,7 @@ impl<S: SyncStore> CompleteSyncRunner<S> {
     }
 }
 
+#[allow(clippy::too_many_lines)]
 async fn run_category<S: SyncStore>(
     client: SyncFeedClient,
     store: S,

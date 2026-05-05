@@ -113,6 +113,7 @@ pub struct IndexSpec {
 pub enum IndexPurpose {
     PrimaryUuidLookup,
     CategoryCursor,
+    ChangeFeedPage,
     EntityUpdatedAt,
     DocumentNumber,
     DateScan,
@@ -129,6 +130,7 @@ pub enum IndexPurpose {
 }
 
 #[must_use]
+#[allow(clippy::too_many_lines)]
 pub fn schema() -> SchemaSpec {
     let mut tables = vec![
         sync_category_table(),
@@ -161,6 +163,12 @@ pub fn schema() -> SchemaSpec {
             &["source_category", "deleted", "latest_skiptoken"],
             false,
             IndexPurpose::CategoryCursor,
+        ),
+        index(
+            "sync_entity",
+            &["source_category", "latest_skiptoken", "source_id"],
+            false,
+            IndexPurpose::ChangeFeedPage,
         ),
         index(
             "search_index_cursor",

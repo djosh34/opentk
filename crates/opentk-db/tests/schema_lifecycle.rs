@@ -28,6 +28,22 @@ async fn ensure_schema_creates_expected_schema_in_empty_postgres_schema(
         document_number_indexes > 0,
         "document.document_nummer lookup index must be created"
     );
+    let change_feed_page_indexes: i64 = sqlx::query(
+        "SELECT count(*)::bigint AS count
+         FROM pg_indexes
+         WHERE schemaname = current_schema()
+           AND tablename = 'sync_entity'
+           AND indexdef LIKE '%source_category%'
+           AND indexdef LIKE '%latest_skiptoken%'
+           AND indexdef LIKE '%source_id%'",
+    )
+    .fetch_one(&pool)
+    .await?
+    .get("count");
+    assert!(
+        change_feed_page_indexes > 0,
+        "sync_entity changes pagination index must be created"
+    );
 
     Ok(())
 }

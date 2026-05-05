@@ -1,3 +1,5 @@
+use std::sync::LazyLock;
+
 use chrono::{DateTime, NaiveDate, Utc};
 use opentk_core::official_schema::{self, FieldKind};
 use serde_json::{Map, Number, Value};
@@ -5,10 +7,11 @@ use sqlx::{postgres::PgRow, PgPool, QueryBuilder, Row};
 use thiserror::Error;
 use uuid::Uuid;
 
-use crate::postgres_schema::{self, ColumnSpec, SqlType, TableKind, TableSpec};
+use crate::postgres_schema::{self, ColumnSpec, SchemaSpec, SqlType, TableKind, TableSpec};
 
 const MIN_LIMIT: i64 = 1;
 const MAX_LIMIT: i64 = 500;
+static READ_SCHEMA: LazyLock<SchemaSpec> = LazyLock::new(postgres_schema::schema);
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct CategoryMetadata {
@@ -386,19 +389,8 @@ pub async fn list_relations(
     direction: RelationDirection,
 ) -> Result<Vec<RelationRow>, ReadModelError> {
     entity_table(category)?;
-    let mut rows = Vec::new();
-    if matches!(
-        direction,
-        RelationDirection::Outgoing | RelationDirection::Both
-    ) {
-        rows.extend(list_outgoing_relations(pool, category, source_id).await?);
-    }
-    if matches!(
-        direction,
-        RelationDirection::Incoming | RelationDirection::Both
-    ) {
-        rows.extend(list_incoming_relations(pool, category, source_id).await?);
-    }
+    let lookups = relation_lookups(category, direction);
+    let mut rows = fetch_relation_rows(pool, &lookups, category, source_id).await?;
     rows.sort_by(|left, right| {
         (
             &left.source_category,
@@ -441,82 +433,79 @@ async fn get_detail(
 
     Ok(EntityDetail {
         metadata: entity_change_ref(&row),
-        fields: scalar_fields(&row, &table)?,
+        fields: scalar_fields(&row, table)?,
     })
 }
 
-async fn list_outgoing_relations(
-    pool: &PgPool,
-    category: &str,
-    source_id: Uuid,
-) -> Result<Vec<RelationRow>, ReadModelError> {
-    let mut rows = Vec::new();
-    for table in relation_tables().filter(|table| {
-        matches!(
-            table.kind,
-            TableKind::Relation {
-                source_category,
-                ..
-            } if source_category == category
-        )
-    }) {
-        rows.extend(
-            fetch_relation_rows(
-                pool,
-                &table,
-                "source_category",
-                category,
-                "source_id",
-                source_id,
-            )
-            .await?,
-        );
-    }
-    Ok(rows)
+#[derive(Clone, Copy)]
+struct RelationLookup<'a> {
+    table: &'a TableSpec,
+    category_column: &'static str,
+    id_column: &'static str,
 }
 
-async fn list_incoming_relations(
-    pool: &PgPool,
-    category: &str,
-    source_id: Uuid,
-) -> Result<Vec<RelationRow>, ReadModelError> {
-    let mut rows = Vec::new();
-    for table in relation_tables() {
-        rows.extend(
-            fetch_relation_rows(
-                pool,
-                &table,
-                "target_category",
-                category,
-                "target_id",
-                source_id,
+fn relation_lookups(category: &str, direction: RelationDirection) -> Vec<RelationLookup<'_>> {
+    let mut lookups = Vec::new();
+    if matches!(
+        direction,
+        RelationDirection::Outgoing | RelationDirection::Both
+    ) {
+        lookups.extend(relation_tables().filter_map(|table| {
+            matches!(
+                table.kind,
+                TableKind::Relation {
+                    source_category,
+                    ..
+                } if source_category == category
             )
-            .await?,
-        );
+            .then_some(RelationLookup {
+                table,
+                category_column: "source_category",
+                id_column: "source_id",
+            })
+        }));
     }
-    Ok(rows)
+    if matches!(
+        direction,
+        RelationDirection::Incoming | RelationDirection::Both
+    ) {
+        lookups.extend(relation_tables().map(|table| RelationLookup {
+            table,
+            category_column: "target_category",
+            id_column: "target_id",
+        }));
+    }
+    lookups
 }
 
 async fn fetch_relation_rows(
     pool: &PgPool,
-    table: &TableSpec,
-    category_column: &'static str,
+    lookups: &[RelationLookup<'_>],
     category: &str,
-    id_column: &'static str,
     source_id: Uuid,
 ) -> Result<Vec<RelationRow>, ReadModelError> {
-    let mut builder = QueryBuilder::new(
-        "SELECT source_category, source_id, relation_name, target_category, target_id, ordinal, source_updated_at FROM ",
-    );
-    builder.push(ident(&table.name));
-    builder.push(" WHERE ");
-    builder.push(ident(category_column));
-    builder.push(" = ");
-    builder.push_bind(category);
-    builder.push(" AND ");
-    builder.push(ident(id_column));
-    builder.push(" = ");
-    builder.push_bind(source_id);
+    if lookups.is_empty() {
+        return Ok(Vec::new());
+    }
+
+    let mut builder = QueryBuilder::new("");
+    for (index, lookup) in lookups.iter().enumerate() {
+        if index > 0 {
+            builder.push(" UNION ALL ");
+        }
+        builder.push(
+            "SELECT source_category, source_id, relation_name, target_category, target_id, ordinal, source_updated_at FROM ",
+        );
+        builder.push(ident(&lookup.table.name));
+        builder.push(" WHERE ");
+        builder.push(ident(lookup.category_column));
+        builder.push(" = ");
+        builder.push_bind(category);
+        builder.push(" AND ");
+        builder.push(ident(lookup.id_column));
+        builder.push(" = ");
+        builder.push_bind(source_id);
+    }
 
     Ok(builder
         .build()
@@ -527,10 +516,10 @@ async fn fetch_relation_rows(
         .collect())
 }
 
-fn entity_table(category: &str) -> Result<TableSpec, ReadModelError> {
-    postgres_schema::schema()
+fn entity_table(category: &str) -> Result<&'static TableSpec, ReadModelError> {
+    READ_SCHEMA
         .tables
-        .into_iter()
+        .iter()
         .find(|table| {
             matches!(
                 table.kind,
@@ -542,10 +531,10 @@ fn entity_table(category: &str) -> Result<TableSpec, ReadModelError> {
         .ok_or_else(|| ReadModelError::UnknownCategory(category.to_owned()))
 }
 
-fn relation_tables() -> impl Iterator<Item = TableSpec> {
-    postgres_schema::schema()
+fn relation_tables() -> impl Iterator<Item = &'static TableSpec> {
+    READ_SCHEMA
         .tables
-        .into_iter()
+        .iter()
         .filter(|table| matches!(table.kind, TableKind::Relation { .. }))
 }
 

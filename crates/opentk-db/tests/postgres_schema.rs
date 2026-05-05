@@ -239,6 +239,7 @@ fn required_direct_query_paths_are_indexed() {
     assert!(purposes.contains(&("sync_category", IndexPurpose::CategoryCursor)));
     assert!(purposes.contains(&("sync_entity", IndexPurpose::PrimaryUuidLookup)));
     assert!(purposes.contains(&("sync_entity", IndexPurpose::EntityUpdatedAt)));
+    assert!(purposes.contains(&("sync_entity", IndexPurpose::ChangeFeedPage)));
     assert!(purposes.contains(&("document", IndexPurpose::DocumentNumber)));
     assert!(purposes.contains(&("document", IndexPurpose::AssetOwner)));
 
@@ -247,6 +248,20 @@ fn required_direct_query_paths_are_indexed() {
             .iter()
             .any(|(_, purpose)| *purpose == IndexPurpose::DateScan),
         "at least one official date/timestamp field must have a date-scan index"
+    );
+}
+
+#[test]
+fn sync_entity_change_feed_page_index_matches_changes_query_order() {
+    let schema = postgres_schema::schema();
+    assert!(
+        schema.indexes.iter().any(|index| {
+            index.table_name == "sync_entity"
+                && index.purpose == IndexPurpose::ChangeFeedPage
+                && index.columns == ["source_category", "latest_skiptoken", "source_id"]
+                && !index.unique
+        }),
+        "sync_entity must have a category/cursor/source_id index for changes pagination"
     );
 }
 
