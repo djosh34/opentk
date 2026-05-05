@@ -485,7 +485,6 @@ async fn openapi_includes_core_read_endpoints() -> Result<(), Box<dyn std::error
 
     for path in [
         "/paths/~1categories",
-        "/paths/~1sync~1status",
         "/paths/~1changes~1{category}",
         "/paths/~1entities~1{category}~1{source_id}",
         "/paths/~1documents~1{source_id}",
@@ -496,9 +495,17 @@ async fn openapi_includes_core_read_endpoints() -> Result<(), Box<dyn std::error
     ] {
         assert!(body.pointer(path).is_some(), "missing OpenAPI path {path}");
     }
+    for path in [
+        "/paths/~1sync~1status",
+        "/paths/~1admin~1search-sync~1status",
+    ] {
+        assert!(
+            body.pointer(path).is_none(),
+            "unexpected OpenAPI path {path}"
+        );
+    }
     for schema in [
         "CategoryMetadataResponse",
-        "SyncStatusResponse",
         "ChangePageResponse",
         "EntityDetailResponse",
         "DocumentContentResponse",

@@ -585,17 +585,6 @@ fn base_paths(paths: PathsBuilder) -> PathsBuilder {
             ),
         )
         .path(
-            "/admin/search-sync/status",
-            PathItem::new(
-                HttpMethod::Get,
-                get_operation(
-                    "search_sync_daemon_status",
-                    "Search sync daemon status",
-                    SearchSyncDaemonStatusResponse::name().as_ref(),
-                ),
-            ),
-        )
-        .path(
             "/openapi.json",
             PathItem::new(
                 HttpMethod::Get,
@@ -649,17 +638,6 @@ fn read_paths(paths: PathsBuilder) -> PathsBuilder {
                         "categories",
                         "Official category metadata",
                         CategoryMetadataResponse::name().as_ref(),
-                    ),
-                ),
-            )
-            .path(
-                "/sync/status",
-                PathItem::new(
-                    HttpMethod::Get,
-                    get_operation(
-                        "sync_status",
-                        "Category sync status",
-                        SyncStatusResponse::name().as_ref(),
                     ),
                 ),
             )
@@ -837,8 +815,6 @@ fn api_components() -> Components {
         .schema_from::<SearchSyncDaemonActiveFlushResponse>()
         .schema_from::<CategoryMetadataResponse>()
         .schema_from::<CategoryMetadata>()
-        .schema_from::<SyncStatusResponse>()
-        .schema_from::<CategorySyncStatus>()
         .schema_from::<ChangePageResponse>()
         .schema_from::<EntityChangeResponse>()
         .schema_from::<EntityDetailResponse>()

@@ -63,7 +63,6 @@ async fn openapi_documents_every_http_route_parameter_and_response_schema(
         "/paths/~1health",
         "/paths/~1openapi.json",
         "/paths/~1categories",
-        "/paths/~1sync~1status",
         "/paths/~1changes~1{category}",
         "/paths/~1entities~1{category}~1{source_id}",
         "/paths/~1documents~1{source_id}",
@@ -72,6 +71,15 @@ async fn openapi_documents_every_http_route_parameter_and_response_schema(
         "/paths/~1relations~1{category}~1{source_id}",
     ] {
         assert!(body.pointer(path).is_some(), "missing OpenAPI path {path}");
+    }
+    for path in [
+        "/paths/~1sync~1status",
+        "/paths/~1admin~1search-sync~1status",
+    ] {
+        assert!(
+            body.pointer(path).is_none(),
+            "unexpected OpenAPI path {path}"
+        );
     }
 
     assert_parameters(
@@ -101,7 +109,6 @@ async fn openapi_documents_every_http_route_parameter_and_response_schema(
         "HealthResponse",
         "ErrorResponse",
         "CategoryMetadataResponse",
-        "SyncStatusResponse",
         "ChangePageResponse",
         "EntityDetailResponse",
         "RelationLookupResponse",
