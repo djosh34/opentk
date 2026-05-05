@@ -169,13 +169,15 @@ pub struct SearchRelationLabel {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SearchIndexOperation {
     Upsert(Box<SearchIndexDocument>),
-    Delete(SearchDocumentKey),
+    Delete(SearchDocumentId),
 }
 
+pub type SearchDocumentId = String;
 pub type SearchDocumentKey = String;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct SearchIndexDocument {
+    pub id: SearchDocumentId,
     pub key: SearchDocumentKey,
     pub source_category: String,
     pub source_id: Uuid,
@@ -268,7 +270,7 @@ pub enum SearchStorageError {
 pub fn meilisearch_schema() -> SearchIndexSchema {
     SearchIndexSchema {
         index_name: "opentk_entities",
-        primary_key: "key",
+        primary_key: "id",
         searchable_attributes: vec![
             "title",
             "summary",
@@ -787,9 +789,10 @@ fn json_error(error: serde_json::Error) -> SearchIndexError {
 pub fn map_record_to_operation(
     record: &SearchSourceRecord,
 ) -> Result<SearchIndexOperation, SearchMappingError> {
+    let id = document_id(&record.metadata.category, record.metadata.source_id);
     let key = document_key(&record.metadata.category, record.metadata.source_id);
     if record.metadata.deleted {
-        return Ok(SearchIndexOperation::Delete(key));
+        return Ok(SearchIndexOperation::Delete(id));
     }
 
     let entity_kind = entity_kind(&record.metadata.category);
@@ -825,6 +828,7 @@ pub fn map_record_to_operation(
 
     Ok(SearchIndexOperation::Upsert(Box::new(
         SearchIndexDocument {
+            id,
             key,
             source_category: record.metadata.category.clone(),
             source_id: record.metadata.source_id,
@@ -859,6 +863,10 @@ fn filter_categories(record: &SearchSourceRecord) -> Vec<String> {
             .filter(|category| category != &record.metadata.category),
     );
     categories
+}
+
+fn document_id(source_category: &str, source_id: Uuid) -> SearchDocumentId {
+    format!("{source_category}_{source_id}")
 }
 
 fn document_key(source_category: &str, source_id: Uuid) -> SearchDocumentKey {

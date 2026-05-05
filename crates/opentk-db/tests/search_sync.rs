@@ -208,13 +208,15 @@ async fn incremental_index_applies_created_and_deleted_records() -> Result<(), s
     assert!(
         operations
             .iter()
-            .any(|operation| matches!(operation, SearchIndexOperation::Delete(key) if key == &format!("Document:{first_id}"))),
+            .any(|operation| matches!(operation, SearchIndexOperation::Delete(key) if key == &format!("Document_{first_id}"))),
         "deleted document is removed from index"
     );
     assert!(
         operations.iter().any(|operation| {
             matches!(operation, SearchIndexOperation::Upsert(document)
-                if document.source_id == second_id
+                if document.id == format!("Document_{second_id}")
+                    && document.key == format!("Document:{second_id}")
+                    && document.source_id == second_id
                     && document.document_number.as_deref() == Some("2026D00003"))
         }),
         "created document is indexed"

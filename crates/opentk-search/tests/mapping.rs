@@ -16,6 +16,10 @@ fn complete_document_record_maps_to_search_upsert() {
     };
 
     assert_eq!(
+        document.id.as_str(),
+        "Document_00000000-0000-0000-0000-000000000123"
+    );
+    assert_eq!(
         document.key.as_str(),
         "Document:00000000-0000-0000-0000-000000000123"
     );
@@ -121,7 +125,7 @@ fn delete_and_update_records_map_to_index_operations() {
 
     assert_eq!(
         delete_operation,
-        SearchIndexOperation::Delete("Document:00000000-0000-0000-0000-000000000123".to_string())
+        SearchIndexOperation::Delete("Document_00000000-0000-0000-0000-000000000123".to_string())
     );
 
     let mut updated = complete_document_record();

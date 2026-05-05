@@ -5,7 +5,7 @@ fn meilisearch_schema_declares_search_result_and_filter_contract() {
     let schema = meilisearch_schema();
 
     assert_eq!(schema.index_name, "opentk_entities");
-    assert_eq!(schema.primary_key, "key");
+    assert_eq!(schema.primary_key, "id");
     assert_eq!(
         schema.searchable_attributes,
         vec![

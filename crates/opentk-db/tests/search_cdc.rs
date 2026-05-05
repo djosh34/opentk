@@ -228,7 +228,7 @@ async fn listener_receives_postgres_notification_and_flushes(
     assert_eq!(
         client.operations(),
         vec![SearchIndexOperation::Delete(format!(
-            "Document:{source_id}"
+            "Document_{source_id}"
         ))]
     );
 
@@ -268,7 +268,7 @@ async fn daemon_records_batch_and_stops_after_shutdown() -> Result<(), Box<dyn s
     assert_eq!(
         client.operations(),
         vec![SearchIndexOperation::Delete(format!(
-            "Document:{source_id}"
+            "Document_{source_id}"
         ))]
     );
 

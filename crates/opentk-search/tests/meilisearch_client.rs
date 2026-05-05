@@ -41,7 +41,7 @@ async fn meilisearch_client_resets_settings_upserts_deletes_and_polls_tasks() {
     client
         .apply_batch(&[
             SearchIndexOperation::Upsert(Box::new(search_document())),
-            SearchIndexOperation::Delete("Document:deleted".to_owned()),
+            SearchIndexOperation::Delete("Document_deleted".to_owned()),
         ])
         .await
         .expect("batch succeeds");
@@ -56,15 +56,18 @@ async fn meilisearch_client_resets_settings_upserts_deletes_and_polls_tasks() {
     }));
     assert!(observed
         .iter()
-        .any(|request| request.starts_with("POST /indexes ")));
+        .any(|request| request.starts_with("POST /indexes ")
+            && request.contains("\"primaryKey\":\"id\"")));
     assert!(observed.iter().any(|request| request
         .starts_with("PUT /indexes/opentk_entities/settings/searchable-attributes ")));
     assert!(observed.iter().any(|request| request
         .starts_with("POST /indexes/opentk_entities/documents ")
+        && request.contains("\"id\":\"Document_indexed\"")
+        && request.contains("\"key\":\"Document:indexed\"")
         && request.contains("\"title\":\"Indexed document\"")));
     assert!(observed.iter().any(|request| request
         .starts_with("POST /indexes/opentk_entities/documents/delete-batch ")
-        && request.contains("Document:deleted")));
+        && request.contains("Document_deleted")));
     assert!(observed
         .iter()
         .any(|request| request.starts_with("GET /tasks/")));
@@ -266,6 +269,7 @@ async fn serve_meili_health_fixture(listener: TcpListener, observed: Arc<Mutex<V
 
 fn search_document() -> SearchIndexDocument {
     SearchIndexDocument {
+        id: "Document_indexed".to_owned(),
         key: "Document:indexed".to_owned(),
         source_category: "Document".to_owned(),
         source_id: Uuid::parse_str("11111111-1111-4111-8111-111111111111").expect("uuid"),
