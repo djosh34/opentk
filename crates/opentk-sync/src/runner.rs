@@ -408,6 +408,17 @@ async fn run_category<S: SyncStore>(
                     },
                 )
                 .await?;
+                if matches!(mode, SyncRunMode::Continuous) && is_transient_fetch_error(&source) {
+                    if let Some(shutdown) = shutdown.as_ref() {
+                        tokio::select! {
+                            () = shutdown.notify.notified() => return Ok(report),
+                            () = sleep(poll_interval) => {}
+                        }
+                    } else {
+                        sleep(poll_interval).await;
+                    }
+                    continue;
+                }
                 return Err(CompleteSyncError::Fetch {
                     phase: SyncPhase::Fetch,
                     category,

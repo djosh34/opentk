@@ -177,8 +177,6 @@ impl SyncStore for PostgresSyncStore {
                 .fetch_optional(&self.pool)
                 .await
                 .map_err(|error| store_error(&error))?;
-                let error = load_last_error(&self.pool, category).await?;
-
                 let (latest_skiptoken, state, last_fetch_at) = if let Some(progress) = progress {
                     let state_text: String = progress
                         .try_get("state")
@@ -201,6 +199,10 @@ impl SyncStore for PostgresSyncStore {
                     Some(last_fetch_at) => Some(lag_since(last_fetch_at)?),
                     None => None,
                 };
+                let error = load_last_error(&self.pool, category).await?;
+                let error = error.and_then(|(error, created_at)| {
+                    (!is_superseded_error(last_fetch_at, created_at)).then_some(error)
+                });
                 statuses.push(CategoryStatus {
                     category: category.clone(),
                     latest_skiptoken,
@@ -222,10 +224,10 @@ impl SyncStore for PostgresSyncStore {
 async fn load_last_error(
     pool: &PgPool,
     category: &str,
-) -> Result<Option<DurableSyncError>, SyncStoreError> {
+) -> Result<Option<(DurableSyncError, DateTime<Utc>)>, SyncStoreError> {
     let row = sqlx::query(
         r"
-        SELECT phase, source_category, source_id, latest_skiptoken, message
+        SELECT phase, source_category, source_id, latest_skiptoken, message, created_at
         FROM ingest_error
         WHERE source_category = $1
         ORDER BY created_at DESC, id DESC
@@ -240,21 +242,25 @@ async fn load_last_error(
         return Ok(None);
     };
     let phase: String = row.try_get("phase").map_err(|error| store_error(&error))?;
-    Ok(Some(DurableSyncError {
-        phase: SyncPhase::parse(&phase)?,
-        category: row
-            .try_get("source_category")
+    Ok(Some((
+        DurableSyncError {
+            phase: SyncPhase::parse(&phase)?,
+            category: row
+                .try_get("source_category")
+                .map_err(|error| store_error(&error))?,
+            entity_id: row
+                .try_get("source_id")
+                .map_err(|error| store_error(&error))?,
+            skiptoken: row
+                .try_get("latest_skiptoken")
+                .map_err(|error| store_error(&error))?,
+            message: row
+                .try_get("message")
+                .map_err(|error| store_error(&error))?,
+        },
+        row.try_get("created_at")
             .map_err(|error| store_error(&error))?,
-        entity_id: row
-            .try_get("source_id")
-            .map_err(|error| store_error(&error))?,
-        skiptoken: row
-            .try_get("latest_skiptoken")
-            .map_err(|error| store_error(&error))?,
-        message: row
-            .try_get("message")
-            .map_err(|error| store_error(&error))?,
-    }))
+    )))
 }
 
 fn lag_since(last_fetch_at: DateTime<Utc>) -> Result<Duration, SyncStoreError> {
@@ -270,5 +276,32 @@ fn lag_since(last_fetch_at: DateTime<Utc>) -> Result<Duration, SyncStoreError> {
 fn store_error(error: &impl ToString) -> SyncStoreError {
     SyncStoreError {
         message: error.to_string(),
+    }
+}
+
+fn is_superseded_error(
+    last_fetch_at: Option<DateTime<Utc>>,
+    error_created_at: DateTime<Utc>,
+) -> bool {
+    last_fetch_at.is_some_and(|last_fetch_at| last_fetch_at >= error_created_at)
+}
+
+#[cfg(test)]
+mod tests {
+    use chrono::{Duration, Utc};
+
+    use super::is_superseded_error;
+
+    #[test]
+    fn newer_progress_supersedes_historical_error() {
+        let error_created_at = Utc::now();
+        let last_fetch_at = error_created_at + Duration::seconds(30);
+
+        assert!(is_superseded_error(Some(last_fetch_at), error_created_at));
+        assert!(!is_superseded_error(
+            Some(error_created_at - Duration::seconds(30)),
+            error_created_at
+        ));
+        assert!(!is_superseded_error(None, error_created_at));
     }
 }

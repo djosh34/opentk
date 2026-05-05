@@ -142,6 +142,66 @@ async fn postgres_store_rejects_future_last_fetch_lag() -> Result<(), sqlx::Erro
     Ok(())
 }
 
+#[tokio::test]
+async fn postgres_store_hides_stale_error_after_newer_successful_progress(
+) -> Result<(), sqlx::Error> {
+    let pool = migrated_pool("sync_state_stale_error").await?;
+    let store = PostgresSyncStore::new(pool.clone());
+    let last_fetch_at = Utc::now();
+    let stale_error_at = last_fetch_at - chrono::Duration::minutes(5);
+
+    sqlx::query(
+        r"
+        INSERT INTO sync_category (
+            source_category,
+            latest_skiptoken,
+            next_url,
+            state,
+            last_fetch_at
+        )
+        VALUES ($1, $2, $3, $4, $5)
+        ",
+    )
+    .bind("Document")
+    .bind(9_i64)
+    .bind("https://example.test/SyncFeed/2.0/Feed?category=Document&skiptoken=9")
+    .bind(CategorySyncState::CaughtUp.as_str())
+    .bind(last_fetch_at)
+    .execute(&pool)
+    .await?;
+
+    sqlx::query(
+        r"
+        INSERT INTO ingest_error (
+            phase,
+            source_category,
+            source_id,
+            latest_skiptoken,
+            message,
+            payload,
+            created_at
+        )
+        VALUES ($1, $2, NULL, $3, $4, NULL, $5)
+        ",
+    )
+    .bind("fetch")
+    .bind("Document")
+    .bind(7_i64)
+    .bind("timed out earlier")
+    .bind(stale_error_at)
+    .execute(&pool)
+    .await?;
+
+    let statuses = store
+        .status(&["Document".to_owned()])
+        .await
+        .expect("status loads");
+
+    assert_eq!(statuses[0].state, CategorySyncState::CaughtUp);
+    assert_eq!(statuses[0].last_error, None);
+    Ok(())
+}
+
 async fn migrated_pool(test_name: &str) -> Result<PgPool, sqlx::Error> {
     let database_url = std::env::var("OPENTK_TEST_DATABASE_URL")
         .or_else(|_| std::env::var("DATABASE_URL"))

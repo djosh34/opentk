@@ -340,6 +340,89 @@ async fn fetch_and_parse_errors_are_recorded_durably() {
     assert!(!errors[0].message.is_empty());
 }
 
+#[tokio::test]
+async fn continuous_mode_retries_same_cursor_after_exhausted_transient_fetch_cycle() {
+    let server = TestServer::start(Vec::new()).await;
+    let resume = server.cursor("FractieZetelVacature", 11);
+    let initial = "/SyncFeed/2.0/Feed?category=FractieZetelVacature&content=internal";
+    let resumed = "/SyncFeed/2.0/Feed?category=FractieZetelVacature&skiptoken=11&content=internal";
+    let mut responses = Vec::new();
+    for _ in 0..8 {
+        responses.push(
+            resume_page(&resume)
+                .for_target(initial)
+                .with_delay(Duration::from_millis(80)),
+        );
+    }
+    responses.push(resume_page(&resume).for_target(initial));
+    responses.push(
+        resume_page(&resume)
+            .for_target(resumed)
+            .with_delay(Duration::from_secs(1)),
+    );
+    server.replace_responses(responses).await;
+    let store = MemoryStore::default();
+    let mut client_config = syncfeed_client_config(&server);
+    client_config.request_timeout = Duration::from_millis(10);
+    let runner = CompleteSyncRunner {
+        client: SyncFeedClient::new(client_config).expect("valid client config"),
+        store: store.clone(),
+        config: CompleteSyncConfig {
+            categories: vec!["FractieZetelVacature".to_owned()],
+            mode: SyncRunMode::Continuous,
+            poll_interval: Duration::from_millis(1),
+        },
+    };
+    let (shutdown_tx, shutdown_rx) = oneshot::channel();
+    let task = tokio::spawn(async move {
+        runner
+            .run_until_shutdown(async {
+                let _ = shutdown_rx.await;
+            })
+            .await
+    });
+
+    let mut caught_up = false;
+    for _ in 0..100 {
+        if store
+            .cursor("FractieZetelVacature")
+            .await
+            .is_some_and(|cursor| cursor.caught_up && cursor.latest_skiptoken == 11)
+        {
+            caught_up = true;
+            break;
+        }
+        tokio::time::sleep(Duration::from_millis(10)).await;
+    }
+    assert!(
+        caught_up,
+        "continuous runner should recover and advance cursor"
+    );
+
+    shutdown_tx.send(()).expect("send shutdown");
+    task.await
+        .expect("runner task joins")
+        .expect("runner exits cleanly");
+
+    let errors = store.errors().await;
+    assert_eq!(errors.len(), 1);
+    assert_eq!(errors[0].phase, SyncPhase::Fetch);
+    assert_eq!(errors[0].category, "FractieZetelVacature");
+
+    let requests = server.requests().await;
+    assert_eq!(
+        requests
+            .iter()
+            .filter(|target| target.as_str() == initial)
+            .count(),
+        9
+    );
+    assert!(
+        requests.len() == 9 || requests.iter().any(|target| target == resumed),
+        "runner should either stop after recovery or begin the next resumed poll"
+    );
+}
+
 fn runner<const N: usize>(
     server: &TestServer,
     store: MemoryStore,
