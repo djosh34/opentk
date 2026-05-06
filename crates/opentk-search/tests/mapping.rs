@@ -133,6 +133,27 @@ fn person_record_maps_name_metadata_and_relations_without_document_fields() {
 }
 
 #[test]
+fn rendered_relation_labels_are_deduplicated_before_indexing() {
+    let mut record = complete_document_record();
+    let duplicate = SearchRelationLabel {
+        relation_name: "kamerstukdossier".to_string(),
+        target_category: "Kamerstukdossier".to_string(),
+        target_id: Uuid::parse_str("00000000-0000-0000-0000-000000000456").unwrap(),
+        label: "Digitalisering overheid".to_string(),
+    };
+    record.relations = vec![duplicate.clone(), duplicate];
+
+    let SearchIndexOperation::Upsert(document) = map_record_to_operation(&record).unwrap() else {
+        panic!("document record must upsert");
+    };
+
+    assert_eq!(
+        document.relation_labels,
+        vec!["kamerstukdossier Kamerstukdossier Digitalisering overheid"]
+    );
+}
+
+#[test]
 fn delete_and_update_records_map_to_index_operations() {
     let mut deleted = complete_document_record();
     deleted.metadata.deleted = true;

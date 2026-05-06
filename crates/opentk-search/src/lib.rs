@@ -79,9 +79,23 @@ pub trait SearchHealthClient {
     ) -> Pin<Box<dyn Future<Output = Result<(), SearchIndexError>> + Send + 'a>>;
 }
 
-pub trait SearchRuntimeClient: SearchQueryClient + SearchHealthClient {}
+pub trait SearchCountClient {
+    /// Count indexed source records matching a stable search filter.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`SearchIndexError`] when the backing search service rejects the
+    /// count request or returns a response without count metadata.
+    fn count<'a>(
+        &'a self,
+        filter: SearchFilter,
+    ) -> Pin<Box<dyn Future<Output = Result<u64, SearchIndexError>> + Send + 'a>>;
+}
 
-impl<T> SearchRuntimeClient for T where T: SearchQueryClient + SearchHealthClient {}
+pub trait SearchRuntimeClient: SearchQueryClient + SearchHealthClient + SearchCountClient {}
+
+impl<T> SearchRuntimeClient for T where T: SearchQueryClient + SearchHealthClient + SearchCountClient
+{}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SearchRequest {
@@ -291,7 +305,6 @@ pub fn meilisearch_schema() -> SearchIndexSchema {
             "date",
             "document_number",
             "metadata_text",
-            "relation_labels",
             "latest_skiptoken",
             "source_updated_at",
             "_formatted",
@@ -470,6 +483,15 @@ impl SearchHealthClient for MeilisearchClient {
     }
 }
 
+impl SearchCountClient for MeilisearchClient {
+    fn count<'a>(
+        &'a self,
+        filter: SearchFilter,
+    ) -> Pin<Box<dyn Future<Output = Result<u64, SearchIndexError>> + Send + 'a>> {
+        Box::pin(async move { self.count_index(filter).await })
+    }
+}
+
 impl MeilisearchClient {
     async fn search_index(
         &self,
@@ -496,6 +518,37 @@ impl MeilisearchClient {
         }
         let response: MeiliSearchResponse = serde_json::from_str(&body).map_err(json_error)?;
         Ok(response.into_search_response(request))
+    }
+
+    async fn count_index(&self, filter: SearchFilter) -> Result<u64, SearchIndexError> {
+        let body = MeiliSearchRequest::from_search_request(&SearchRequest {
+            query: String::new(),
+            limit: 0,
+            offset: 0,
+            filter: Some(filter),
+        })?;
+        let response = self
+            .request(
+                reqwest::Method::POST,
+                &format!("/indexes/{}/search", self.index_name),
+            )
+            .header(reqwest::header::CONTENT_TYPE, "application/json")
+            .body(serde_json::to_string(&body).map_err(json_error)?)
+            .send()
+            .await
+            .map_err(request_error)?;
+        let status = response.status();
+        let body = response.text().await.map_err(request_error)?;
+        if !status.is_success() {
+            return Err(SearchIndexError::Http {
+                status: Some(status.as_u16()),
+                message: body,
+            });
+        }
+        let response: MeiliSearchResponse = serde_json::from_str(&body).map_err(json_error)?;
+        response.estimated_total_hits.map(u64::from).ok_or_else(|| {
+            SearchIndexError::InvalidResponse("search count missing estimatedTotalHits".to_owned())
+        })
     }
 
     /// Check that Meilisearch accepts authenticated lightweight requests.
@@ -705,8 +758,13 @@ fn search_result_from_hit(hit: MeiliSearchHit) -> SearchResult {
 }
 
 fn snippets_from_formatted(formatted: &Map<String, Value>) -> Vec<SearchSnippet> {
+    let public_snippet_fields = api_result_shape()
+        .snippet_fields
+        .into_iter()
+        .collect::<BTreeSet<_>>();
     formatted
         .iter()
+        .filter(|(field, _)| public_snippet_fields.contains(field.as_str()))
         .filter_map(|(field, highlighted)| {
             let highlighted = formatted_text(highlighted)?;
             Some(SearchSnippet {
@@ -821,6 +879,8 @@ pub fn map_record_to_operation(
                 relation.relation_name, relation.target_category, relation.label
             )
         })
+        .collect::<BTreeSet<_>>()
+        .into_iter()
         .collect::<Vec<_>>();
     let filter_categories = filter_categories(record);
 

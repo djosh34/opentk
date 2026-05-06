@@ -1,15 +1,16 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use chrono::{DateTime, Duration, Utc};
 use opentk_core::official_schema;
 use opentk_search::{
-    map_record_to_operation, meilisearch_schema, SearchDocumentContent, SearchEntityMetadata,
-    SearchIndexClient, SearchIndexError, SearchIndexOperation, SearchIndexSchema,
-    SearchMappingError, SearchRelationLabel, SearchSourceRecord,
+    map_record_to_operation, meilisearch_schema, SearchCountClient, SearchDocumentContent,
+    SearchEntityMetadata, SearchFilter, SearchIndexClient, SearchIndexError, SearchIndexOperation,
+    SearchIndexSchema, SearchMappingError, SearchRelationLabel, SearchSourceRecord,
 };
 use serde_json::{Map, Value};
 use sqlx::{PgPool, Row};
 use thiserror::Error;
+use tokio::time::{sleep, Duration as TokioDuration};
 use tracing::{info, warn};
 use uuid::Uuid;
 
@@ -77,6 +78,42 @@ pub struct SearchIndexFailure {
     pub error: String,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct SearchCompletenessConfig {
+    pub min_ratio_basis_points: u32,
+    pub min_missing_documents: i64,
+    pub grace_period: Duration,
+}
+
+impl Default for SearchCompletenessConfig {
+    fn default() -> Self {
+        Self {
+            min_ratio_basis_points: 9_800,
+            min_missing_documents: 100,
+            grace_period: Duration::minutes(15),
+        }
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct SearchIndexCompleteness {
+    pub index_name: String,
+    pub source_category: String,
+    pub postgres_count: i64,
+    pub search_count: u64,
+    pub missing_count: i64,
+    pub ratio_basis_points: u32,
+    pub state: SearchIndexCompletenessState,
+    pub reason: Option<String>,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum SearchIndexCompletenessState {
+    Ok,
+    WarmingUp,
+    Degraded,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -271,6 +308,84 @@ pub async fn list_failures(pool: &PgPool) -> Result<Vec<SearchIndexFailure>, sql
     Ok(rows.iter().map(failure_from_row).collect())
 }
 
+/// Compare indexed counts against `PostgreSQL` source-of-truth live row counts.
+///
+/// # Errors
+///
+/// Returns when `PostgreSQL` cannot be queried or Meilisearch cannot provide
+/// filtered document counts.
+pub async fn verify_index_completeness<C>(
+    pool: &PgPool,
+    client: &C,
+    config: &SearchSyncConfig,
+    completeness: &SearchCompletenessConfig,
+) -> Result<Vec<SearchIndexCompleteness>, SearchSyncError>
+where
+    C: SearchCountClient + Sync + ?Sized,
+{
+    validate_config(config)?;
+    let mut results = Vec::with_capacity(config.categories.len());
+    for category in &config.categories {
+        let postgres_count: i64 = sqlx::query_scalar(
+            "SELECT COUNT(*)
+             FROM sync_entity
+             WHERE source_category = $1 AND deleted = false",
+        )
+        .bind(category)
+        .fetch_one(pool)
+        .await?;
+        let search_count = client
+            .count(SearchFilter {
+                source_category: Some(category.clone()),
+                entity_kind: None,
+            })
+            .await?;
+        let search_count_i64 = i64::try_from(search_count).unwrap_or(i64::MAX);
+        let missing_count = postgres_count.saturating_sub(search_count_i64).max(0);
+        let ratio_basis_points = if postgres_count <= 0 {
+            10_000
+        } else {
+            let postgres_count_u64 = u64::try_from(postgres_count).unwrap_or(u64::MAX);
+            ((search_count.saturating_mul(10_000)) / postgres_count_u64)
+                .try_into()
+                .unwrap_or(10_000)
+        };
+        let cursor = cursor_snapshot(pool, &config.index_name, category).await?;
+        let materially_incomplete = missing_count >= completeness.min_missing_documents
+            && ratio_basis_points < completeness.min_ratio_basis_points;
+        let (state, reason) = if materially_incomplete {
+            if cursor_is_inside_grace(cursor.as_ref(), completeness.grace_period) {
+                (
+                    SearchIndexCompletenessState::WarmingUp,
+                    Some(format!(
+                        "index is incomplete but cursor is still inside grace period: postgres_count={postgres_count} search_count={search_count} missing_count={missing_count} ratio_basis_points={ratio_basis_points}"
+                    )),
+                )
+            } else {
+                (
+                    SearchIndexCompletenessState::Degraded,
+                    Some(format!(
+                        "index materially incomplete: postgres_count={postgres_count} search_count={search_count} missing_count={missing_count} ratio_basis_points={ratio_basis_points}"
+                    )),
+                )
+            }
+        } else {
+            (SearchIndexCompletenessState::Ok, None)
+        };
+        results.push(SearchIndexCompleteness {
+            index_name: config.index_name.clone(),
+            source_category: category.clone(),
+            postgres_count,
+            search_count,
+            missing_count,
+            ratio_basis_points,
+            state,
+            reason,
+        });
+    }
+    Ok(results)
+}
+
 async fn targeted_changes(
     pool: &PgPool,
     records: &[SearchSyncRecordKey],
@@ -361,13 +476,15 @@ where
             let operations = operations_for_changes(pool, &page.items).await;
             match operations {
                 Ok(operations) => {
-                    let batch_result = client.apply_batch(&operations).await;
-                    if let Err(error) = batch_result {
-                        record_batch_failure(pool, config, &page.items, &error.to_string()).await?;
-                        mark_cursor_error(pool, &config.index_name, category, &error.to_string())
-                            .await?;
-                        return Err(error.into());
-                    }
+                    apply_batch_with_retry(
+                        pool,
+                        client,
+                        config,
+                        category,
+                        &page.items,
+                        &operations,
+                    )
+                    .await?;
                     for operation in &operations {
                         match operation {
                             SearchIndexOperation::Upsert(_) => indexed += 1,
@@ -416,6 +533,70 @@ async fn operations_for_changes(
         operations.push(map_record_to_operation(&record)?);
     }
     Ok(operations)
+}
+
+async fn apply_batch_with_retry<C>(
+    pool: &PgPool,
+    client: &C,
+    config: &SearchSyncConfig,
+    category: &str,
+    changes: &[EntityChange],
+    operations: &[SearchIndexOperation],
+) -> Result<(), SearchSyncError>
+where
+    C: SearchIndexClient + Sync,
+{
+    let mut attempt = 0_u32;
+    loop {
+        attempt += 1;
+        match client.apply_batch(operations).await {
+            Ok(()) => return Ok(()),
+            Err(error) if is_transient_index_error(&error) => {
+                let error_text =
+                    format!("transient search index failure attempt {attempt}: {error}");
+                record_batch_failure(pool, config, changes, &error_text).await?;
+                mark_cursor_retrying(pool, &config.index_name, category, &error_text).await?;
+                let delay = retry_delay(attempt);
+                warn!(
+                    source_category = %category,
+                    attempt,
+                    delay_ms = delay.as_millis(),
+                    error = %error,
+                    "transient search indexing failure; retrying same batch"
+                );
+                sleep(delay).await;
+            }
+            Err(error) => {
+                record_batch_failure(pool, config, changes, &error.to_string()).await?;
+                mark_cursor_error(pool, &config.index_name, category, &error.to_string()).await?;
+                return Err(error.into());
+            }
+        }
+    }
+}
+
+fn is_transient_index_error(error: &SearchIndexError) -> bool {
+    match error {
+        SearchIndexError::Http { status: None, .. } => true,
+        SearchIndexError::Http {
+            status: Some(status),
+            ..
+        } => matches!(*status, 408 | 425 | 429) || *status >= 500,
+        SearchIndexError::InvalidResponse(message) => {
+            let message = message.to_ascii_lowercase();
+            message.contains("timeout")
+                || message.contains("timed out")
+                || message.contains("temporarily unavailable")
+        }
+        SearchIndexError::Mapping(_) => false,
+    }
+}
+
+fn retry_delay(attempt: u32) -> TokioDuration {
+    let seconds = 2_u64
+        .saturating_pow(attempt.saturating_sub(1).min(6))
+        .min(60);
+    TokioDuration::from_secs(seconds)
 }
 
 async fn source_record(
@@ -512,30 +693,57 @@ async fn relation_labels(
 ) -> Result<Vec<SearchRelationLabel>, SearchSyncError> {
     let relations =
         read_model::list_relations(pool, category, source_id, RelationDirection::Both).await?;
+    let mut dedupe = BTreeSet::new();
     let mut labels = Vec::with_capacity(relations.len());
     for relation in relations {
-        let label = match read_model::get_entity_detail(
-            pool,
-            &relation.target_category,
-            relation.target_id,
-        )
-        .await
-        {
-            Ok(detail) => title_from_fields(&relation.target_category, &detail.fields)
-                .unwrap_or_else(|| fallback_label(&relation.target_category, relation.target_id)),
+        let Some((related_category, related_id)) = related_endpoint(&relation, category, source_id)
+        else {
+            continue;
+        };
+        let label = match read_model::get_entity_detail(pool, &related_category, related_id).await {
+            Ok(detail) => title_from_fields(&related_category, &detail.fields)
+                .unwrap_or_else(|| fallback_label(&related_category, related_id)),
             Err(ReadModelError::NotFound | ReadModelError::UnknownCategory(_)) => {
-                fallback_label(&relation.target_category, relation.target_id)
+                fallback_label(&related_category, related_id)
             }
             Err(error) => return Err(error.into()),
         };
+        if !dedupe.insert((
+            relation.relation_name.clone(),
+            related_category.clone(),
+            related_id,
+            label.clone(),
+        )) {
+            continue;
+        }
         labels.push(SearchRelationLabel {
             relation_name: relation.relation_name,
-            target_category: relation.target_category,
-            target_id: relation.target_id,
+            target_category: related_category,
+            target_id: related_id,
             label,
         });
     }
     Ok(labels)
+}
+
+fn related_endpoint(
+    relation: &read_model::RelationRow,
+    category: &str,
+    source_id: Uuid,
+) -> Option<(String, Uuid)> {
+    if relation.source_category == category && relation.source_id == source_id {
+        if relation.target_category == category && relation.target_id == source_id {
+            return None;
+        }
+        return Some((relation.target_category.clone(), relation.target_id));
+    }
+    if relation.target_category == category && relation.target_id == source_id {
+        if relation.source_category == category && relation.source_id == source_id {
+            return None;
+        }
+        return Some((relation.source_category.clone(), relation.source_id));
+    }
+    None
 }
 
 fn title_from_fields(category: &str, fields: &Map<String, Value>) -> Option<String> {
@@ -709,6 +917,26 @@ async fn mark_cursor_error(
     Ok(())
 }
 
+async fn mark_cursor_retrying(
+    pool: &PgPool,
+    index_name: &str,
+    category: &str,
+    error: &str,
+) -> Result<(), sqlx::Error> {
+    sqlx::query(
+        "UPDATE search_index_cursor
+         SET state = 'retrying',
+             last_error = $3
+         WHERE index_name = $1 AND source_category = $2",
+    )
+    .bind(index_name)
+    .bind(category)
+    .bind(error)
+    .execute(pool)
+    .await?;
+    Ok(())
+}
+
 async fn cursor_skiptoken(
     pool: &PgPool,
     index_name: &str,
@@ -723,6 +951,36 @@ async fn cursor_skiptoken(
     .bind(category)
     .fetch_optional(pool)
     .await
+}
+
+async fn cursor_snapshot(
+    pool: &PgPool,
+    index_name: &str,
+    category: &str,
+) -> Result<Option<SearchIndexCursor>, sqlx::Error> {
+    let row = sqlx::query(
+        "SELECT index_name, source_category, latest_skiptoken, last_indexed_at, state, last_error
+         FROM search_index_cursor
+         WHERE index_name = $1 AND source_category = $2",
+    )
+    .bind(index_name)
+    .bind(category)
+    .fetch_optional(pool)
+    .await?;
+    Ok(row.as_ref().map(cursor_from_row))
+}
+
+fn cursor_is_inside_grace(cursor: Option<&SearchIndexCursor>, grace_period: Duration) -> bool {
+    let Some(cursor) = cursor else {
+        return false;
+    };
+    if !matches!(cursor.state.as_str(), "running" | "retrying") {
+        return false;
+    }
+    let Some(last_indexed_at) = cursor.last_indexed_at else {
+        return false;
+    };
+    Utc::now() - last_indexed_at < grace_period
 }
 
 async fn record_batch_failure(

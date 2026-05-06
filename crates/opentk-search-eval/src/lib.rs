@@ -1180,6 +1180,27 @@ impl opentk_search::SearchHealthClient for BenchmarkSearchClient {
     }
 }
 
+impl opentk_search::SearchCountClient for BenchmarkSearchClient {
+    fn count<'a>(
+        &'a self,
+        filter: opentk_search::SearchFilter,
+    ) -> Pin<Box<dyn Future<Output = Result<u64, SearchIndexError>> + Send + 'a>> {
+        Box::pin(async move {
+            Ok(self
+                .index
+                .documents
+                .iter()
+                .filter(|document| {
+                    filter
+                        .source_category
+                        .as_ref()
+                        .is_none_or(|category| &document.source_category == category)
+                })
+                .count() as u64)
+        })
+    }
+}
+
 #[derive(Debug, Clone)]
 struct SearchIndex {
     engine: SearchEngine,

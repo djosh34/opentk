@@ -8,8 +8,9 @@ use std::{
 
 use chrono::{TimeZone, Utc};
 use opentk_search::{
-    meilisearch_schema, MeilisearchClient, SearchEntityKind, SearchHealthClient, SearchIndexClient,
-    SearchIndexDocument, SearchIndexOperation, SearchQueryClient, SearchRequest,
+    meilisearch_schema, MeilisearchClient, SearchCountClient, SearchEntityKind, SearchFilter,
+    SearchHealthClient, SearchIndexClient, SearchIndexDocument, SearchIndexOperation,
+    SearchQueryClient, SearchRequest,
 };
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
@@ -127,6 +128,48 @@ async fn meilisearch_client_searches_with_fuzzy_options_and_maps_results() {
         result.snippets[0].highlighted.as_deref(),
         Some("plain <em>snippet</em>")
     );
+    assert!(
+        result
+            .snippets
+            .iter()
+            .all(|snippet| snippet.field != "relation_labels"),
+        "internal relation labels must not be exposed as public snippets"
+    );
+}
+
+#[tokio::test]
+async fn meilisearch_client_counts_filtered_documents() {
+    let observed = Arc::new(Mutex::new(Vec::new()));
+    let listener = TcpListener::bind("127.0.0.1:0").await.expect("bind server");
+    let address = listener.local_addr().expect("server address");
+    let server_observed = Arc::clone(&observed);
+    let server = tokio::spawn(async move {
+        serve_meili_search_fixture(listener, server_observed).await;
+    });
+
+    let client = MeilisearchClient::new(
+        format!("http://{address}"),
+        Some("secret".to_owned()),
+        "opentk_entities".to_owned(),
+    );
+    let count = client
+        .count(SearchFilter {
+            source_category: Some("Document".to_owned()),
+            entity_kind: None,
+        })
+        .await
+        .expect("count succeeds");
+
+    server.abort();
+    let _ = server.await;
+    let observed = observed.lock().expect("observed mutex");
+    let request = observed
+        .iter()
+        .find(|request| request.starts_with("POST /indexes/opentk_entities/search "))
+        .expect("count search request observed");
+    assert!(request.contains("\"limit\":0"));
+    assert!(request.contains("source_category = \\\"Document\\\""));
+    assert_eq!(count, 1);
 }
 
 #[tokio::test]
@@ -224,7 +267,7 @@ async fn serve_meili_search_fixture(listener: TcpListener, observed: Arc<Mutex<V
             {
                 (
                     "200 OK",
-                    r#"{"hits":[{"key":"Document:11111111-1111-4111-8111-111111111111","source_category":"Document","source_id":"11111111-1111-4111-8111-111111111111","entity_kind":"Document","title":"Fixture document","summary":"Read endpoint","source_url":"https://example.test/document.pdf","date":"2026-04-26T00:00:00Z","document_number":"2026D00001","_formatted":{"extracted_text":"plain <em>snippet</em>"},"_rankingScore":0.98}],"estimatedTotalHits":1}"#,
+                    r#"{"hits":[{"key":"Document:11111111-1111-4111-8111-111111111111","source_category":"Document","source_id":"11111111-1111-4111-8111-111111111111","entity_kind":"Document","title":"Fixture document","summary":"Read endpoint","source_url":"https://example.test/document.pdf","date":"2026-04-26T00:00:00Z","document_number":"2026D00001","_formatted":{"extracted_text":"plain <em>snippet</em>","relation_labels":["persoon Persoon 2404","persoon Persoon 2404"]},"_rankingScore":0.98}],"estimatedTotalHits":1}"#,
                 )
             } else {
                 ("404 Not Found", r#"{"message":"unexpected request"}"#)

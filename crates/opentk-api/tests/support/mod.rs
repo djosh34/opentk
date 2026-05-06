@@ -5,7 +5,8 @@ use axum::{
 };
 use opentk_db::{connect, schema_lifecycle::ensure_schema, DatabaseConfig};
 use opentk_search::{
-    SearchHealthClient, SearchIndexError, SearchQueryClient, SearchRequest, SearchResponse,
+    SearchCountClient, SearchFilter, SearchHealthClient, SearchIndexError, SearchQueryClient,
+    SearchRequest, SearchResponse,
 };
 use serde_json::Value;
 use sqlx::{postgres::PgPoolOptions, PgPool, Row};
@@ -199,6 +200,20 @@ impl SearchHealthClient for UnavailableSearchClient {
     fn health<'a>(
         &'a self,
     ) -> Pin<Box<dyn Future<Output = Result<(), SearchIndexError>> + Send + 'a>> {
+        Box::pin(async {
+            Err(SearchIndexError::Http {
+                status: None,
+                message: "search unavailable in this test".to_owned(),
+            })
+        })
+    }
+}
+
+impl SearchCountClient for UnavailableSearchClient {
+    fn count<'a>(
+        &'a self,
+        _filter: SearchFilter,
+    ) -> Pin<Box<dyn Future<Output = Result<u64, SearchIndexError>> + Send + 'a>> {
         Box::pin(async {
             Err(SearchIndexError::Http {
                 status: None,

@@ -9,7 +9,8 @@ use opentk_db::{
     DatabaseConfig,
 };
 use opentk_search::{
-    SearchHealthClient, SearchIndexError, SearchQueryClient, SearchRequest, SearchResponse,
+    SearchCountClient, SearchFilter, SearchHealthClient, SearchIndexError, SearchQueryClient,
+    SearchRequest, SearchResponse,
 };
 use serde_json::Value;
 use sqlx::{postgres::PgPoolOptions, PgPool};
@@ -160,7 +161,12 @@ fn router_without_search(pool: PgPool) -> Router {
 }
 
 fn router_without_search_with_status(pool: PgPool, status: SearchCdcRuntimeStatus) -> Router {
-    opentk_api::router_with_search_and_cdc_status(pool, Arc::new(UnavailableSearchClient), status)
+    opentk_api::router_with_search_and_cdc_status(
+        pool,
+        Arc::new(UnavailableSearchClient),
+        opentk_db::search_sync::SearchSyncConfig::default(),
+        status,
+    )
 }
 
 struct UnavailableSearchClient;
@@ -183,6 +189,20 @@ impl SearchHealthClient for UnavailableSearchClient {
     fn health<'a>(
         &'a self,
     ) -> Pin<Box<dyn Future<Output = Result<(), SearchIndexError>> + Send + 'a>> {
+        Box::pin(async {
+            Err(SearchIndexError::Http {
+                status: None,
+                message: "search unavailable in health tests".to_owned(),
+            })
+        })
+    }
+}
+
+impl SearchCountClient for UnavailableSearchClient {
+    fn count<'a>(
+        &'a self,
+        _filter: SearchFilter,
+    ) -> Pin<Box<dyn Future<Output = Result<u64, SearchIndexError>> + Send + 'a>> {
         Box::pin(async {
             Err(SearchIndexError::Http {
                 status: None,

@@ -22,7 +22,10 @@ use opentk_db::{
     search_cdc::{
         run_search_cdc_listener, SearchCdcBatchConfig, SearchCdcRuntimeStatus, SearchCdcStatus,
     },
-    search_sync::SearchSyncConfig,
+    search_sync::{
+        verify_index_completeness, SearchCompletenessConfig, SearchIndexCompletenessState,
+        SearchSyncConfig,
+    },
     startup_validation::{
         validate_database_config, validate_meilisearch_config, DependencyValidationError,
     },
@@ -63,6 +66,7 @@ use utoipa::{
 struct ApiState {
     pool: PgPool,
     search: Arc<dyn SearchRuntimeClient + Send + Sync>,
+    search_sync: SearchSyncConfig,
     search_cdc_status: SearchCdcRuntimeStatus,
     metrics: Arc<ApiMetrics>,
 }
@@ -316,6 +320,7 @@ struct HealthResponse {
     status: &'static str,
     postgres: &'static str,
     meilisearch: &'static str,
+    search_index: &'static str,
     search_sync: SearchSyncDaemonStatusResponse,
 }
 
@@ -524,7 +529,12 @@ pub async fn build_app(config: ApiConfig) -> Result<ApiServer, ApiError> {
 
     Ok(ApiServer {
         bind_address: config.bind_address,
-        router: router_with_search_and_cdc_status(pool, search, search_cdc_status),
+        router: router_with_search_and_cdc_status(
+            pool,
+            search,
+            config.search_sync,
+            search_cdc_status,
+        ),
     })
 }
 
@@ -592,7 +602,12 @@ pub async fn serve_with_shutdown(
     };
     let server = ApiServer {
         bind_address: config.bind_address,
-        router: router_with_search_and_cdc_status(pool.clone(), search, search_cdc_status.clone()),
+        router: router_with_search_and_cdc_status(
+            pool.clone(),
+            search,
+            config.search_sync.clone(),
+            search_cdc_status.clone(),
+        ),
     };
     let listener = TcpListener::bind(server.bind_address)
         .await
@@ -637,12 +652,18 @@ pub fn router_with_search(
     pool: PgPool,
     search_client: Arc<dyn SearchRuntimeClient + Send + Sync>,
 ) -> Router {
-    router_with_search_and_cdc_status(pool, search_client, SearchCdcRuntimeStatus::new())
+    router_with_search_and_cdc_status(
+        pool,
+        search_client,
+        SearchSyncConfig::default(),
+        SearchCdcRuntimeStatus::new(),
+    )
 }
 
 pub fn router_with_search_and_cdc_status(
     pool: PgPool,
     search_client: Arc<dyn SearchRuntimeClient + Send + Sync>,
+    search_sync: SearchSyncConfig,
     search_cdc_status: SearchCdcRuntimeStatus,
 ) -> Router {
     let metrics = Arc::new(ApiMetrics::new());
@@ -668,6 +689,7 @@ pub fn router_with_search_and_cdc_status(
         .with_state(ApiState {
             pool,
             search: search_client,
+            search_sync,
             search_cdc_status,
             metrics,
         })
@@ -693,6 +715,20 @@ impl opentk_search::SearchHealthClient for UnavailableSearchClient {
     fn health<'a>(
         &'a self,
     ) -> Pin<Box<dyn Future<Output = Result<(), SearchIndexError>> + Send + 'a>> {
+        Box::pin(async {
+            Err(SearchIndexError::Http {
+                status: None,
+                message: "search backend unavailable at startup".to_owned(),
+            })
+        })
+    }
+}
+
+impl opentk_search::SearchCountClient for UnavailableSearchClient {
+    fn count<'a>(
+        &'a self,
+        _filter: opentk_search::SearchFilter,
+    ) -> Pin<Box<dyn Future<Output = Result<u64, SearchIndexError>> + Send + 'a>> {
         Box::pin(async {
             Err(SearchIndexError::Http {
                 status: None,
@@ -1026,12 +1062,37 @@ async fn health(
             "unavailable"
         }
     };
-    let search_sync_response = search_sync_daemon_status_response(search_sync.clone());
-    let status = if meilisearch == "ok" && search_sync.state.is_search_usable() {
-        "ok"
-    } else {
-        "degraded"
+    let search_index = match verify_index_completeness(
+        &state.pool,
+        state.search.as_ref(),
+        &state.search_sync,
+        &SearchCompletenessConfig::default(),
+    )
+    .await
+    {
+        Ok(completeness) => {
+            if completeness
+                .iter()
+                .any(|category| category.state == SearchIndexCompletenessState::Degraded)
+            {
+                tracing::warn!(?completeness, "search index completeness degraded");
+                "degraded"
+            } else {
+                "ok"
+            }
+        }
+        Err(error) => {
+            tracing::warn!(%error, "search index completeness check failed");
+            "degraded"
+        }
     };
+    let search_sync_response = search_sync_daemon_status_response(search_sync.clone());
+    let status =
+        if meilisearch == "ok" && search_index == "ok" && search_sync.state.is_search_usable() {
+            "ok"
+        } else {
+            "degraded"
+        };
 
     Ok((
         StatusCode::OK,
@@ -1039,6 +1100,7 @@ async fn health(
             status,
             postgres: "ok",
             meilisearch,
+            search_index,
             search_sync: search_sync_response,
         }),
     ))

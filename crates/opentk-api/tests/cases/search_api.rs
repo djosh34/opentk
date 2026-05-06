@@ -11,8 +11,9 @@ use axum::{
 };
 use opentk_db::search_cdc::SearchCdcRuntimeStatus;
 use opentk_search::{
-    SearchEntityKind, SearchHealthClient, SearchIndexError, SearchQueryClient, SearchRequest,
-    SearchResponse, SearchResult, SearchRuntimeClient, SearchSnippet,
+    SearchCountClient, SearchEntityKind, SearchFilter, SearchHealthClient, SearchIndexError,
+    SearchQueryClient, SearchRequest, SearchResponse, SearchResult, SearchRuntimeClient,
+    SearchSnippet,
 };
 use opentk_search_eval::{load_quality_benchmark, BenchmarkSearchClient};
 use serde_json::Value;
@@ -270,6 +271,15 @@ impl SearchHealthClient for FakeSearchClient {
     }
 }
 
+impl SearchCountClient for FakeSearchClient {
+    fn count<'a>(
+        &'a self,
+        _filter: SearchFilter,
+    ) -> Pin<Box<dyn Future<Output = Result<u64, SearchIndexError>> + Send + 'a>> {
+        Box::pin(async { Ok(0) })
+    }
+}
+
 async fn router_json_with_search(
     search: FakeSearchClient,
     path: &str,
@@ -304,9 +314,14 @@ async fn router_json_with_search_client_and_status(
     let pool = PgPoolOptions::new()
         .max_connections(1)
         .connect_lazy("postgres://opentk.invalid/opentk")?;
-    let response = opentk_api::router_with_search_and_cdc_status(pool, search, status)
-        .oneshot(Request::get(path).body(Body::empty())?)
-        .await?;
+    let response = opentk_api::router_with_search_and_cdc_status(
+        pool,
+        search,
+        opentk_db::search_sync::SearchSyncConfig::default(),
+        status,
+    )
+    .oneshot(Request::get(path).body(Body::empty())?)
+    .await?;
     assert_eq!(response.status(), expected_status);
     Ok(serde_json::from_slice(
         &to_bytes(response.into_body(), usize::MAX).await?,

@@ -21,6 +21,10 @@ fn meilisearch_schema_declares_search_result_and_filter_contract() {
     assert!(schema.displayed_attributes.contains(&"source_id"));
     assert!(schema.displayed_attributes.contains(&"entity_kind"));
     assert!(schema.displayed_attributes.contains(&"_formatted"));
+    assert!(
+        !schema.displayed_attributes.contains(&"relation_labels"),
+        "relation_labels are internal search fuel and must not be displayed"
+    );
     assert_eq!(
         schema.filterable_attributes,
         vec![

@@ -4,11 +4,17 @@ use chrono::{DateTime, Utc};
 use opentk_db::{
     document_assets::{record_document_asset_fetches, record_document_content_extractions},
     schema_lifecycle::ensure_schema,
-    search_sync::{full_reindex, incremental_index, list_failures, SearchSyncConfig},
+    search_sync::{
+        full_reindex, incremental_index, list_failures, verify_index_completeness,
+        SearchCompletenessConfig, SearchIndexCompletenessState, SearchSyncConfig,
+    },
     search_sync::{index_records, SearchSyncError, SearchSyncRecordKey},
     sync_writer::{write_sync_page, SyncPageWrite},
 };
-use opentk_search::{SearchIndexClient, SearchIndexError, SearchIndexOperation, SearchIndexSchema};
+use opentk_search::{
+    SearchCountClient, SearchFilter, SearchIndexClient, SearchIndexError, SearchIndexOperation,
+    SearchIndexSchema,
+};
 use opentk_sync::{
     document_asset::{
         DocumentAssetFetchReport, DocumentAssetKind, DocumentSelectedSource, RetrievalStatus,
@@ -496,6 +502,185 @@ async fn full_reindex_indexes_person_activity_metadata_and_relation_labels(
 }
 
 #[tokio::test]
+async fn incoming_relation_labels_use_related_source_and_do_not_render_self_labels(
+) -> Result<(), sqlx::Error> {
+    let pool = migrated_pool("search_sync_relation_orientation").await?;
+    let person_id = Uuid::parse_str("33333333-3333-4333-8333-333333333333").expect("valid uuid");
+    let first_actor_id =
+        Uuid::parse_str("66666666-6666-4666-8666-666666666666").expect("valid uuid");
+    let second_actor_id =
+        Uuid::parse_str("77777777-7777-4777-8777-777777777777").expect("valid uuid");
+    write_parsed_entity(&pool, "Persoon", 1, &person_xml(person_id)).await;
+    write_parsed_entity(
+        &pool,
+        "ActiviteitActor",
+        2,
+        &activity_actor_xml(first_actor_id, person_id),
+    )
+    .await;
+    write_parsed_entity(
+        &pool,
+        "ActiviteitActor",
+        3,
+        &activity_actor_xml(second_actor_id, person_id),
+    )
+    .await;
+    let client = MemoryIndexClient::default();
+
+    full_reindex(
+        &pool,
+        &client,
+        &SearchSyncConfig {
+            index_name: "opentk_entities".to_owned(),
+            categories: vec!["Persoon".to_owned()],
+            batch_size: 10,
+            retry_limit: 3,
+        },
+    )
+    .await
+    .expect("full reindex succeeds");
+
+    let operations = client.operations();
+    let person = operations
+        .iter()
+        .find_map(|operation| match operation {
+            SearchIndexOperation::Upsert(document) if document.source_id == person_id => {
+                Some(document)
+            }
+            _ => None,
+        })
+        .expect("person is indexed");
+    assert!(
+        person
+            .relation_labels
+            .iter()
+            .all(|label| !label.contains("persoon Persoon")),
+        "incoming person relations must not be indexed as repeated self labels"
+    );
+    assert!(
+        person
+            .relation_labels
+            .iter()
+            .any(|label| label.contains("persoon ActiviteitActor")),
+        "incoming person relations keep related endpoint labels for recall"
+    );
+    assert_eq!(
+        person.relation_labels.len(),
+        person
+            .relation_labels
+            .iter()
+            .collect::<std::collections::BTreeSet<_>>()
+            .len(),
+        "relation labels are deduplicated"
+    );
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn transient_index_failure_retries_and_advances_cursor_after_recovery(
+) -> Result<(), sqlx::Error> {
+    let pool = migrated_pool("search_sync_transient_retry").await?;
+    seed_document_with_content(&pool, 7, "2026D00007", "retry text", "<p>retry html</p>").await;
+    let client = FlakyIndexClient::new(1);
+    let config = SearchSyncConfig {
+        index_name: "opentk_entities".to_owned(),
+        categories: vec!["Document".to_owned()],
+        batch_size: 10,
+        retry_limit: 3,
+    };
+
+    let report = full_reindex(&pool, &client, &config)
+        .await
+        .expect("transient failure recovers");
+
+    assert_eq!(report.indexed, 1);
+    assert_eq!(client.apply_attempts(), 2);
+    let failures = list_failures(&pool).await?;
+    assert_eq!(failures.len(), 1);
+    assert_eq!(failures[0].source_category, "Document");
+    assert_eq!(failures[0].source_id, document_id());
+    assert_eq!(failures[0].latest_skiptoken, 7);
+    assert_eq!(failures[0].operation, "upsert");
+    assert_eq!(failures[0].attempt_count, 1);
+    assert!(
+        failures[0]
+            .error
+            .contains("transient search index failure attempt 1"),
+        "failure stores retry evidence"
+    );
+
+    let cursor = sqlx::query(
+        "SELECT latest_skiptoken, state, last_error
+         FROM search_index_cursor
+         WHERE index_name = 'opentk_entities' AND source_category = 'Document'",
+    )
+    .fetch_one(&pool)
+    .await?;
+    assert_eq!(cursor.get::<i64, _>("latest_skiptoken"), 7);
+    assert_eq!(cursor.get::<String, _>("state"), "caught_up");
+    assert_eq!(cursor.get::<Option<String>, _>("last_error"), None);
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn index_completeness_marks_materially_missing_category_degraded() -> Result<(), sqlx::Error>
+{
+    let pool = migrated_pool("search_sync_completeness").await?;
+    let first_id = document_id();
+    let second_id = Uuid::parse_str("22222222-2222-4222-8222-222222222222").expect("valid uuid");
+    seed_document_with_content_for(&pool, first_id, 1, "2026D00001", "first", "<p>first</p>").await;
+    seed_document_with_content_for(&pool, second_id, 2, "2026D00002", "second", "<p>second</p>")
+        .await;
+    sqlx::query(
+        "INSERT INTO search_index_cursor (
+            index_name,
+            source_category,
+            latest_skiptoken,
+            last_indexed_at,
+            state
+         )
+         VALUES ('opentk_entities', 'Document', 2, now() - interval '1 hour', 'caught_up')",
+    )
+    .execute(&pool)
+    .await?;
+    let client = CountIndexClient { count: 0 };
+    let report = verify_index_completeness(
+        &pool,
+        &client,
+        &SearchSyncConfig {
+            index_name: "opentk_entities".to_owned(),
+            categories: vec!["Document".to_owned()],
+            batch_size: 10,
+            retry_limit: 3,
+        },
+        &SearchCompletenessConfig {
+            min_ratio_basis_points: 9_800,
+            min_missing_documents: 1,
+            grace_period: chrono::Duration::minutes(15),
+        },
+    )
+    .await
+    .expect("completeness verification succeeds");
+
+    assert_eq!(report.len(), 1);
+    assert_eq!(report[0].postgres_count, 2);
+    assert_eq!(report[0].search_count, 0);
+    assert_eq!(report[0].missing_count, 2);
+    assert_eq!(report[0].state, SearchIndexCompletenessState::Degraded);
+    assert!(
+        report[0]
+            .reason
+            .as_deref()
+            .is_some_and(|reason| reason.contains("materially incomplete")),
+        "degraded status contains actionable count evidence"
+    );
+
+    Ok(())
+}
+
+#[tokio::test]
 async fn index_failure_is_persisted_retryable_and_does_not_advance_cursor(
 ) -> Result<(), sqlx::Error> {
     let pool = migrated_pool("search_sync_failure").await?;
@@ -765,6 +950,18 @@ fn activity_xml(source_id: Uuid, commissie_id: Uuid) -> String {
     )
 }
 
+fn activity_actor_xml(source_id: Uuid, person_id: Uuid) -> String {
+    format!(
+        r#"<activiteitActor xmlns="http://www.tweedekamer.nl/xsd/tkData/v1-0"
+            id="{source_id}"
+            verwijderd="false"
+            bijgewerkt="2026-04-26T00:00:00Z">
+            <persoon ref="{person_id}"/>
+            <actorNaam>Ada Lovelace</actorNaam>
+        </activiteitActor>"#
+    )
+}
+
 fn document_xml(source_id: Uuid, document_nummer: &str) -> String {
     format!(
         r#"<document xmlns="http://www.tweedekamer.nl/xsd/tkData/v1-0"
@@ -840,5 +1037,69 @@ impl SearchIndexClient for FailingIndexClient {
         Err(SearchIndexError::InvalidResponse(
             "fixture batch failure".to_owned(),
         ))
+    }
+}
+
+struct CountIndexClient {
+    count: u64,
+}
+
+impl SearchCountClient for CountIndexClient {
+    fn count<'a>(
+        &'a self,
+        _filter: SearchFilter,
+    ) -> std::pin::Pin<
+        Box<dyn std::future::Future<Output = Result<u64, SearchIndexError>> + Send + 'a>,
+    > {
+        Box::pin(async move { Ok(self.count) })
+    }
+}
+
+struct FlakyIndexClient {
+    remaining_failures: Mutex<usize>,
+    apply_attempts: Mutex<usize>,
+    operations: Mutex<Vec<SearchIndexOperation>>,
+}
+
+impl FlakyIndexClient {
+    fn new(failures_before_success: usize) -> Self {
+        Self {
+            remaining_failures: Mutex::new(failures_before_success),
+            apply_attempts: Mutex::new(0),
+            operations: Mutex::new(Vec::new()),
+        }
+    }
+
+    fn apply_attempts(&self) -> usize {
+        *self.apply_attempts.lock().expect("attempts mutex")
+    }
+}
+
+impl SearchIndexClient for FlakyIndexClient {
+    async fn reset_index(&self, _schema: &SearchIndexSchema) -> Result<(), SearchIndexError> {
+        Ok(())
+    }
+
+    async fn apply_batch(
+        &self,
+        operations: &[SearchIndexOperation],
+    ) -> Result<(), SearchIndexError> {
+        *self.apply_attempts.lock().expect("attempts mutex") += 1;
+        let mut remaining = self
+            .remaining_failures
+            .lock()
+            .expect("remaining failures mutex");
+        if *remaining > 0 {
+            *remaining -= 1;
+            return Err(SearchIndexError::Http {
+                status: None,
+                message: "fixture connection refused".to_owned(),
+            });
+        }
+        self.operations
+            .lock()
+            .expect("operations mutex")
+            .extend_from_slice(operations);
+        Ok(())
     }
 }

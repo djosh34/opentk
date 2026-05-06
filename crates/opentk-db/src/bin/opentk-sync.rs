@@ -6,7 +6,9 @@ use opentk_db::{
     connect,
     schema_lifecycle::ensure_schema,
     search_sync::{
-        full_reindex, incremental_index, SearchSyncConfig, SearchSyncMode, SearchSyncReport,
+        full_reindex, incremental_index, list_cursors, list_failures, verify_index_completeness,
+        SearchCompletenessConfig, SearchIndexCompleteness, SearchIndexCompletenessState,
+        SearchIndexCursor, SearchIndexFailure, SearchSyncConfig, SearchSyncMode, SearchSyncReport,
     },
     startup_validation::validate_sync_dependencies,
     sync_state::PostgresSyncStore,
@@ -49,6 +51,7 @@ enum Command {
 enum SearchCommand {
     FullReindex,
     Incremental,
+    Status,
 }
 
 #[derive(Clone, Debug, Parser)]
@@ -206,10 +209,31 @@ async fn run_search_command(
     );
     let search_config = search_sync_config(config);
     let report = match command {
-        SearchCommand::FullReindex => full_reindex(&pool, &client, &search_config).await?,
-        SearchCommand::Incremental => incremental_index(&pool, &client, &search_config).await?,
+        SearchCommand::FullReindex => Some(full_reindex(&pool, &client, &search_config).await?),
+        SearchCommand::Incremental => {
+            Some(incremental_index(&pool, &client, &search_config).await?)
+        }
+        SearchCommand::Status => {
+            print!(
+                "{}",
+                format_search_status(
+                    &list_cursors(&pool).await?,
+                    &list_failures(&pool).await?,
+                    &verify_index_completeness(
+                        &pool,
+                        &client,
+                        &search_config,
+                        &SearchCompletenessConfig::default(),
+                    )
+                    .await?,
+                )
+            );
+            None
+        }
     };
-    print!("{}", format_search_report(&report));
+    if let Some(report) = report {
+        print!("{}", format_search_report(&report));
+    }
     Ok(())
 }
 
@@ -311,6 +335,69 @@ fn format_search_report(report: &SearchSyncReport) -> String {
     output
 }
 
+fn format_search_status(
+    cursors: &[SearchIndexCursor],
+    failures: &[SearchIndexFailure],
+    completeness: &[SearchIndexCompleteness],
+) -> String {
+    let mut output = String::new();
+    writeln!(
+        output,
+        "cursor_count={}\tfailure_count={}\tcompleteness_count={}",
+        cursors.len(),
+        failures.len(),
+        completeness.len()
+    )
+    .expect("writing search status summary to String cannot fail");
+    for cursor in cursors {
+        writeln!(
+            output,
+            "cursor_index={}\tsource_category={}\tlatest_skiptoken={}\tstate={}\tlast_indexed_at={}\tlast_error={}",
+            cursor.index_name,
+            cursor.source_category,
+            cursor.latest_skiptoken,
+            cursor.state,
+            cursor
+                .last_indexed_at
+                .map_or_else(|| "null".to_owned(), |time| time.to_rfc3339()),
+            cursor.last_error.clone().unwrap_or_else(|| "none".to_owned()),
+        )
+        .expect("writing search cursor status line to String cannot fail");
+    }
+    for failure in failures {
+        writeln!(
+            output,
+            "failure_id={}\tindex={}\tsource_category={}\tsource_id={}\tlatest_skiptoken={}\toperation={}\tattempt_count={}\tnext_retry_at={}\terror={}",
+            failure.id,
+            failure.index_name,
+            failure.source_category,
+            failure.source_id,
+            failure.latest_skiptoken,
+            failure.operation,
+            failure.attempt_count,
+            failure.next_retry_at.to_rfc3339(),
+            failure.error,
+        )
+        .expect("writing search failure status line to String cannot fail");
+    }
+    for category in completeness {
+        writeln!(
+            output,
+            "completeness_index={}\tsource_category={}\tpostgres_count={}\tsearch_count={}\tmissing_count={}\tratio_basis_points={}\tstate={}\treason={}",
+            category.index_name,
+            category.source_category,
+            category.postgres_count,
+            category.search_count,
+            category.missing_count,
+            category.ratio_basis_points,
+            display_completeness_state(category.state),
+            category.reason.clone().unwrap_or_else(|| "none".to_owned()),
+        )
+        .expect("writing search completeness status line to String cannot fail");
+    }
+    output
+}
+
 async fn build_runner(
     config: &Config,
     mode: SyncRunMode,
@@ -366,6 +453,14 @@ fn display_search_mode(mode: SearchSyncMode) -> &'static str {
     }
 }
 
+fn display_completeness_state(state: SearchIndexCompletenessState) -> &'static str {
+    match state {
+        SearchIndexCompletenessState::Ok => "ok",
+        SearchIndexCompletenessState::WarmingUp => "warming_up",
+        SearchIndexCompletenessState::Degraded => "degraded",
+    }
+}
+
 async fn shutdown_signal() {
     let ctrl_c = async {
         if let Err(error) = tokio::signal::ctrl_c().await {
@@ -398,9 +493,16 @@ async fn shutdown_signal() {
 
 #[cfg(test)]
 mod tests {
-    use super::{format_search_report, format_verification_report, Cli, Command, SearchCommand};
-    use chrono::{DateTime, Utc};
+    use super::{
+        format_search_report, format_search_status, format_verification_report, Cli, Command,
+        SearchCommand,
+    };
+    use chrono::{DateTime, Duration, Utc};
     use clap::Parser;
+    use opentk_db::search_sync::{
+        SearchIndexCompleteness, SearchIndexCompletenessState, SearchIndexCursor,
+        SearchIndexFailure,
+    };
     use opentk_db::sync_verification::{
         DirectQueryVerification, IngestErrorVerification, StorageVerification,
         SyncVerificationReport,
@@ -503,6 +605,17 @@ mod tests {
     }
 
     #[test]
+    fn search_status_command_parses() {
+        let cli =
+            Cli::try_parse_from(["opentk-sync", "search", "status"]).expect("search status parses");
+
+        let Some(Command::Search { command }) = cli.command else {
+            panic!("expected search command");
+        };
+        assert!(matches!(command, SearchCommand::Status));
+    }
+
+    #[test]
     fn search_report_output_includes_cursor_state() {
         let report = opentk_db::search_sync::SearchSyncReport {
             mode: opentk_db::search_sync::SearchSyncMode::FullReindex,
@@ -524,6 +637,52 @@ mod tests {
         assert!(output.contains("cursor_index=opentk_entities_prod\tsource_category=Document"));
         assert!(output.contains("latest_skiptoken=42\tstate=caught_up"));
         assert!(output.contains("last_error=none"));
+    }
+
+    #[test]
+    fn search_status_output_reports_failures_and_completeness() {
+        let now: DateTime<Utc> = "2026-05-05T12:34:56Z".parse().expect("valid timestamp");
+        let source_id =
+            Uuid::parse_str("aaaaaaaa-aaaa-4aaa-8aaa-000000000001").expect("valid uuid");
+        let output = format_search_status(
+            &[SearchIndexCursor {
+                index_name: "opentk_entities_prod".to_owned(),
+                source_category: "Activiteit".to_owned(),
+                latest_skiptoken: 18_482_516,
+                last_indexed_at: Some(now),
+                state: "error".to_owned(),
+                last_error: Some("connection refused".to_owned()),
+            }],
+            &[SearchIndexFailure {
+                id: 7,
+                index_name: "opentk_entities_prod".to_owned(),
+                source_category: "Activiteit".to_owned(),
+                source_id,
+                latest_skiptoken: 18_482_516,
+                operation: "upsert".to_owned(),
+                attempt_count: 3,
+                next_retry_at: now + Duration::minutes(1),
+                error: "connection refused".to_owned(),
+                created_at: now,
+                updated_at: now,
+            }],
+            &[SearchIndexCompleteness {
+                index_name: "opentk_entities_prod".to_owned(),
+                source_category: "Activiteit".to_owned(),
+                postgres_count: 71_557,
+                search_count: 4_911,
+                missing_count: 66_646,
+                ratio_basis_points: 686,
+                state: SearchIndexCompletenessState::Degraded,
+                reason: Some("index materially incomplete".to_owned()),
+            }],
+        );
+
+        assert!(output.contains("cursor_count=1\tfailure_count=1\tcompleteness_count=1"));
+        assert!(output.contains("state=error"));
+        assert!(output.contains("attempt_count=3"));
+        assert!(output.contains("postgres_count=71557\tsearch_count=4911"));
+        assert!(output.contains("state=degraded"));
     }
 
     #[test]
