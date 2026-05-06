@@ -1,7 +1,7 @@
 use std::{fmt::Write as _, path::PathBuf, time::Duration};
 
 use clap::{Parser, Subcommand};
-use opentk_config::{Config, ConfigLoader};
+use opentk_config::{init_tracing, Config, ConfigLoader};
 use opentk_db::{
     connect,
     schema_lifecycle::ensure_schema,
@@ -65,7 +65,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         None => ConfigLoader::new().load()?,
     };
     let config = loaded.config;
-    tracing_subscriber::fmt::init();
+    init_tracing(&config.log)?;
     tracing::info!(config = ?config.redacted(), "loaded effective config");
     if cli.validate_config {
         let report = validate_sync_dependencies(&config).await?;

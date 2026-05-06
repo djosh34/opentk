@@ -1,6 +1,6 @@
 use clap::Parser;
 use opentk_api::{serve, ApiConfig, SearchBackendConfig};
-use opentk_config::{Config, ConfigLoader};
+use opentk_config::{init_tracing, Config, ConfigLoader};
 use opentk_db::{
     search_sync::SearchSyncConfig,
     startup_validation::{validate_api_dependencies, SearchRequirement},
@@ -26,7 +26,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         None => ConfigLoader::new().load()?,
     };
     let config = loaded.config;
-    tracing_subscriber::fmt::init();
+    init_tracing(&config.log)?;
     tracing::info!(config = ?config.redacted(), "loaded effective config");
 
     if args.validate_config {

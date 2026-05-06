@@ -4,7 +4,7 @@ use std::{
     time::{SystemTime, UNIX_EPOCH},
 };
 
-use opentk_config::{Config, ConfigLoader, LogFormat};
+use opentk_config::{Config, ConfigLoader, EffectiveLogConfig, LogConfig, LogFormat};
 use serde_json::Value;
 
 #[test]
@@ -237,6 +237,62 @@ fn redacted_config_masks_secrets_and_keeps_operational_settings() {
         !redacted.to_string().contains("search-secret"),
         "search API key must not be present in redacted config"
     );
+}
+
+#[test]
+fn effective_log_config_uses_toml_defaults_without_env_overrides() {
+    let log = LogConfig {
+        format: LogFormat::Json,
+        level: "info,sqlx=warn".to_owned(),
+    };
+
+    let effective = EffectiveLogConfig::from_overrides(&log, None, None)
+        .expect("config logging settings resolve");
+
+    assert_eq!(
+        effective,
+        EffectiveLogConfig {
+            format: LogFormat::Json,
+            level: "info,sqlx=warn".to_owned(),
+        }
+    );
+}
+
+#[test]
+fn effective_log_config_accepts_deployment_env_overrides() {
+    let log = LogConfig {
+        format: LogFormat::Pretty,
+        level: "info".to_owned(),
+    };
+
+    let effective = EffectiveLogConfig::from_overrides(
+        &log,
+        Some("json"),
+        Some("info,opentk_api=debug,sqlx=warn"),
+    )
+    .expect("env overrides resolve");
+
+    assert_eq!(
+        effective,
+        EffectiveLogConfig {
+            format: LogFormat::Json,
+            level: "info,opentk_api=debug,sqlx=warn".to_owned(),
+        }
+    );
+}
+
+#[test]
+fn effective_log_config_rejects_unknown_format_override() {
+    let log = LogConfig {
+        format: LogFormat::Pretty,
+        level: "info".to_owned(),
+    };
+
+    let error = EffectiveLogConfig::from_overrides(&log, Some("xml"), None)
+        .expect_err("unsupported log format fails");
+
+    assert!(error.to_string().contains("OPENTK_LOG_FORMAT"));
+    assert!(error.to_string().contains("json or pretty"));
 }
 
 #[test]

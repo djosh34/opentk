@@ -1,6 +1,8 @@
 //! Typed application configuration loaded from TOML files only.
 
 use std::{
+    env,
+    error::Error as StdError,
     fs,
     net::SocketAddr,
     num::NonZeroUsize,
@@ -11,9 +13,12 @@ use opentk_core::official_schema;
 use reqwest::Url;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
+use tracing_subscriber::{filter::ParseError, EnvFilter};
 
 const LOCAL_CONFIG_PATH: &str = "./opentk.toml";
 const SYSTEM_CONFIG_PATH: &str = "/etc/opentk/config.toml";
+const LOG_FORMAT_ENV: &str = "OPENTK_LOG_FORMAT";
+const RUST_LOG_ENV: &str = "RUST_LOG";
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Config {
@@ -62,11 +67,31 @@ pub struct LogConfig {
     pub level: String,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct EffectiveLogConfig {
+    pub format: LogFormat,
+    pub level: String,
+}
+
 #[derive(Clone, Copy, Debug, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
 pub enum LogFormat {
     Json,
     Pretty,
+}
+
+#[derive(Debug, Error)]
+pub enum LogInitError {
+    #[error("invalid OPENTK_LOG_FORMAT value {value:?}; expected json or pretty")]
+    InvalidFormat { value: String },
+    #[error("invalid tracing filter {value:?}")]
+    InvalidFilter {
+        value: String,
+        #[source]
+        source: ParseError,
+    },
+    #[error("failed to initialize tracing subscriber")]
+    SubscriberInit(#[source] Box<dyn StdError + Send + Sync>),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -249,6 +274,77 @@ impl Config {
                 level: self.log.level.clone(),
             },
         }
+    }
+}
+
+/// Initialize process-wide tracing from config plus deployment overrides.
+///
+/// # Errors
+///
+/// Returns [`LogInitError`] when `OPENTK_LOG_FORMAT` is unsupported,
+/// `RUST_LOG`/`log.level` is not a valid tracing filter, or a subscriber was
+/// already installed.
+pub fn init_tracing(config: &LogConfig) -> Result<(), LogInitError> {
+    let effective = EffectiveLogConfig::from_env(config)?;
+    let filter =
+        EnvFilter::try_new(&effective.level).map_err(|source| LogInitError::InvalidFilter {
+            value: effective.level.clone(),
+            source,
+        })?;
+
+    match effective.format {
+        LogFormat::Json => tracing_subscriber::fmt()
+            .json()
+            .with_ansi(false)
+            .with_env_filter(filter)
+            .try_init()
+            .map_err(LogInitError::SubscriberInit)?,
+        LogFormat::Pretty => tracing_subscriber::fmt()
+            .pretty()
+            .with_ansi(false)
+            .with_env_filter(filter)
+            .try_init()
+            .map_err(LogInitError::SubscriberInit)?,
+    }
+    Ok(())
+}
+
+impl EffectiveLogConfig {
+    /// Resolve logging settings from explicit override values.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`LogInitError`] when `format_override` is unsupported.
+    pub fn from_overrides(
+        config: &LogConfig,
+        format_override: Option<&str>,
+        level_override: Option<&str>,
+    ) -> Result<Self, LogInitError> {
+        let format = format_override.map_or(Ok(config.format), parse_log_format)?;
+        let level = level_override.map_or_else(|| config.level.clone(), ToOwned::to_owned);
+        Ok(Self { format, level })
+    }
+
+    /// Resolve logging settings from `[log]`, `OPENTK_LOG_FORMAT`, and
+    /// `RUST_LOG`.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`LogInitError`] when `OPENTK_LOG_FORMAT` is unsupported.
+    pub fn from_env(config: &LogConfig) -> Result<Self, LogInitError> {
+        let format = env::var(LOG_FORMAT_ENV).ok();
+        let level = env::var(RUST_LOG_ENV).ok();
+        Self::from_overrides(config, format.as_deref(), level.as_deref())
+    }
+}
+
+fn parse_log_format(value: &str) -> Result<LogFormat, LogInitError> {
+    match value.trim().to_ascii_lowercase().as_str() {
+        "json" => Ok(LogFormat::Json),
+        "pretty" => Ok(LogFormat::Pretty),
+        _ => Err(LogInitError::InvalidFormat {
+            value: value.to_owned(),
+        }),
     }
 }
 
