@@ -1,12 +1,18 @@
 # Search Indexing Pipeline
 
-Story 5 uses Meilisearch as the production search engine. PostgreSQL remains the source of truth; the search index is a derived read model built from `sync_entity`, generated entity tables, relation tables, `document_asset`, and `document_content`.
+OpenTK uses Meilisearch as a derived public search read model. PostgreSQL is the source of truth. Search synchronization is owned by the dedicated `opentk-search-reconciler` binary, not by `opentk-api` and not by `opentk-sync`.
 
-Production search code lives in `opentk-search`. It accepts generic source records and emits explicit index operations. Database paging and Meilisearch HTTP calls belong in the next task so mapping stays testable without services.
+The API keeps the public `/search` response contract stable and only queries Meilisearch. The sync binary only ingests source data into PostgreSQL. The old full-reindex, incremental indexing, and API-side CDC search indexing operational paths are retired.
 
 ## Index Schema
 
-Use one Meilisearch index named `opentk_entities` with primary key `key`. The key is deterministic:
+Use one Meilisearch index per environment, with deterministic document IDs derived from source identity:
+
+```text
+<source_category>_<source_id>
+```
+
+The public result key remains:
 
 ```text
 <source_category>:<source_id>
@@ -14,9 +20,9 @@ Use one Meilisearch index named `opentk_entities` with primary key `key`. The ke
 
 Searchable attributes are ordered by domain value: `title`, `summary`, `document_number`, `metadata_text`, `relation_labels`, `extracted_text`, then `extracted_html`. Stored HTML is searchable and highlightable, but ranks below extracted text because HTML can contain duplicated markup-adjacent text.
 
-Displayed attributes are `key`, `source_category`, `source_id`, `entity_kind`, `title`, `summary`, `source_url`, `date`, `document_number`, `metadata_text`, `relation_labels`, `latest_skiptoken`, `source_updated_at`, and `_formatted`.
+Displayed attributes are `id`, `key`, `source_category`, `source_id`, `entity_kind`, `title`, `summary`, `source_url`, `date`, `document_number`, `metadata_text`, `relation_labels`, `latest_skiptoken`, `source_updated_at`, `atom_updated_at`, and `_formatted`.
 
-Filterable attributes are `source_category`, `entity_kind`, `date`, `filter_categories`, and `latest_skiptoken`. Sortable attributes are `date`, `source_updated_at`, and `latest_skiptoken`. Ranking rules use the Meilisearch defaults in explicit order: `words`, `typo`, `proximity`, `attribute`, `sort`, `exactness`.
+Filterable attributes are `source_category`, `entity_kind`, `date`, `filter_categories`, and `latest_skiptoken`. Sortable attributes are `date`, `source_updated_at`, and `latest_skiptoken`. The reconciler relies on `latest_skiptoken` being sortable so it can fetch the highest indexed skiptoken with a sorted `limit = 1` query.
 
 ## Source Mapping
 
@@ -28,96 +34,43 @@ People map display names from `roepnaam` or `initialen`, optional `tussenvoegsel
 
 Activities, dossiers, and other entities use the same generic source record. Title fallback order is `titel`, `onderwerp`, person display name, `nummer`, `document_nummer`, then relation label or category/id fallback when no better label exists. Scalar metadata is generated through structured JSON traversal with stable field paths; null and empty string values are skipped.
 
-## Update And Delete Propagation
+The reconciler intentionally reuses this Rust mapper when populating the scratch table. PostgreSQL still owns source-of-truth counts, skiptoken windows, and the inspectable projection rows. Duplicating the mapping in SQL would create a second source of truth for public search semantics.
 
-Each `sync_entity` change becomes one index operation. A non-deleted source row is rebuilt into a full `SearchSourceRecord` and mapped to `Upsert`. A deleted row maps to `Delete` using only `source_category` and `source_id`; the generated entity table row does not need to exist.
+## Reconciliation Algorithm
 
-The upsert carries `latest_skiptoken`, `source_updated_at`, and `atom_updated_at`, so incremental indexing can replace old index state without comparing partial payloads. Deletes use the same deterministic key as upserts, which avoids category-specific delete logic.
+For each category, `opentk-search-reconciler`:
 
-## Backfill Indexing
+1. Ensures the Meilisearch index exists and has the configured schema settings without deleting existing documents.
+2. Fetches the highest Meilisearch `latest_skiptoken` for the category using `sort=["latest_skiptoken:desc"]` and `limit=1`.
+3. Compares PostgreSQL and Meilisearch prefix counts for `latest_skiptoken <= A`.
+4. If prefix counts mismatch, binary-searches for the highest count-matching prefix boundary and deletes Meilisearch category documents above that verified boundary.
+5. Selects PostgreSQL batch windows ordered by `latest_skiptoken, source_id`.
+6. Replaces rows in `search_reconciler_scratch` for the current `(index_name, source_category)` window.
+7. Stores one inspectable JSONB/NDJSON-compatible scratch row per Meilisearch operation, including `document_id`, `source_category`, `source_id`, `latest_skiptoken`, `operation`, `payload`, and `payload_bytes`.
+8. Applies scratch operations to Meilisearch with byte-bounded requests independent from the PostgreSQL row batch size.
+9. Clears scratch only after successful Meilisearch writes/deletes.
+10. Repeats until category counts match.
 
-Task 3 should create or reset the Meilisearch index, apply schema settings, then page PostgreSQL source records in stable `latest_skiptoken, source_id` order. Each page is mapped to operations, sent to Meilisearch as a batch, and confirmed by waiting for the Meilisearch task result.
+If counts already match after a nonzero verified prefix, the reconciler refreshes the full category from PostgreSQL anyway. Count checks alone cannot detect a same-count stale payload, so this periodic idempotent refresh is what makes stale Meilisearch documents converge without a durable cursor.
 
-The cursor advances only after Meilisearch reports success for the submitted task. Failed rows or batches are recorded with the source identity, operation, skiptoken, and error message.
+## Update And Delete Semantics
 
-## Incremental Indexing
+Upserts are idempotent because the deterministic Meilisearch primary key replaces the existing document. Rewriting the same PostgreSQL source row is expected and safe.
 
-Incremental indexing reads `sync_entity` rows after the category cursor. For changed non-deleted rows it rebuilds the full source record from generated entity tables, document content, and relation labels. For deleted rows it emits delete operations directly from `sync_entity`.
+Deleted source rows map to deterministic Meilisearch deletes. During prefix repair, the reconciler may also delete category documents above the verified prefix before rebuilding the suffix from PostgreSQL. This removes ahead or extra indexed documents that cannot be repaired by upserts alone.
 
-Retries should run before or alongside new changes. One bad row must remain visible in failure state and must not block unrelated categories forever.
+`search_index_cursor` and `search_index_failure` may still exist in old databases for compatibility with previous migrations, but they are not reconciliation source-of-truth state. The scratch table is not a queue and does not store durable progress.
 
-## Failure Recovery
+## Status And Operations
 
-Task 3 should add durable cursor and failure tables:
+Use:
 
-```sql
-CREATE TABLE search_index_cursor (
-    index_name text PRIMARY KEY,
-    source_category text NOT NULL,
-    latest_skiptoken bigint NOT NULL DEFAULT 0,
-    last_indexed_at timestamptz,
-    state text NOT NULL,
-    last_error text
-);
-
-CREATE TABLE search_index_failure (
-    id bigserial PRIMARY KEY,
-    index_name text NOT NULL,
-    source_category text NOT NULL,
-    source_id uuid NOT NULL,
-    latest_skiptoken bigint NOT NULL,
-    operation text NOT NULL,
-    attempt_count integer NOT NULL DEFAULT 1,
-    next_retry_at timestamptz NOT NULL,
-    error text NOT NULL,
-    created_at timestamptz NOT NULL,
-    updated_at timestamptz NOT NULL,
-    UNIQUE (index_name, source_category, source_id, latest_skiptoken, operation)
-);
+```bash
+opentk-search-reconciler --config /etc/opentk/config.toml once
+opentk-search-reconciler --config /etc/opentk/config.toml status
+opentk-search-reconciler --config /etc/opentk/config.toml --health-check
 ```
 
-Startup resumes from `search_index_cursor`. Failed operations use capped exponential backoff through `search_index_failure`. Permanent mapping errors remain recorded until source data changes or an operator forces retry. Meilisearch task failures must bubble up as typed errors; no indexing error may be swallowed.
+Category status includes PostgreSQL count, Meilisearch count, highest Meilisearch skiptoken, verified prefix boundary, target boundary, scratch row count, payload bytes, inserted/deleted row counts, completion state, and loop duration.
 
-## API Result Shape
-
-The public API should not expose raw Meilisearch hit JSON. Task 4 should translate hits into a stable result shape:
-
-```rust
-pub struct SearchResult {
-    pub key: String,
-    pub source_category: String,
-    pub source_id: uuid::Uuid,
-    pub entity_kind: SearchEntityKind,
-    pub title: String,
-    pub summary: Option<String>,
-    pub source_url: Option<String>,
-    pub date: Option<String>,
-    pub document_number: Option<String>,
-    pub snippets: Vec<SearchSnippet>,
-    pub ranking_score: Option<f64>,
-}
-
-pub struct SearchSnippet {
-    pub field: String,
-    pub text: String,
-    pub highlighted: Option<String>,
-}
-```
-
-These fields are enough for clients to navigate to existing read endpoints such as `/entities/{category}/{source_id}`, `/documents/{source_id}`, and `/documents/{source_id}/content`.
-
-## Storage Estimate
-
-Task 1 measured both committed candidate-engine fixture outputs at 3,579 bytes for 5 records, or roughly 716 bytes per indexed record. That fixture is intentionally tiny, so this is a sizing model, not a production guarantee.
-
-Task 3 should calculate:
-
-```text
-estimated_index_bytes =
-  (document_content.extracted_text bytes
-   + document_content.extracted_html bytes
-   + relation label expansion bytes)
-  * Meilisearch overhead factor
-```
-
-The input counts should come from PostgreSQL verification metrics: entity row count by category, extracted text bytes, extracted HTML bytes, and relation label expansion allowance. Task 5 must replace the estimate with a real synced-data measurement.
+The deployment batch size is expected to be `search.batch_size = 50000`; Meilisearch payloads remain bounded separately by `search.max_payload_bytes`.

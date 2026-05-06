@@ -8,7 +8,7 @@ use opentk_search::{
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 
-use crate::{ensure_search_sync_usable, ApiError, ApiState};
+use crate::{ApiError, ApiState};
 
 const DEFAULT_LIMIT: u32 = 20;
 const MAX_LIMIT: u32 = 100;
@@ -69,7 +69,6 @@ pub(crate) async fn search(
 ) -> Result<Json<SearchResponseDto>, ApiError> {
     let Query(query) = query.map_err(|_| ApiError::InvalidRequest)?;
     let request = query.into_request()?;
-    ensure_search_sync_usable(&state)?;
     let response = state.search.search(request).await?;
     Ok(Json(search_response(response)))
 }

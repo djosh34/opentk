@@ -117,6 +117,36 @@ pub trait SearchCountClient {
     ) -> Pin<Box<dyn Future<Output = Result<u64, SearchIndexError>> + Send + 'a>>;
 }
 
+#[allow(async_fn_in_trait)]
+pub trait SearchReconcilerClient {
+    /// Create the target index if needed and apply schema settings without
+    /// deleting existing documents.
+    async fn ensure_index(&self, schema: &SearchIndexSchema) -> Result<(), SearchIndexError>;
+
+    /// Return the highest indexed skiptoken for one source category using a
+    /// sorted Meilisearch `limit = 1` search.
+    async fn highest_skiptoken(
+        &self,
+        source_category: &str,
+    ) -> Result<Option<i64>, SearchIndexError>;
+
+    /// Count indexed documents for a category, optionally bounded to the
+    /// inclusive prefix `latest_skiptoken <= boundary`.
+    async fn count_category_prefix(
+        &self,
+        source_category: &str,
+        boundary: Option<i64>,
+    ) -> Result<u64, SearchIndexError>;
+
+    /// Delete indexed documents for `source_category` above an inclusive
+    /// verified prefix boundary before idempotently rebuilding that suffix.
+    async fn delete_category_after(
+        &self,
+        source_category: &str,
+        boundary: i64,
+    ) -> Result<(), SearchIndexError>;
+}
+
 pub trait SearchRuntimeClient: SearchQueryClient + SearchHealthClient + SearchCountClient {}
 
 impl<T> SearchRuntimeClient for T where T: SearchQueryClient + SearchHealthClient + SearchCountClient
@@ -214,7 +244,7 @@ pub enum SearchIndexOperation {
 pub type SearchDocumentId = String;
 pub type SearchDocumentKey = String;
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SearchIndexDocument {
     pub id: SearchDocumentId,
     pub key: SearchDocumentKey,
@@ -528,6 +558,161 @@ impl SearchIndexClient for MeilisearchClient {
     }
 }
 
+impl SearchReconcilerClient for MeilisearchClient {
+    async fn ensure_index(&self, schema: &SearchIndexSchema) -> Result<(), SearchIndexError> {
+        let get = self
+            .request(
+                reqwest::Method::GET,
+                &format!("/indexes/{}", self.index_name),
+            )
+            .send()
+            .await
+            .map_err(request_error)?;
+        if get.status() == StatusCode::NOT_FOUND {
+            let create_body = serde_json::json!({
+                "uid": self.index_name,
+                "primaryKey": schema.primary_key,
+            });
+            let create = self
+                .request(reqwest::Method::POST, "/indexes")
+                .header(reqwest::header::CONTENT_TYPE, "application/json")
+                .body(create_body.to_string())
+                .send()
+                .await
+                .map_err(request_error)?;
+            self.wait_for_response_task(create).await?;
+        } else if !get.status().is_success() {
+            return Err(response_error(get).await);
+        }
+
+        self.apply_settings("searchable-attributes", &schema.searchable_attributes)
+            .await?;
+        self.apply_settings("displayed-attributes", &schema.displayed_attributes)
+            .await?;
+        self.apply_settings("filterable-attributes", &schema.filterable_attributes)
+            .await?;
+        self.apply_settings("sortable-attributes", &schema.sortable_attributes)
+            .await?;
+        self.apply_settings("ranking-rules", &schema.ranking_rules)
+            .await?;
+        Ok(())
+    }
+
+    async fn highest_skiptoken(
+        &self,
+        source_category: &str,
+    ) -> Result<Option<i64>, SearchIndexError> {
+        let body = MeiliReconcileSearchRequest {
+            q: "",
+            limit: 1,
+            offset: 0,
+            filter: Some(category_filter(source_category)?),
+            sort: vec!["latest_skiptoken:desc"],
+            attributes_to_retrieve: vec!["latest_skiptoken"],
+        };
+        let response = self
+            .request(
+                reqwest::Method::POST,
+                &format!("/indexes/{}/search", self.index_name),
+            )
+            .header(reqwest::header::CONTENT_TYPE, "application/json")
+            .body(serde_json::to_string(&body).map_err(json_error)?)
+            .send()
+            .await
+            .map_err(request_error)?;
+        let status = response.status();
+        let body = response.text().await.map_err(request_error)?;
+        if !status.is_success() {
+            return Err(SearchIndexError::Http {
+                status: Some(status.as_u16()),
+                message: body,
+            });
+        }
+        let response: MeiliRawSearchResponse = serde_json::from_str(&body).map_err(json_error)?;
+        response
+            .hits
+            .first()
+            .map(|hit| {
+                hit.get("latest_skiptoken")
+                    .and_then(Value::as_i64)
+                    .ok_or_else(|| {
+                        SearchIndexError::InvalidResponse(
+                            "highest skiptoken hit missing latest_skiptoken".to_owned(),
+                        )
+                    })
+            })
+            .transpose()
+    }
+
+    async fn count_category_prefix(
+        &self,
+        source_category: &str,
+        boundary: Option<i64>,
+    ) -> Result<u64, SearchIndexError> {
+        let filter = match boundary {
+            Some(boundary) => format!(
+                "{} AND latest_skiptoken <= {boundary}",
+                category_filter(source_category)?
+            ),
+            None => category_filter(source_category)?,
+        };
+        let body = MeiliReconcileSearchRequest {
+            q: "",
+            limit: 0,
+            offset: 0,
+            filter: Some(filter),
+            sort: Vec::new(),
+            attributes_to_retrieve: vec!["latest_skiptoken"],
+        };
+        let response = self
+            .request(
+                reqwest::Method::POST,
+                &format!("/indexes/{}/search", self.index_name),
+            )
+            .header(reqwest::header::CONTENT_TYPE, "application/json")
+            .body(serde_json::to_string(&body).map_err(json_error)?)
+            .send()
+            .await
+            .map_err(request_error)?;
+        let status = response.status();
+        let body = response.text().await.map_err(request_error)?;
+        if !status.is_success() {
+            return Err(SearchIndexError::Http {
+                status: Some(status.as_u16()),
+                message: body,
+            });
+        }
+        let response: MeiliRawSearchResponse = serde_json::from_str(&body).map_err(json_error)?;
+        response.estimated_total_hits.map(u64::from).ok_or_else(|| {
+            SearchIndexError::InvalidResponse("prefix count missing estimatedTotalHits".to_owned())
+        })
+    }
+
+    async fn delete_category_after(
+        &self,
+        source_category: &str,
+        boundary: i64,
+    ) -> Result<(), SearchIndexError> {
+        let body = serde_json::json!({
+            "filter": format!(
+                "{} AND latest_skiptoken > {boundary}",
+                category_filter(source_category)?
+            ),
+        });
+        let response = self
+            .request(
+                reqwest::Method::POST,
+                &format!("/indexes/{}/documents/delete", self.index_name),
+            )
+            .header(reqwest::header::CONTENT_TYPE, "application/json")
+            .body(body.to_string())
+            .send()
+            .await
+            .map_err(request_error)?;
+        self.wait_for_response_task(response).await
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct JsonArrayChunk {
     body: String,
@@ -787,6 +972,26 @@ struct MeiliSearchRequest {
     filter: Option<String>,
 }
 
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct MeiliReconcileSearchRequest<'a> {
+    q: &'a str,
+    limit: u32,
+    offset: u32,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    filter: Option<String>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    sort: Vec<&'a str>,
+    attributes_to_retrieve: Vec<&'a str>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct MeiliRawSearchResponse {
+    hits: Vec<Map<String, Value>>,
+    estimated_total_hits: Option<u32>,
+}
+
 impl MeiliSearchRequest {
     fn from_search_request(request: &SearchRequest) -> Result<Self, SearchIndexError> {
         Ok(Self {
@@ -917,6 +1122,13 @@ fn meili_filter(filter: &SearchFilter) -> Result<String, SearchIndexError> {
         ));
     }
     Ok(clauses.join(" AND "))
+}
+
+fn category_filter(source_category: &str) -> Result<String, SearchIndexError> {
+    Ok(format!(
+        "source_category = {}",
+        serde_json::to_string(source_category).map_err(json_error)?
+    ))
 }
 
 fn request_error(error: reqwest::Error) -> SearchIndexError {

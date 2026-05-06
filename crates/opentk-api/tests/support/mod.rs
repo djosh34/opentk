@@ -197,11 +197,9 @@ pub fn router_without_search_with_public_limit(
     pool: PgPool,
     max_public_query_limit: u32,
 ) -> Router {
-    opentk_api::router_with_search_cdc_status_and_public_limit(
+    opentk_api::router_with_search_and_public_limit(
         pool,
         Arc::new(UnavailableSearchClient),
-        opentk_db::search_sync::SearchSyncConfig::default(),
-        opentk_db::search_cdc::SearchCdcRuntimeStatus::new(),
         max_public_query_limit,
     )
 }

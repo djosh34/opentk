@@ -47,7 +47,7 @@ async fn real_http_server_reports_health() -> Result<(), Box<dyn std::error::Err
     assert_eq!(body["status"], "degraded");
     assert_eq!(body["postgres"], "ok");
     assert_eq!(body["meilisearch"], "unavailable");
-    assert_eq!(body["search_sync"]["state"], "starting");
+    assert_eq!(body["search_sync"], "external_reconciler");
     Ok(())
 }
 

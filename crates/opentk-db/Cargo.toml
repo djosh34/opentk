@@ -9,6 +9,10 @@ repository.workspace = true
 name = "opentk-sync"
 path = "src/bin/opentk-sync.rs"
 
+[[bin]]
+name = "opentk-search-reconciler"
+path = "src/bin/opentk-search-reconciler.rs"
+
 [dependencies]
 chrono.workspace = true
 clap.workspace = true

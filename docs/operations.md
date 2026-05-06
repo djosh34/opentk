@@ -11,19 +11,16 @@ When PostgreSQL is reachable, `/health` returns `200` with a dependency snapshot
   "status": "ok",
   "postgres": "ok",
   "meilisearch": "ok",
-  "search_sync": {
-    "state": "running",
-    "last_notification_at": null,
-    "pending_count": 0,
-    "last_batch": null,
-    "last_error": null
-  }
+  "search_index": "ok",
+  "search_sync": "external_reconciler"
 }
 ```
 
-`status` becomes `degraded` while the API can still serve core read routes but search-side dependencies are not fully healthy. That includes Meilisearch being unavailable or `search_sync` reporting an error, stopped state, or pending degraded state. Degraded health remains HTTP `200` so Docker Compose does not restart the API only because optional search functionality is temporarily unavailable.
+`status` becomes `degraded` while the API can still serve core read routes but Meilisearch is not reachable. The API does not own indexing or CDC state; search convergence is handled by `opentk-search-reconciler`. Degraded health remains HTTP `200` so Docker Compose does not restart the API only because optional search functionality is temporarily unavailable.
 
 `opentk-sync --health-check` loads the normal configuration and verifies that PostgreSQL accepts a lightweight query. It exits `0` on success and exits non-zero on configuration or database errors.
+
+`opentk-search-reconciler --health-check` loads the normal configuration and verifies PostgreSQL plus Meilisearch/index reachability.
 
 ## Docker Healthchecks
 
@@ -31,6 +28,7 @@ Docker healthchecks are declared for the local runtime images and in `docker-com
 
 - `opentk-api`: `curl -f http://localhost:3000/health || exit 1`
 - `opentk-sync`: `opentk-sync --config /etc/opentk/config.toml --health-check`
+- `opentk-search-reconciler`: `opentk-search-reconciler --config /etc/opentk/config.toml --health-check`
 - PostgreSQL and Meilisearch use service-native health probes in Compose.
 
 The generic scratch Dockerfile declares `HEALTHCHECK NONE` because it has no shell or curl and is shared by both API and sync binaries. Use the dedicated API and sync Dockerfiles for the local Compose stack.

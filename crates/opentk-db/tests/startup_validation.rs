@@ -36,7 +36,7 @@ async fn database_validation_runs_select_one_against_reachable_database(
         report.database,
         DependencyCheckStatus::Reachable {
             dependency: DependencyKind::Database,
-            target: config.database.url.clone(),
+            target: redact_database_url(&config.database.url)?,
         }
     );
     assert!(matches!(

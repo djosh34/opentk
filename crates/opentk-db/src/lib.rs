@@ -11,6 +11,7 @@ pub mod read_model;
 pub mod schema_lifecycle;
 pub mod search_cdc;
 pub mod search_projection;
+pub mod search_reconciler;
 pub mod search_sync;
 pub mod startup_validation;
 pub mod sync_state;

@@ -70,6 +70,21 @@ RUN --mount=type=cache,target=/usr/local/cargo/registry,sharing=locked \
     mkdir -p /out/bin && \
     cp "target/${rust_target}/release/opentk-sync" /out/bin/opentk-sync
 
+FROM build-base AS build-search-reconciler
+
+RUN --mount=type=cache,target=/usr/local/cargo/registry,sharing=locked \
+    --mount=type=cache,target=/usr/local/cargo/git,sharing=locked \
+    --mount=type=cache,target=/src/target,sharing=locked \
+    case "${TARGETPLATFORM}" in \
+      linux/amd64) rust_target="x86_64-unknown-linux-musl" ;; \
+      linux/arm64) rust_target="aarch64-unknown-linux-musl" ;; \
+      *) echo "unsupported target platform: ${TARGETPLATFORM}" >&2; exit 1 ;; \
+    esac && \
+    cargo zigbuild --release --target "${rust_target}" \
+      --bin opentk-search-reconciler && \
+    mkdir -p /out/bin && \
+    cp "target/${rust_target}/release/opentk-search-reconciler" /out/bin/opentk-search-reconciler
+
 FROM scratch AS api
 
 USER 1000:1000
@@ -85,3 +100,11 @@ USER 1001:1001
 COPY --from=build-sync /out/bin/opentk-sync /bin/opentk-sync
 
 CMD ["/bin/opentk-sync"]
+
+FROM scratch AS search-reconciler
+
+USER 1002:1002
+
+COPY --from=build-search-reconciler /out/bin/opentk-search-reconciler /bin/opentk-search-reconciler
+
+CMD ["/bin/opentk-search-reconciler"]

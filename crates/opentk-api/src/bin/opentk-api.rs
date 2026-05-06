@@ -2,7 +2,6 @@ use clap::Parser;
 use opentk_api::{serve, ApiConfig, SearchBackendConfig};
 use opentk_config::{init_tracing, Config, ConfigLoader};
 use opentk_db::{
-    search_sync::SearchSyncConfig,
     startup_validation::{validate_api_dependencies, SearchRequirement},
     DatabaseConfig,
 };
@@ -46,7 +45,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 fn api_config(config: Config) -> ApiConfig {
-    let index_name = config.search.index_name;
     ApiConfig {
         bind_address: config.api.bind_address,
         database: DatabaseConfig {
@@ -56,14 +54,7 @@ fn api_config(config: Config) -> ApiConfig {
         search: SearchBackendConfig {
             url: config.search.url,
             api_key: config.search.api_key,
-            index_name: index_name.clone(),
-        },
-        search_sync: SearchSyncConfig {
-            index_name,
-            categories: config.sync.categories,
-            batch_size: config.search.batch_size,
-            max_payload_bytes: config.search.max_payload_bytes,
-            retry_limit: config.search.retry_limit,
+            index_name: config.search.index_name,
         },
         max_public_query_limit: config.api.max_public_query_limit,
     }

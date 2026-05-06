@@ -36,7 +36,6 @@ async fn api_config_builds_router_connected_to_configured_database(
             api_key: Some("startup-key".to_owned()),
             index_name: "startup_index".to_owned(),
         },
-        search_sync: opentk_db::search_sync::SearchSyncConfig::default(),
         max_public_query_limit: 1000,
     })
     .await?;
@@ -75,7 +74,6 @@ async fn api_startup_marks_search_unavailable_when_probe_fails(
             api_key: Some("startup-key".to_owned()),
             index_name: "startup_index".to_owned(),
         },
-        search_sync: opentk_db::search_sync::SearchSyncConfig::default(),
         max_public_query_limit: 1000,
     })
     .await?;
@@ -108,8 +106,8 @@ async fn api_startup_marks_search_unavailable_when_probe_fails(
     assert_eq!(
         body,
         serde_json::json!({
-            "code": "search_sync_degraded",
-            "message": "search sync degraded"
+            "code": "search_unavailable",
+            "message": "search unavailable"
         })
     );
     assert_eq!(

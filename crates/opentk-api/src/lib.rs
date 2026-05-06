@@ -19,13 +19,6 @@ use opentk_db::{
         self, DocumentContentDetail, EntityChange, EntityDetail, ReadModelError, RelationDirection,
         RelationRow,
     },
-    search_cdc::{
-        run_search_cdc_listener, SearchCdcBatchConfig, SearchCdcRuntimeStatus, SearchCdcStatus,
-    },
-    search_sync::{
-        verify_index_completeness, SearchCompletenessConfig, SearchIndexCompletenessState,
-        SearchSyncConfig,
-    },
     startup_validation::{
         validate_database_config, validate_meilisearch_config, DependencyValidationError,
     },
@@ -48,7 +41,7 @@ use std::{
     time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
 use thiserror::Error;
-use tokio::{net::TcpListener, sync::broadcast};
+use tokio::net::TcpListener;
 use utoipa::{
     openapi::Required,
     openapi::{
@@ -70,8 +63,6 @@ const DEFAULT_PUBLIC_QUERY_MAX_LIMIT: u32 = 1000;
 struct ApiState {
     pool: PgPool,
     search: Arc<dyn SearchRuntimeClient + Send + Sync>,
-    search_sync: SearchSyncConfig,
-    search_cdc_status: SearchCdcRuntimeStatus,
     max_public_query_limit: u32,
     metrics: Arc<ApiMetrics>,
 }
@@ -205,7 +196,6 @@ pub struct ApiConfig {
     pub bind_address: SocketAddr,
     pub database: DatabaseConfig,
     pub search: SearchBackendConfig,
-    pub search_sync: SearchSyncConfig,
     pub max_public_query_limit: u32,
 }
 
@@ -233,8 +223,6 @@ pub enum ApiError {
     ReadModel(#[from] ReadModelError),
     #[error("search request failed")]
     Search(#[from] SearchIndexError),
-    #[error("search sync degraded")]
-    SearchSyncDegraded,
     #[error("invalid request")]
     InvalidRequest,
     #[error("failed to bind API listener at {address}")]
@@ -282,13 +270,6 @@ impl IntoResponse for ApiError {
                     message: "search unavailable",
                 },
             ),
-            Self::SearchSyncDegraded => (
-                StatusCode::SERVICE_UNAVAILABLE,
-                ErrorResponse {
-                    code: "search_sync_degraded",
-                    message: "search sync degraded",
-                },
-            ),
             Self::InvalidRequest | Self::ReadModel(ReadModelError::InvalidLimit) => (
                 StatusCode::BAD_REQUEST,
                 ErrorResponse {
@@ -327,35 +308,7 @@ struct HealthResponse {
     postgres: &'static str,
     meilisearch: &'static str,
     search_index: &'static str,
-    search_sync: SearchSyncDaemonStatusResponse,
-}
-
-#[derive(Serialize, ToSchema)]
-struct SearchSyncDaemonStatusResponse {
-    state: &'static str,
-    last_notification_at: Option<String>,
-    pending_count: usize,
-    last_batch: Option<SearchSyncDaemonBatchResponse>,
-    last_error: Option<String>,
-    last_loop_at: Option<String>,
-    last_receive_started_at: Option<String>,
-    last_flush_started_at: Option<String>,
-    active_flush: Option<SearchSyncDaemonActiveFlushResponse>,
-    last_flush_duration_ms: Option<u64>,
-}
-
-#[derive(Serialize, ToSchema)]
-struct SearchSyncDaemonBatchResponse {
-    indexed: u64,
-    deleted: u64,
-    failed: u64,
-    duration_ms: u64,
-}
-
-#[derive(Serialize, ToSchema)]
-struct SearchSyncDaemonActiveFlushResponse {
-    started_at: String,
-    pending_count: usize,
+    search_sync: &'static str,
 }
 
 #[derive(Serialize, ToSchema)]
@@ -538,32 +491,21 @@ struct RelationResponse {
 pub async fn build_app(config: ApiConfig) -> Result<ApiServer, ApiError> {
     validate_database_config(&config.database).await?;
     let pool = connect(&config.database).await?;
-    let search_cdc_status = SearchCdcRuntimeStatus::new();
-    let search = configured_search_client(
-        SearchBackendConfig {
-            url: config.search.url,
-            api_key: config.search.api_key,
-            index_name: config.search.index_name,
-        },
-        &search_cdc_status,
-    )
+    let search = configured_search_client(SearchBackendConfig {
+        url: config.search.url,
+        api_key: config.search.api_key,
+        index_name: config.search.index_name,
+    })
     .await;
 
     Ok(ApiServer {
         bind_address: config.bind_address,
-        router: router_with_search_cdc_status_and_public_limit(
-            pool,
-            search,
-            config.search_sync,
-            search_cdc_status,
-            config.max_public_query_limit,
-        ),
+        router: router_with_search_and_public_limit(pool, search, config.max_public_query_limit),
     })
 }
 
 async fn configured_search_client(
     config: SearchBackendConfig,
-    search_cdc_status: &SearchCdcRuntimeStatus,
 ) -> Arc<dyn SearchRuntimeClient + Send + Sync> {
     let search = Arc::new(MeilisearchClient::new(
         config.url.clone(),
@@ -574,7 +516,6 @@ async fn configured_search_client(
         validate_meilisearch_config(config.url, config.api_key, config.index_name).await
     {
         tracing::error!(%error, "search backend unavailable at startup");
-        search_cdc_status.record_error(&error);
         return Arc::new(UnavailableSearchClient);
     }
     search
@@ -603,7 +544,6 @@ pub async fn serve_with_shutdown(
 ) -> Result<(), ApiError> {
     validate_database_config(&config.database).await?;
     let pool = connect(&config.database).await?;
-    let search_cdc_status = SearchCdcRuntimeStatus::new();
     let concrete_search = Arc::new(MeilisearchClient::new(
         config.search.url.clone(),
         config.search.api_key.clone(),
@@ -619,17 +559,14 @@ pub async fn serve_with_shutdown(
         Ok(_) => concrete_search.clone(),
         Err(error) => {
             tracing::error!(%error, "search backend unavailable at startup");
-            search_cdc_status.record_error(&error);
             Arc::new(UnavailableSearchClient)
         }
     };
     let server = ApiServer {
         bind_address: config.bind_address,
-        router: router_with_search_cdc_status_and_public_limit(
+        router: router_with_search_and_public_limit(
             pool.clone(),
             search,
-            config.search_sync.clone(),
-            search_cdc_status.clone(),
             config.max_public_query_limit,
         ),
     };
@@ -639,36 +576,10 @@ pub async fn serve_with_shutdown(
             address: server.bind_address,
             source,
         })?;
-    let (cdc_shutdown_tx, cdc_shutdown_rx) = broadcast::channel(1);
-    let cdc_status = search_cdc_status.clone();
-    let cdc_database_url = config.database.url;
-    let cdc_search_config = config.search_sync;
-    let cdc_task = tokio::spawn(async move {
-        if let Err(error) = run_search_cdc_listener(
-            cdc_database_url,
-            pool,
-            concrete_search,
-            cdc_search_config,
-            SearchCdcBatchConfig::default(),
-            cdc_shutdown_rx,
-            cdc_status.clone(),
-        )
-        .await
-        {
-            tracing::error!(%error, "search CDC listener stopped");
-            cdc_status.record_error(&error);
-        }
-    });
-
     axum::serve(listener, server.router)
         .with_graceful_shutdown(shutdown)
         .await
         .map_err(ApiError::Serve)?;
-    match cdc_shutdown_tx.send(()) {
-        Ok(_) => {}
-        Err(error) => tracing::warn!(%error, "search CDC shutdown signal had no receivers"),
-    }
-    cdc_task.await.map_err(ApiError::BackgroundTask)?;
     Ok(())
 }
 
@@ -676,35 +587,12 @@ pub fn router_with_search(
     pool: PgPool,
     search_client: Arc<dyn SearchRuntimeClient + Send + Sync>,
 ) -> Router {
-    router_with_search_cdc_status_and_public_limit(
-        pool,
-        search_client,
-        SearchSyncConfig::default(),
-        SearchCdcRuntimeStatus::new(),
-        DEFAULT_PUBLIC_QUERY_MAX_LIMIT,
-    )
+    router_with_search_and_public_limit(pool, search_client, DEFAULT_PUBLIC_QUERY_MAX_LIMIT)
 }
 
-pub fn router_with_search_and_cdc_status(
+pub fn router_with_search_and_public_limit(
     pool: PgPool,
     search_client: Arc<dyn SearchRuntimeClient + Send + Sync>,
-    search_sync: SearchSyncConfig,
-    search_cdc_status: SearchCdcRuntimeStatus,
-) -> Router {
-    router_with_search_cdc_status_and_public_limit(
-        pool,
-        search_client,
-        search_sync,
-        search_cdc_status,
-        DEFAULT_PUBLIC_QUERY_MAX_LIMIT,
-    )
-}
-
-pub fn router_with_search_cdc_status_and_public_limit(
-    pool: PgPool,
-    search_client: Arc<dyn SearchRuntimeClient + Send + Sync>,
-    search_sync: SearchSyncConfig,
-    search_cdc_status: SearchCdcRuntimeStatus,
     max_public_query_limit: u32,
 ) -> Router {
     let max_public_query_limit = max_public_query_limit.max(1);
@@ -714,7 +602,6 @@ pub fn router_with_search_cdc_status_and_public_limit(
         .route("/metrics", get(metrics_handler))
         .route("/openapi.json", get(openapi_json))
         .route("/search", get(search::search))
-        .route("/admin/search-sync/status", get(search_sync_daemon_status))
         .route("/categories", get(categories))
         .route("/sync/status", get(sync_status))
         .route("/changes/{category}", get(changes))
@@ -735,8 +622,6 @@ pub fn router_with_search_cdc_status_and_public_limit(
         .with_state(ApiState {
             pool,
             search: search_client,
-            search_sync,
-            search_cdc_status,
             max_public_query_limit,
             metrics,
         })
@@ -1107,9 +992,6 @@ fn api_components() -> Components {
     ComponentsBuilder::new()
         .schema_from::<ErrorResponse>()
         .schema_from::<HealthResponse>()
-        .schema_from::<SearchSyncDaemonStatusResponse>()
-        .schema_from::<SearchSyncDaemonBatchResponse>()
-        .schema_from::<SearchSyncDaemonActiveFlushResponse>()
         .schema_from::<CategoryMetadataResponse>()
         .schema_from::<CategoryMetadata>()
         .schema_from::<ChangePageResponse>()
@@ -1170,7 +1052,6 @@ async fn health(
         .execute(&state.pool)
         .await
         .map_err(ApiError::DatabaseUnavailable)?;
-    let search_sync = state.search_cdc_status.snapshot();
     let meilisearch = match state.search.health().await {
         Ok(()) => "ok",
         Err(error) => {
@@ -1178,37 +1059,12 @@ async fn health(
             "unavailable"
         }
     };
-    let search_index = match verify_index_completeness(
-        &state.pool,
-        state.search.as_ref(),
-        &state.search_sync,
-        &SearchCompletenessConfig::default(),
-    )
-    .await
-    {
-        Ok(completeness) => {
-            if completeness
-                .iter()
-                .any(|category| category.state == SearchIndexCompletenessState::Degraded)
-            {
-                tracing::warn!(?completeness, "search index completeness degraded");
-                "degraded"
-            } else {
-                "ok"
-            }
-        }
-        Err(error) => {
-            tracing::warn!(%error, "search index completeness check failed");
-            "degraded"
-        }
+    let search_index = meilisearch;
+    let status = if meilisearch == "ok" {
+        "ok"
+    } else {
+        "degraded"
     };
-    let search_sync_response = search_sync_daemon_status_response(search_sync.clone());
-    let status =
-        if meilisearch == "ok" && search_index == "ok" && search_sync.state.is_search_usable() {
-            "ok"
-        } else {
-            "degraded"
-        };
 
     Ok((
         StatusCode::OK,
@@ -1217,7 +1073,7 @@ async fn health(
             postgres: "ok",
             meilisearch,
             search_index,
-            search_sync: search_sync_response,
+            search_sync: "external_reconciler",
         }),
     ))
 }
@@ -1286,49 +1142,6 @@ fn status_class(status: StatusCode) -> &'static str {
         400..=499 => "4xx",
         500..=599 => "5xx",
         _ => "unknown",
-    }
-}
-
-async fn search_sync_daemon_status(
-    State(state): State<ApiState>,
-) -> Json<SearchSyncDaemonStatusResponse> {
-    Json(search_sync_daemon_status_response(
-        state.search_cdc_status.snapshot(),
-    ))
-}
-
-pub(crate) fn ensure_search_sync_usable(state: &ApiState) -> Result<(), ApiError> {
-    if state.search_cdc_status.snapshot().state.is_search_usable() {
-        Ok(())
-    } else {
-        Err(ApiError::SearchSyncDegraded)
-    }
-}
-
-fn search_sync_daemon_status_response(status: SearchCdcStatus) -> SearchSyncDaemonStatusResponse {
-    SearchSyncDaemonStatusResponse {
-        state: status.state.as_str(),
-        last_notification_at: status.last_notification_at.map(|time| time.to_rfc3339()),
-        pending_count: status.pending_count,
-        last_batch: status
-            .last_batch
-            .map(|batch| SearchSyncDaemonBatchResponse {
-                indexed: batch.indexed,
-                deleted: batch.deleted,
-                failed: batch.failed,
-                duration_ms: batch.duration_ms,
-            }),
-        last_error: status.last_error,
-        last_loop_at: status.last_loop_at.map(|time| time.to_rfc3339()),
-        last_receive_started_at: status.last_receive_started_at.map(|time| time.to_rfc3339()),
-        last_flush_started_at: status.last_flush_started_at.map(|time| time.to_rfc3339()),
-        active_flush: status
-            .active_flush
-            .map(|flush| SearchSyncDaemonActiveFlushResponse {
-                started_at: flush.started_at.to_rfc3339(),
-                pending_count: flush.pending_count,
-            }),
-        last_flush_duration_ms: status.last_flush_duration_ms,
     }
 }
 

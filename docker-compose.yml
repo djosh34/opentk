@@ -78,6 +78,35 @@ services:
     networks:
       - opentk
 
+  search-reconciler:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+      target: search-reconciler
+    restart: unless-stopped
+    command: ["--config", "/etc/opentk/config.toml", "run"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      meilisearch:
+        condition: service_healthy
+    volumes:
+      - ./config/opentk.compose.toml:/etc/opentk/config.toml:ro
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "/bin/opentk-search-reconciler",
+          "--config",
+          "/etc/opentk/config.toml",
+          "--health-check",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+    networks:
+      - opentk
+
 networks:
   opentk:
     name: opentk

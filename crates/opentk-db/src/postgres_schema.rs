@@ -53,6 +53,7 @@ pub enum TableKind {
     DocumentContent,
     SearchIndexCursor,
     SearchIndexFailure,
+    SearchReconcilerScratch,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -126,6 +127,7 @@ pub enum IndexPurpose {
     SearchIndexCursor,
     SearchIndexFailureRetry,
     SearchIndexFailureSource,
+    SearchReconcilerScratch,
     ForeignKeyPath,
 }
 
@@ -138,6 +140,7 @@ pub fn schema() -> SchemaSpec {
         sync_entity_table(),
         search_index_cursor_table(),
         search_index_failure_table(),
+        search_reconciler_scratch_table(),
     ];
     let mut indexes = vec![
         index(
@@ -192,6 +195,17 @@ pub fn schema() -> SchemaSpec {
             ],
             false,
             IndexPurpose::SearchIndexFailureSource,
+        ),
+        index(
+            "search_reconciler_scratch",
+            &[
+                "index_name",
+                "source_category",
+                "latest_skiptoken",
+                "source_id",
+            ],
+            false,
+            IndexPurpose::SearchReconcilerScratch,
         ),
     ];
 
@@ -442,6 +456,31 @@ fn search_index_failure_table() -> TableSpec {
             ]),
         }],
         check_constraints: Vec::new(),
+    }
+}
+
+fn search_reconciler_scratch_table() -> TableSpec {
+    TableSpec {
+        name: "search_reconciler_scratch".to_owned(),
+        kind: TableKind::SearchReconcilerScratch,
+        columns: columns(&[
+            ("index_name", SqlType::Text, false),
+            ("source_category", SqlType::Text, false),
+            ("source_id", SqlType::Uuid, false),
+            ("latest_skiptoken", SqlType::BigInteger, false),
+            ("operation", SqlType::Text, false),
+            ("document_id", SqlType::Text, false),
+            ("payload", SqlType::Jsonb, true),
+            ("payload_bytes", SqlType::BigInteger, false),
+            ("created_at", SqlType::TimestampTz, false),
+        ]),
+        primary_key: names(&["index_name", "source_category", "document_id"]),
+        foreign_keys: Vec::new(),
+        unique_constraints: Vec::new(),
+        check_constraints: vec![CheckConstraintSpec {
+            name: "search_reconciler_scratch_operation_check".to_owned(),
+            expression: "operation IN ('upsert', 'delete')".to_owned(),
+        }],
     }
 }
 
