@@ -10,7 +10,6 @@ use uuid::Uuid;
 use crate::postgres_schema::{self, ColumnSpec, SchemaSpec, SqlType, TableKind, TableSpec};
 
 const MIN_LIMIT: i64 = 1;
-const MAX_LIMIT: i64 = 500;
 static READ_SCHEMA: LazyLock<SchemaSpec> = LazyLock::new(postgres_schema::schema);
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -127,7 +126,7 @@ pub enum ReadModelError {
     NotFound,
     #[error("document content not found")]
     DocumentContentNotFound,
-    #[error("limit must be between {MIN_LIMIT} and {MAX_LIMIT}")]
+    #[error("limit must be at least {MIN_LIMIT}")]
     InvalidLimit,
     #[error("database read failed")]
     Sql(#[from] sqlx::Error),
@@ -223,7 +222,7 @@ pub async fn list_changes(
     limit: i64,
 ) -> Result<ReadPage<EntityChange>, ReadModelError> {
     entity_table(category)?;
-    if !(MIN_LIMIT..=MAX_LIMIT).contains(&limit) {
+    if limit < MIN_LIMIT {
         return Err(ReadModelError::InvalidLimit);
     }
 

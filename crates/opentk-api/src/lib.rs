@@ -62,6 +62,8 @@ use utoipa::{
     ToSchema,
 };
 
+const CHANGES_API_MAX_LIMIT: u32 = 500;
+
 #[derive(Clone)]
 struct ApiState {
     pool: PgPool,
@@ -1284,7 +1286,11 @@ async fn changes(
     query: Result<Query<ChangesQuery>, QueryRejection>,
 ) -> Result<Json<ChangePageResponse>, ApiError> {
     let Query(query) = query.map_err(|_| ApiError::InvalidRequest)?;
-    let limit = i64::from(query.limit.unwrap_or(100));
+    let requested_limit = query.limit.unwrap_or(100);
+    if requested_limit == 0 || requested_limit > CHANGES_API_MAX_LIMIT {
+        return Err(ApiError::InvalidRequest);
+    }
+    let limit = i64::from(requested_limit);
     let page = read_model::list_changes(&state.pool, &category, query.after, limit).await?;
     Ok(Json(ChangePageResponse {
         category,

@@ -79,7 +79,7 @@ async fn full_reindex_builds_document_index_from_postgres() -> Result<(), sqlx::
         &SearchSyncConfig {
             index_name: "opentk_entities".to_owned(),
             categories: vec!["Document".to_owned()],
-            batch_size: 10,
+            batch_size: 501,
             retry_limit: 3,
         },
     )
