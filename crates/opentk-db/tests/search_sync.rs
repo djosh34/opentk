@@ -502,7 +502,7 @@ async fn full_reindex_indexes_person_activity_metadata_and_relation_labels(
 }
 
 #[tokio::test]
-async fn incoming_relation_labels_use_related_source_and_do_not_render_self_labels(
+async fn incoming_relation_labels_are_not_indexed_as_person_backreferences(
 ) -> Result<(), sqlx::Error> {
     let pool = migrated_pool("search_sync_relation_orientation").await?;
     let person_id = Uuid::parse_str("33333333-3333-4333-8333-333333333333").expect("valid uuid");
@@ -551,27 +551,8 @@ async fn incoming_relation_labels_use_related_source_and_do_not_render_self_labe
         })
         .expect("person is indexed");
     assert!(
-        person
-            .relation_labels
-            .iter()
-            .all(|label| !label.contains("persoon Persoon")),
-        "incoming person relations must not be indexed as repeated self labels"
-    );
-    assert!(
-        person
-            .relation_labels
-            .iter()
-            .any(|label| label.contains("persoon ActiviteitActor")),
-        "incoming person relations keep related endpoint labels for recall"
-    );
-    assert_eq!(
-        person.relation_labels.len(),
-        person
-            .relation_labels
-            .iter()
-            .collect::<std::collections::BTreeSet<_>>()
-            .len(),
-        "relation labels are deduplicated"
+        person.relation_labels.is_empty(),
+        "incoming person backreferences are noisy search fuel and must not be indexed"
     );
 
     Ok(())

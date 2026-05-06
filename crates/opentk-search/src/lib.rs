@@ -618,7 +618,7 @@ impl MeilisearchClient {
     }
 
     async fn wait_for_task(&self, task_uid: u64) -> Result<(), SearchIndexError> {
-        for _ in 0..100 {
+        for _ in 0..1200 {
             let response = self
                 .request(reqwest::Method::GET, &format!("/tasks/{task_uid}"))
                 .send()
@@ -642,7 +642,7 @@ impl MeilisearchClient {
                             .unwrap_or_else(|| format!("Meilisearch task {task_uid} failed")),
                     ));
                 }
-                _ => tokio::time::sleep(Duration::from_millis(50)).await,
+                _ => tokio::time::sleep(Duration::from_millis(250)).await,
             }
         }
         Err(SearchIndexError::InvalidResponse(format!(

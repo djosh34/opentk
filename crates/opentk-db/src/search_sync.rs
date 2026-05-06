@@ -692,7 +692,7 @@ async fn relation_labels(
     source_id: Uuid,
 ) -> Result<Vec<SearchRelationLabel>, SearchSyncError> {
     let relations =
-        read_model::list_relations(pool, category, source_id, RelationDirection::Both).await?;
+        read_model::list_relations(pool, category, source_id, RelationDirection::Outgoing).await?;
     let mut dedupe = BTreeSet::new();
     let mut labels = Vec::with_capacity(relations.len());
     for relation in relations {
