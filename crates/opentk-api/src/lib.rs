@@ -3,12 +3,16 @@
 mod search;
 
 use axum::{
+    body::Body,
+    extract::MatchedPath,
     extract::{rejection::QueryRejection, Path, Query, State},
-    http::StatusCode,
+    http::{header::CONTENT_TYPE, Method, Request, StatusCode},
+    middleware::{from_fn_with_state, Next},
     response::{IntoResponse, Response},
     routing::get,
     Json, Router,
 };
+use chrono::DateTime;
 use opentk_db::{
     connect,
     read_model::{
@@ -28,10 +32,17 @@ use opentk_search::{
     MeilisearchClient, SearchIndexError, SearchQueryClient, SearchRequest, SearchResponse,
     SearchRuntimeClient,
 };
+use prometheus::{CounterVec, Encoder, GaugeVec, HistogramOpts, HistogramVec, Opts, Registry};
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 use sqlx::PgPool;
-use std::{future::Future, net::SocketAddr, pin::Pin, sync::Arc};
+use std::{
+    future::Future,
+    net::SocketAddr,
+    pin::Pin,
+    sync::Arc,
+    time::{Duration, Instant, SystemTime, UNIX_EPOCH},
+};
 use thiserror::Error;
 use tokio::{net::TcpListener, sync::broadcast};
 use utoipa::{
@@ -53,6 +64,131 @@ struct ApiState {
     pool: PgPool,
     search: Arc<dyn SearchRuntimeClient + Send + Sync>,
     search_cdc_status: SearchCdcRuntimeStatus,
+    metrics: Arc<ApiMetrics>,
+}
+
+struct ApiMetrics {
+    registry: Registry,
+    http_requests: CounterVec,
+    http_request_duration: HistogramVec,
+    sync_category_lag: GaugeVec,
+    sync_category_last_successful_sync: GaugeVec,
+    sync_category_caught_up: GaugeVec,
+}
+
+impl ApiMetrics {
+    fn new() -> Self {
+        let registry = Registry::new();
+        let http_requests = CounterVec::new(
+            Opts::new(
+                "opentk_http_requests_total",
+                "Total OpenTK API HTTP requests by method, matched route, and status class.",
+            ),
+            &["method", "route", "status_class"],
+        )
+        .expect("static HTTP request counter definition is valid");
+        let http_request_duration = HistogramVec::new(
+            HistogramOpts::new(
+                "opentk_http_request_duration_seconds",
+                "OpenTK API HTTP request duration by method, matched route, and status class.",
+            )
+            .buckets(vec![
+                0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0, 10.0,
+            ]),
+            &["method", "route", "status_class"],
+        )
+        .expect("static HTTP request duration histogram definition is valid");
+        let sync_category_lag = GaugeVec::new(
+            Opts::new(
+                "opentk_sync_category_lag_seconds",
+                "Seconds since the last successful OpenTK source category sync.",
+            ),
+            &["category"],
+        )
+        .expect("static sync category lag gauge definition is valid");
+        let sync_category_last_successful_sync = GaugeVec::new(
+            Opts::new(
+                "opentk_sync_category_last_successful_sync_timestamp_seconds",
+                "Unix timestamp of the last successful OpenTK source category sync.",
+            ),
+            &["category"],
+        )
+        .expect("static sync category last successful sync gauge definition is valid");
+        let sync_category_caught_up = GaugeVec::new(
+            Opts::new(
+                "opentk_sync_category_caught_up_timestamp_seconds",
+                "Unix timestamp when the OpenTK source category last reached caught-up state.",
+            ),
+            &["category"],
+        )
+        .expect("static sync category caught-up gauge definition is valid");
+
+        registry
+            .register(Box::new(http_requests.clone()))
+            .expect("HTTP request counter registration is unique");
+        registry
+            .register(Box::new(http_request_duration.clone()))
+            .expect("HTTP request duration histogram registration is unique");
+        registry
+            .register(Box::new(sync_category_lag.clone()))
+            .expect("sync category lag gauge registration is unique");
+        registry
+            .register(Box::new(sync_category_last_successful_sync.clone()))
+            .expect("sync category last successful sync gauge registration is unique");
+        registry
+            .register(Box::new(sync_category_caught_up.clone()))
+            .expect("sync category caught-up gauge registration is unique");
+
+        Self {
+            registry,
+            http_requests,
+            http_request_duration,
+            sync_category_lag,
+            sync_category_last_successful_sync,
+            sync_category_caught_up,
+        }
+    }
+
+    async fn refresh_sync_categories(&self, pool: &PgPool) -> Result<(), ReadModelError> {
+        let now = now_timestamp_seconds();
+        for category in read_model::list_category_progress(pool).await? {
+            let labels = [category.category.as_str()];
+            let last_successful_sync =
+                timestamp_seconds(category.last_synced_at.as_deref()).unwrap_or(f64::NAN);
+            let caught_up_at =
+                timestamp_seconds(category.caught_up_at.as_deref()).unwrap_or(f64::NAN);
+            let lag_seconds = if last_successful_sync.is_finite() {
+                (now - last_successful_sync).max(0.0)
+            } else {
+                f64::NAN
+            };
+
+            self.sync_category_lag
+                .with_label_values(&labels)
+                .set(lag_seconds);
+            self.sync_category_last_successful_sync
+                .with_label_values(&labels)
+                .set(last_successful_sync);
+            self.sync_category_caught_up
+                .with_label_values(&labels)
+                .set(caught_up_at);
+        }
+        Ok(())
+    }
+
+    fn observe_http_request(
+        &self,
+        method: &Method,
+        route: &str,
+        status: StatusCode,
+        duration_seconds: f64,
+    ) {
+        let labels = [method.as_str(), route, status_class(status)];
+        self.http_requests.with_label_values(&labels).inc();
+        self.http_request_duration
+            .with_label_values(&labels)
+            .observe(duration_seconds);
+    }
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -101,6 +237,8 @@ pub enum ApiError {
     Serve(#[source] std::io::Error),
     #[error("API background task failed")]
     BackgroundTask(#[source] tokio::task::JoinError),
+    #[error("metrics encoding failed")]
+    MetricsEncode(#[source] prometheus::Error),
 }
 
 impl IntoResponse for ApiError {
@@ -153,7 +291,8 @@ impl IntoResponse for ApiError {
             | Self::ReadModel(ReadModelError::Sql(_))
             | Self::Bind { .. }
             | Self::Serve(_)
-            | Self::BackgroundTask(_) => (
+            | Self::BackgroundTask(_)
+            | Self::MetricsEncode(_) => (
                 StatusCode::INTERNAL_SERVER_ERROR,
                 ErrorResponse {
                     code: "internal_error",
@@ -506,8 +645,10 @@ pub fn router_with_search_and_cdc_status(
     search_client: Arc<dyn SearchRuntimeClient + Send + Sync>,
     search_cdc_status: SearchCdcRuntimeStatus,
 ) -> Router {
+    let metrics = Arc::new(ApiMetrics::new());
     Router::new()
         .route("/health", get(health))
+        .route("/metrics", get(metrics_handler))
         .route("/openapi.json", get(openapi_json))
         .route("/search", get(search::search))
         .route("/admin/search-sync/status", get(search_sync_daemon_status))
@@ -520,10 +661,15 @@ pub fn router_with_search_and_cdc_status(
         .route("/activities/{source_id}", get(activity_detail))
         .route("/persons/{source_id}", get(person_detail))
         .route("/relations/{category}/{source_id}", get(relations))
+        .layer(from_fn_with_state(
+            Arc::clone(&metrics),
+            record_http_metrics,
+        ))
         .with_state(ApiState {
             pool,
             search: search_client,
             search_cdc_status,
+            metrics,
         })
 }
 
@@ -900,6 +1046,69 @@ async fn health(
 
 async fn openapi_json() -> Json<utoipa::openapi::OpenApi> {
     Json(openapi())
+}
+
+async fn metrics_handler(State(state): State<ApiState>) -> Result<Response, ApiError> {
+    state.metrics.refresh_sync_categories(&state.pool).await?;
+
+    let encoder = prometheus::TextEncoder::new();
+    let metric_families = state.metrics.registry.gather();
+    let mut buffer = Vec::new();
+    encoder
+        .encode(&metric_families, &mut buffer)
+        .map_err(ApiError::MetricsEncode)?;
+
+    Ok(([(CONTENT_TYPE, encoder.format_type())], buffer).into_response())
+}
+
+async fn record_http_metrics(
+    State(metrics): State<Arc<ApiMetrics>>,
+    request: Request<Body>,
+    next: Next,
+) -> Response {
+    if request.uri().path() == "/metrics" {
+        return next.run(request).await;
+    }
+
+    let method = request.method().clone();
+    let route = request
+        .extensions()
+        .get::<MatchedPath>()
+        .map_or("_unmatched", MatchedPath::as_str)
+        .to_owned();
+    let started_at = Instant::now();
+    let response = next.run(request).await;
+    metrics.observe_http_request(
+        &method,
+        &route,
+        response.status(),
+        started_at.elapsed().as_secs_f64(),
+    );
+    response
+}
+
+fn timestamp_seconds(timestamp: Option<&str>) -> Option<f64> {
+    let time = DateTime::parse_from_rfc3339(timestamp?).ok()?;
+    let seconds = u64::try_from(time.timestamp()).ok()?;
+    Some(Duration::new(seconds, time.timestamp_subsec_nanos()).as_secs_f64())
+}
+
+fn now_timestamp_seconds() -> f64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .expect("system clock must be after the Unix epoch")
+        .as_secs_f64()
+}
+
+fn status_class(status: StatusCode) -> &'static str {
+    match status.as_u16() {
+        100..=199 => "1xx",
+        200..=299 => "2xx",
+        300..=399 => "3xx",
+        400..=499 => "4xx",
+        500..=599 => "5xx",
+        _ => "unknown",
+    }
 }
 
 async fn search_sync_daemon_status(

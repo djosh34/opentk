@@ -27,6 +27,7 @@ opentk-search-eval = { path = "crates/opentk-search-eval" }
 opentk-sync = { path = "crates/opentk-sync" }
 quick-xml = "0.37.2"
 pdf-extract = "0.10.0"
+prometheus = "0.13.4"
 reqwest = { version = "0.12.12", default-features = false, features = ["rustls-tls"] }
 roxmltree = "0.20.0"
 scraper = "0.26.0"
