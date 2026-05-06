@@ -60,6 +60,7 @@ pub struct SearchConfig {
 pub struct ApiConfig {
     pub bind_address: SocketAddr,
     pub cors_origins: Vec<String>,
+    pub max_public_query_limit: u32,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -140,6 +141,7 @@ pub struct RedactedSearchConfig {
 pub struct RedactedApiConfig {
     pub bind_address: String,
     pub cors_origins: Vec<String>,
+    pub max_public_query_limit: u32,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
@@ -271,6 +273,7 @@ impl Config {
             api: RedactedApiConfig {
                 bind_address: self.api.bind_address.to_string(),
                 cors_origins: self.api.cors_origins.clone(),
+                max_public_query_limit: self.api.max_public_query_limit,
             },
             log: RedactedLogConfig {
                 format: self.log.format,
@@ -396,6 +399,7 @@ struct RawSearchConfig {
 struct RawApiConfig {
     bind_address: Option<String>,
     cors_origins: Option<Vec<String>>,
+    max_public_query_limit: Option<u32>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -513,6 +517,11 @@ impl TryFrom<RawApiConfig> for ApiConfig {
         Ok(Self {
             bind_address,
             cors_origins: raw.cors_origins.unwrap_or_default(),
+            max_public_query_limit: {
+                let limit = raw.max_public_query_limit.unwrap_or(1000);
+                ensure_positive_u32(limit, "api.max_public_query_limit")?;
+                limit
+            },
         })
     }
 }
@@ -573,6 +582,7 @@ impl OptionalConfig<RawApiConfig> for Option<RawApiConfig> {
         self.unwrap_or(RawApiConfig {
             bind_address: None,
             cors_origins: None,
+            max_public_query_limit: None,
         })
     }
 }

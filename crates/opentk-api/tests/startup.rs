@@ -37,6 +37,7 @@ async fn api_config_builds_router_connected_to_configured_database(
             index_name: "startup_index".to_owned(),
         },
         search_sync: opentk_db::search_sync::SearchSyncConfig::default(),
+        max_public_query_limit: 1000,
     })
     .await?;
 
@@ -75,6 +76,7 @@ async fn api_startup_marks_search_unavailable_when_probe_fails(
             index_name: "startup_index".to_owned(),
         },
         search_sync: opentk_db::search_sync::SearchSyncConfig::default(),
+        max_public_query_limit: 1000,
     })
     .await?;
 

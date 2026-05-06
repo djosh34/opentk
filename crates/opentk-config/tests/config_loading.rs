@@ -41,6 +41,7 @@ fn required_database_url_loads_with_compiled_defaults() {
     assert_eq!(config.search.retry_limit, 3);
     assert_eq!(config.api.bind_address.to_string(), "0.0.0.0:3000");
     assert!(config.api.cors_origins.is_empty());
+    assert_eq!(config.api.max_public_query_limit, 1000);
     assert_eq!(config.log.format, LogFormat::Pretty);
     assert_eq!(config.log.level, "info");
 }
@@ -112,6 +113,10 @@ fn invalid_config_reports_field_context() {
             "api.bind_address",
         ),
         (
+            "[database]\nurl = 'postgres://example.test/db'\n[api]\nmax_public_query_limit = 0",
+            "api.max_public_query_limit",
+        ),
+        (
             "[database]\nurl = 'postgres://example.test/db'\n[log]\nformat = 'xml'",
             "format",
         ),
@@ -156,6 +161,7 @@ fn explicit_values_override_defaults() {
         [api]
         bind_address = "127.0.0.1:3001"
         cors_origins = ["https://app.example.test"]
+        max_public_query_limit = 2500
 
         [log]
         format = "json"
@@ -180,6 +186,7 @@ fn explicit_values_override_defaults() {
     assert_eq!(config.search.retry_limit, 17);
     assert_eq!(config.api.bind_address.to_string(), "127.0.0.1:3001");
     assert_eq!(config.api.cors_origins, ["https://app.example.test"]);
+    assert_eq!(config.api.max_public_query_limit, 2500);
     assert_eq!(config.log.format, LogFormat::Json);
     assert_eq!(config.log.level, "debug");
 }
@@ -212,6 +219,7 @@ fn redacted_config_masks_secrets_and_keeps_operational_settings() {
         [api]
         bind_address = "127.0.0.1:3001"
         cors_origins = ["https://app.example.test"]
+        max_public_query_limit = 2500
 
         [log]
         format = "json"
@@ -237,6 +245,7 @@ fn redacted_config_masks_secrets_and_keeps_operational_settings() {
     assert_eq!(redacted["search"]["retry_limit"], 17);
     assert_eq!(redacted["sync"]["base_url"], "https://sync.example.test/");
     assert_eq!(redacted["api"]["bind_address"], "127.0.0.1:3001");
+    assert_eq!(redacted["api"]["max_public_query_limit"], 2500);
     assert_eq!(redacted["log"]["level"], "debug");
     assert!(
         !redacted.to_string().contains("postgres://"),

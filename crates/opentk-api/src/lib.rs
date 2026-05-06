@@ -40,6 +40,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 use sqlx::PgPool;
 use std::{
+    collections::HashMap,
     future::Future,
     net::SocketAddr,
     pin::Pin,
@@ -63,6 +64,7 @@ use utoipa::{
 };
 
 const CHANGES_API_MAX_LIMIT: u32 = 500;
+const DEFAULT_PUBLIC_QUERY_MAX_LIMIT: u32 = 1000;
 
 #[derive(Clone)]
 struct ApiState {
@@ -70,6 +72,7 @@ struct ApiState {
     search: Arc<dyn SearchRuntimeClient + Send + Sync>,
     search_sync: SearchSyncConfig,
     search_cdc_status: SearchCdcRuntimeStatus,
+    max_public_query_limit: u32,
     metrics: Arc<ApiMetrics>,
 }
 
@@ -203,6 +206,7 @@ pub struct ApiConfig {
     pub database: DatabaseConfig,
     pub search: SearchBackendConfig,
     pub search_sync: SearchSyncConfig,
+    pub max_public_query_limit: u32,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -439,6 +443,22 @@ enum RelationLookupDirection {
     Both,
 }
 
+#[derive(Deserialize)]
+struct EntityListQuery {
+    limit: Option<u32>,
+    sort: Option<String>,
+    #[serde(default)]
+    relations: RelationExpansion,
+}
+
+#[derive(Serialize, ToSchema)]
+struct EntityListResponse {
+    category: String,
+    items: Vec<EntityDetailResponse>,
+    has_more: bool,
+    effective_limit: u32,
+}
+
 #[derive(Serialize, ToSchema)]
 struct EntityDetailResponse {
     metadata: EntityChangeResponse,
@@ -531,11 +551,12 @@ pub async fn build_app(config: ApiConfig) -> Result<ApiServer, ApiError> {
 
     Ok(ApiServer {
         bind_address: config.bind_address,
-        router: router_with_search_and_cdc_status(
+        router: router_with_search_cdc_status_and_public_limit(
             pool,
             search,
             config.search_sync,
             search_cdc_status,
+            config.max_public_query_limit,
         ),
     })
 }
@@ -604,11 +625,12 @@ pub async fn serve_with_shutdown(
     };
     let server = ApiServer {
         bind_address: config.bind_address,
-        router: router_with_search_and_cdc_status(
+        router: router_with_search_cdc_status_and_public_limit(
             pool.clone(),
             search,
             config.search_sync.clone(),
             search_cdc_status.clone(),
+            config.max_public_query_limit,
         ),
     };
     let listener = TcpListener::bind(server.bind_address)
@@ -654,11 +676,12 @@ pub fn router_with_search(
     pool: PgPool,
     search_client: Arc<dyn SearchRuntimeClient + Send + Sync>,
 ) -> Router {
-    router_with_search_and_cdc_status(
+    router_with_search_cdc_status_and_public_limit(
         pool,
         search_client,
         SearchSyncConfig::default(),
         SearchCdcRuntimeStatus::new(),
+        DEFAULT_PUBLIC_QUERY_MAX_LIMIT,
     )
 }
 
@@ -668,6 +691,23 @@ pub fn router_with_search_and_cdc_status(
     search_sync: SearchSyncConfig,
     search_cdc_status: SearchCdcRuntimeStatus,
 ) -> Router {
+    router_with_search_cdc_status_and_public_limit(
+        pool,
+        search_client,
+        search_sync,
+        search_cdc_status,
+        DEFAULT_PUBLIC_QUERY_MAX_LIMIT,
+    )
+}
+
+pub fn router_with_search_cdc_status_and_public_limit(
+    pool: PgPool,
+    search_client: Arc<dyn SearchRuntimeClient + Send + Sync>,
+    search_sync: SearchSyncConfig,
+    search_cdc_status: SearchCdcRuntimeStatus,
+    max_public_query_limit: u32,
+) -> Router {
+    let max_public_query_limit = max_public_query_limit.max(1);
     let metrics = Arc::new(ApiMetrics::new());
     Router::new()
         .route("/health", get(health))
@@ -678,10 +718,14 @@ pub fn router_with_search_and_cdc_status(
         .route("/categories", get(categories))
         .route("/sync/status", get(sync_status))
         .route("/changes/{category}", get(changes))
+        .route("/entities/{category}", get(entity_list))
         .route("/entities/{category}/{source_id}", get(entity_detail))
+        .route("/documents", get(document_list))
         .route("/documents/{source_id}", get(document_detail))
         .route("/documents/{source_id}/content", get(document_content))
+        .route("/activities", get(activity_list))
         .route("/activities/{source_id}", get(activity_detail))
+        .route("/persons", get(person_list))
         .route("/persons/{source_id}", get(person_detail))
         .route("/relations/{category}/{source_id}", get(relations))
         .layer(from_fn_with_state(
@@ -693,6 +737,7 @@ pub fn router_with_search_and_cdc_status(
             search: search_client,
             search_sync,
             search_cdc_status,
+            max_public_query_limit,
             metrics,
         })
 }
@@ -853,14 +898,28 @@ fn read_paths(paths: PathsBuilder) -> PathsBuilder {
 }
 
 fn detail_paths(paths: PathsBuilder) -> PathsBuilder {
-    relation_paths(typed_detail_paths(paths.path(
-        "/entities/{category}/{source_id}",
-        PathItem::new(HttpMethod::Get, generic_detail_operation()),
-    )))
+    relation_paths(typed_detail_paths(
+        paths
+            .path(
+                "/entities/{category}",
+                PathItem::new(HttpMethod::Get, generic_list_operation()),
+            )
+            .path(
+                "/entities/{category}/{source_id}",
+                PathItem::new(HttpMethod::Get, generic_detail_operation()),
+            ),
+    ))
 }
 
 fn typed_detail_paths(paths: PathsBuilder) -> PathsBuilder {
     paths
+        .path(
+            "/documents",
+            PathItem::new(
+                HttpMethod::Get,
+                typed_list_operation("document_list", "Document list"),
+            ),
+        )
         .path(
             "/documents/{source_id}",
             PathItem::new(
@@ -873,10 +932,24 @@ fn typed_detail_paths(paths: PathsBuilder) -> PathsBuilder {
             PathItem::new(HttpMethod::Get, document_content_operation()),
         )
         .path(
+            "/activities",
+            PathItem::new(
+                HttpMethod::Get,
+                typed_list_operation("activity_list", "Activity list"),
+            ),
+        )
+        .path(
             "/activities/{source_id}",
             PathItem::new(
                 HttpMethod::Get,
                 typed_detail_operation("activity_detail", "Activity detail", "Activity"),
+            ),
+        )
+        .path(
+            "/persons",
+            PathItem::new(
+                HttpMethod::Get,
+                typed_list_operation("person_list", "Person list"),
             ),
         )
         .path(
@@ -886,6 +959,46 @@ fn typed_detail_paths(paths: PathsBuilder) -> PathsBuilder {
                 typed_detail_operation("person_detail", "Person detail", "Person"),
             ),
         )
+}
+
+fn generic_list_operation() -> OperationBuilder {
+    entity_list_operation("entity_list", "Entity list")
+        .parameters(Some([
+            path_parameter("category", "Official entity category"),
+            query_parameter("limit", "Page size capped by api.max_public_query_limit"),
+            query_parameter(
+                "sort",
+                "latest_asc/latest_desc/date_asc/date_desc/name_asc/name_desc",
+            ),
+            query_parameter("relations", "Relation expansion mode"),
+        ]))
+        .response(
+            "404",
+            json_response("Unknown category", ErrorResponse::name().as_ref()),
+        )
+}
+
+fn typed_list_operation(operation_id: &'static str, description: &str) -> OperationBuilder {
+    entity_list_operation(operation_id, description).parameters(Some([
+        query_parameter("limit", "Page size capped by api.max_public_query_limit"),
+        query_parameter(
+            "sort",
+            "latest_asc/latest_desc/date_asc/date_desc/name_asc/name_desc",
+        ),
+        query_parameter("relations", "Relation expansion mode"),
+    ]))
+}
+
+fn entity_list_operation(operation_id: &'static str, description: &str) -> OperationBuilder {
+    get_operation(
+        operation_id,
+        description,
+        EntityListResponse::name().as_ref(),
+    )
+    .response(
+        "400",
+        json_response("Invalid list parameter", ErrorResponse::name().as_ref()),
+    )
 }
 
 fn relation_paths(paths: PathsBuilder) -> PathsBuilder {
@@ -1001,6 +1114,7 @@ fn api_components() -> Components {
         .schema_from::<CategoryMetadata>()
         .schema_from::<ChangePageResponse>()
         .schema_from::<EntityChangeResponse>()
+        .schema_from::<EntityListResponse>()
         .schema_from::<EntityDetailResponse>()
         .schema_from::<DocumentContentResponse>()
         .schema_from::<DocumentIdentityResponse>()
@@ -1300,6 +1414,94 @@ async fn changes(
     }))
 }
 
+async fn entity_list(
+    State(state): State<ApiState>,
+    Path(category): Path<String>,
+    query: Result<Query<EntityListQuery>, QueryRejection>,
+) -> Result<Json<EntityListResponse>, ApiError> {
+    let Query(query) = query.map_err(|_| ApiError::InvalidRequest)?;
+    public_entity_list(state, category, query).await
+}
+
+async fn document_list(
+    State(state): State<ApiState>,
+    query: Result<Query<EntityListQuery>, QueryRejection>,
+) -> Result<Json<EntityListResponse>, ApiError> {
+    let Query(query) = query.map_err(|_| ApiError::InvalidRequest)?;
+    public_entity_list(state, "Document".to_owned(), query).await
+}
+
+async fn activity_list(
+    State(state): State<ApiState>,
+    query: Result<Query<EntityListQuery>, QueryRejection>,
+) -> Result<Json<EntityListResponse>, ApiError> {
+    let Query(query) = query.map_err(|_| ApiError::InvalidRequest)?;
+    public_entity_list(state, "Activiteit".to_owned(), query).await
+}
+
+async fn person_list(
+    State(state): State<ApiState>,
+    query: Result<Query<EntityListQuery>, QueryRejection>,
+) -> Result<Json<EntityListResponse>, ApiError> {
+    let Query(query) = query.map_err(|_| ApiError::InvalidRequest)?;
+    public_entity_list(state, "Persoon".to_owned(), query).await
+}
+
+async fn public_entity_list(
+    state: ApiState,
+    category: String,
+    query: EntityListQuery,
+) -> Result<Json<EntityListResponse>, ApiError> {
+    let response_started_at = Instant::now();
+    let effective_limit = effective_public_limit(query.limit, state.max_public_query_limit)?;
+    let sort = public_sort(query.sort.as_deref())?;
+    let mut page = read_model::query_public_entities(
+        &state.pool,
+        read_model::PublicEntityQuery {
+            category: category.clone(),
+            source_id: None,
+            limit: i64::from(effective_limit),
+            sort,
+        },
+    )
+    .await?;
+    let (relations_by_source_id, relation_query_count, relation_count) =
+        expanded_relations_for_page(&state.pool, &page.items, query.relations).await?;
+    page.stats.query_count += relation_query_count;
+    page.stats.relation_count = relation_count;
+    let items = page
+        .items
+        .into_iter()
+        .map(|detail| {
+            let relations = relations_by_source_id
+                .get(&detail.metadata.source_id)
+                .cloned()
+                .map(|relations| relations.into_iter().map(relation_response).collect());
+            detail_response(detail, relations)
+        })
+        .collect();
+    let response_duration_ms = response_started_at.elapsed().as_millis();
+    tracing::info!(
+        category = %page.stats.category,
+        effective_limit = page.stats.effective_limit,
+        loaded_entity_count = page.stats.loaded_entity_count,
+        relation_count = page.stats.relation_count,
+        query_count = page.stats.query_count,
+        query_duration_ms = page.stats.query_duration.as_millis(),
+        materialization_duration_ms = page.stats.materialization_duration.as_millis(),
+        response_duration_ms,
+        sort = ?sort,
+        source_id_filter = false,
+        "public entity query completed"
+    );
+    Ok(Json(EntityListResponse {
+        category,
+        items,
+        has_more: page.has_more,
+        effective_limit,
+    }))
+}
+
 async fn entity_detail(
     State(state): State<ApiState>,
     Path((category, source_id)): Path<(String, String)>,
@@ -1398,6 +1600,54 @@ async fn expanded_relations(
             .map(relation_response)
             .collect(),
     ))
+}
+
+async fn expanded_relations_for_page(
+    pool: &PgPool,
+    items: &[EntityDetail],
+    expansion: RelationExpansion,
+) -> Result<(HashMap<uuid::Uuid, Vec<RelationRow>>, usize, usize), ApiError> {
+    let direction = match expansion {
+        RelationExpansion::None => return Ok((HashMap::new(), 0, 0)),
+        RelationExpansion::Outgoing => RelationDirection::Outgoing,
+        RelationExpansion::Incoming => RelationDirection::Incoming,
+        RelationExpansion::Both => RelationDirection::Both,
+    };
+    let Some(first) = items.first() else {
+        return Ok((HashMap::new(), 0, 0));
+    };
+    let category = first.metadata.category.as_str();
+    let source_ids = items
+        .iter()
+        .map(|item| item.metadata.source_id)
+        .collect::<Vec<_>>();
+    let rows =
+        read_model::list_relations_for_entities(pool, category, &source_ids, direction).await?;
+    let relation_count = rows.len();
+    Ok((
+        read_model::group_relations_by_entity(category, &source_ids, direction, rows),
+        1,
+        relation_count,
+    ))
+}
+
+fn effective_public_limit(requested: Option<u32>, configured_max: u32) -> Result<u32, ApiError> {
+    if matches!(requested, Some(0)) || configured_max == 0 {
+        return Err(ApiError::InvalidRequest);
+    }
+    Ok(requested.map_or(configured_max, |limit| limit.min(configured_max)))
+}
+
+fn public_sort(value: Option<&str>) -> Result<read_model::PublicEntitySort, ApiError> {
+    match value.unwrap_or("latest_desc") {
+        "latest_asc" => Ok(read_model::PublicEntitySort::LatestAsc),
+        "latest_desc" => Ok(read_model::PublicEntitySort::LatestDesc),
+        "date_asc" => Ok(read_model::PublicEntitySort::DateAsc),
+        "date_desc" => Ok(read_model::PublicEntitySort::DateDesc),
+        "name_asc" => Ok(read_model::PublicEntitySort::NameAsc),
+        "name_desc" => Ok(read_model::PublicEntitySort::NameDesc),
+        _ => Err(ApiError::InvalidRequest),
+    }
 }
 
 fn detail_response(

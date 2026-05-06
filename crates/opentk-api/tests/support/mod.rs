@@ -176,8 +176,34 @@ pub async fn router_json(
     response_json(response).await
 }
 
+pub async fn router_json_with_public_limit(
+    pool: PgPool,
+    path: &str,
+    expected_status: StatusCode,
+    max_public_query_limit: u32,
+) -> Result<Value, Box<dyn std::error::Error>> {
+    let response = router_without_search_with_public_limit(pool, max_public_query_limit)
+        .oneshot(Request::get(path).body(Body::empty())?)
+        .await?;
+    assert_eq!(response.status(), expected_status);
+    response_json(response).await
+}
+
 pub fn router_without_search(pool: PgPool) -> Router {
     opentk_api::router_with_search(pool, Arc::new(UnavailableSearchClient))
+}
+
+pub fn router_without_search_with_public_limit(
+    pool: PgPool,
+    max_public_query_limit: u32,
+) -> Router {
+    opentk_api::router_with_search_cdc_status_and_public_limit(
+        pool,
+        Arc::new(UnavailableSearchClient),
+        opentk_db::search_sync::SearchSyncConfig::default(),
+        opentk_db::search_cdc::SearchCdcRuntimeStatus::new(),
+        max_public_query_limit,
+    )
 }
 
 struct UnavailableSearchClient;

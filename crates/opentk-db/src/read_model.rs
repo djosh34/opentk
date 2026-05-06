@@ -1,4 +1,8 @@
-use std::sync::LazyLock;
+use std::{
+    collections::{HashMap, HashSet},
+    sync::LazyLock,
+    time::Duration,
+};
 
 use chrono::{DateTime, NaiveDate, Utc};
 use opentk_core::official_schema::{self, FieldKind};
@@ -10,6 +14,22 @@ use uuid::Uuid;
 use crate::postgres_schema::{self, ColumnSpec, SchemaSpec, SqlType, TableKind, TableSpec};
 
 const MIN_LIMIT: i64 = 1;
+const NAME_SORT_COLUMNS: &[&str] = &[
+    "titel",
+    "naam",
+    "achternaam",
+    "roepnaam",
+    "onderwerp",
+    "nummer",
+    "document_nummer",
+];
+const DATE_SORT_COLUMNS: &[&str] = &[
+    "datum",
+    "gewijzigd_op",
+    "registratiedatum",
+    "source_updated_at",
+    "atom_updated_at",
+];
 static READ_SCHEMA: LazyLock<SchemaSpec> = LazyLock::new(postgres_schema::schema);
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -53,6 +73,44 @@ pub struct ReadPage<T> {
 pub struct EntityDetail {
     pub metadata: EntityChange,
     pub fields: Map<String, Value>,
+}
+
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub enum PublicEntitySort {
+    LatestAsc,
+    #[default]
+    LatestDesc,
+    DateAsc,
+    DateDesc,
+    NameAsc,
+    NameDesc,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct PublicEntityQuery {
+    pub category: String,
+    pub source_id: Option<Uuid>,
+    pub limit: i64,
+    pub sort: PublicEntitySort,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct PublicEntityPage {
+    pub category: String,
+    pub items: Vec<EntityDetail>,
+    pub has_more: bool,
+    pub stats: PublicEntityReadStats,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct PublicEntityReadStats {
+    pub category: String,
+    pub effective_limit: i64,
+    pub loaded_entity_count: usize,
+    pub relation_count: usize,
+    pub query_count: usize,
+    pub query_duration: Duration,
+    pub materialization_duration: Duration,
 }
 
 pub type DocumentDetail = EntityDetail;
@@ -411,29 +469,219 @@ pub async fn list_relations(
     Ok(rows)
 }
 
+/// Loads a public entity list or single-entity page through one shared query path.
+///
+/// # Errors
+///
+/// Returns validation errors for unknown categories or invalid limits, and
+/// [`ReadModelError::Sql`] when `PostgreSQL` cannot be queried.
+pub async fn query_public_entities(
+    pool: &PgPool,
+    query: PublicEntityQuery,
+) -> Result<PublicEntityPage, ReadModelError> {
+    if query.limit < MIN_LIMIT {
+        return Err(ReadModelError::InvalidLimit);
+    }
+    let table = entity_table(&query.category)?;
+    let started_at = std::time::Instant::now();
+    let rows = fetch_public_entity_rows(pool, table, &query).await?;
+    let query_duration = started_at.elapsed();
+    let materialization_started_at = std::time::Instant::now();
+    let limit_usize = usize::try_from(query.limit).map_err(|_| ReadModelError::InvalidLimit)?;
+    let has_more = query.source_id.is_none() && rows.len() > limit_usize;
+    let items = rows
+        .into_iter()
+        .take(limit_usize)
+        .map(|row| {
+            Ok(EntityDetail {
+                metadata: entity_change_ref(&row),
+                fields: scalar_fields(&row, table)?,
+            })
+        })
+        .collect::<Result<Vec<_>, ReadModelError>>()?;
+    let materialization_duration = materialization_started_at.elapsed();
+
+    Ok(PublicEntityPage {
+        category: query.category.clone(),
+        stats: PublicEntityReadStats {
+            category: query.category,
+            effective_limit: query.limit,
+            loaded_entity_count: items.len(),
+            relation_count: 0,
+            query_count: 1,
+            query_duration,
+            materialization_duration,
+        },
+        items,
+        has_more,
+    })
+}
+
+/// Lists relations for a bounded set of entities using one generated `UNION ALL`
+/// query instead of one query per entity.
+///
+/// # Errors
+///
+/// Returns validation errors for unknown categories and [`ReadModelError::Sql`]
+/// when `PostgreSQL` cannot be queried.
+pub async fn list_relations_for_entities(
+    pool: &PgPool,
+    category: &str,
+    source_ids: &[Uuid],
+    direction: RelationDirection,
+) -> Result<Vec<RelationRow>, ReadModelError> {
+    entity_table(category)?;
+    if source_ids.is_empty() {
+        return Ok(Vec::new());
+    }
+    let lookups = relation_lookups(category, direction);
+    let mut rows = fetch_relation_rows_for_entities(pool, &lookups, category, source_ids).await?;
+    rows.sort_by(|left, right| {
+        (
+            &left.source_category,
+            left.source_id,
+            &left.relation_name,
+            &left.target_category,
+            left.target_id,
+            left.ordinal,
+        )
+            .cmp(&(
+                &right.source_category,
+                right.source_id,
+                &right.relation_name,
+                &right.target_category,
+                right.target_id,
+                right.ordinal,
+            ))
+    });
+    Ok(rows)
+}
+
+/// Groups set-based relation rows by the requested entity identity.
+#[must_use]
+pub fn group_relations_by_entity(
+    category: &str,
+    source_ids: &[Uuid],
+    direction: RelationDirection,
+    rows: Vec<RelationRow>,
+) -> HashMap<Uuid, Vec<RelationRow>> {
+    let requested = source_ids.iter().copied().collect::<HashSet<_>>();
+    let mut grouped: HashMap<Uuid, Vec<RelationRow>> = HashMap::new();
+    for row in rows {
+        if matches!(
+            direction,
+            RelationDirection::Outgoing | RelationDirection::Both
+        ) && row.source_category == category
+            && requested.contains(&row.source_id)
+        {
+            grouped.entry(row.source_id).or_default().push(row.clone());
+        }
+        if matches!(
+            direction,
+            RelationDirection::Incoming | RelationDirection::Both
+        ) && row.target_category == category
+            && requested.contains(&row.target_id)
+        {
+            grouped.entry(row.target_id).or_default().push(row);
+        }
+    }
+    grouped
+}
+
 async fn get_detail(
     pool: &PgPool,
     category: &str,
     source_id: Uuid,
 ) -> Result<EntityDetail, ReadModelError> {
-    let table = entity_table(category)?;
+    query_public_entities(
+        pool,
+        PublicEntityQuery {
+            category: category.to_owned(),
+            source_id: Some(source_id),
+            limit: 1,
+            sort: PublicEntitySort::LatestDesc,
+        },
+    )
+    .await?
+    .items
+    .into_iter()
+    .next()
+    .ok_or(ReadModelError::NotFound)
+}
+
+async fn fetch_public_entity_rows(
+    pool: &PgPool,
+    table: &TableSpec,
+    query: &PublicEntityQuery,
+) -> Result<Vec<PgRow>, ReadModelError> {
+    let limit = if query.source_id.is_some() {
+        query.limit
+    } else {
+        query.limit + 1
+    };
+    let sort_columns = sort_columns(table, query.sort);
     let mut builder = QueryBuilder::new("SELECT * FROM ");
     builder.push(ident(&table.name));
     builder.push(" WHERE source_category = ");
-    builder.push_bind(category);
-    builder.push(" AND source_id = ");
-    builder.push_bind(source_id);
+    builder.push_bind(&query.category);
+    if let Some(source_id) = query.source_id {
+        builder.push(" AND source_id = ");
+        builder.push_bind(source_id);
+    }
+    builder.push(" ORDER BY ");
+    for (index, (column, descending)) in sort_columns.iter().enumerate() {
+        if index > 0 {
+            builder.push(", ");
+        }
+        builder.push(ident(column));
+        if *descending {
+            builder.push(" DESC NULLS LAST");
+        } else {
+            builder.push(" ASC NULLS LAST");
+        }
+    }
+    builder.push(" LIMIT ");
+    builder.push_bind(limit);
+    Ok(builder.build().fetch_all(pool).await?)
+}
 
-    let row = builder
-        .build()
-        .fetch_optional(pool)
-        .await?
-        .ok_or(ReadModelError::NotFound)?;
+fn sort_columns(table: &TableSpec, sort: PublicEntitySort) -> Vec<(String, bool)> {
+    let primary = match sort {
+        PublicEntitySort::LatestAsc => ("latest_skiptoken".to_owned(), false),
+        PublicEntitySort::LatestDesc => ("latest_skiptoken".to_owned(), true),
+        PublicEntitySort::DateAsc => (sortable_column(table, DATE_SORT_COLUMNS), false),
+        PublicEntitySort::DateDesc => (sortable_column(table, DATE_SORT_COLUMNS), true),
+        PublicEntitySort::NameAsc => (sortable_column(table, NAME_SORT_COLUMNS), false),
+        PublicEntitySort::NameDesc => (sortable_column(table, NAME_SORT_COLUMNS), true),
+    };
+    let mut columns = vec![primary];
+    if columns[0].0 != "latest_skiptoken" {
+        columns.push((
+            "latest_skiptoken".to_owned(),
+            matches!(
+                sort,
+                PublicEntitySort::DateDesc | PublicEntitySort::NameDesc
+            ),
+        ));
+    }
+    columns.push((
+        "source_id".to_owned(),
+        matches!(
+            sort,
+            PublicEntitySort::LatestDesc | PublicEntitySort::DateDesc | PublicEntitySort::NameDesc
+        ),
+    ));
+    columns
+}
 
-    Ok(EntityDetail {
-        metadata: entity_change_ref(&row),
-        fields: scalar_fields(&row, table)?,
-    })
+fn sortable_column(table: &TableSpec, candidates: &[&str]) -> String {
+    candidates
+        .iter()
+        .find(|column| table.has_column(column))
+        .map_or_else(
+            || "latest_skiptoken".to_owned(),
+            |column| (*column).to_owned(),
+        )
 }
 
 #[derive(Clone, Copy)]
@@ -504,6 +752,46 @@ async fn fetch_relation_rows(
         builder.push(ident(lookup.id_column));
         builder.push(" = ");
         builder.push_bind(source_id);
+    }
+
+    Ok(builder
+        .build()
+        .fetch_all(pool)
+        .await?
+        .into_iter()
+        .map(|row| relation_row(&row))
+        .collect())
+}
+
+async fn fetch_relation_rows_for_entities(
+    pool: &PgPool,
+    lookups: &[RelationLookup<'_>],
+    category: &str,
+    source_ids: &[Uuid],
+) -> Result<Vec<RelationRow>, ReadModelError> {
+    if lookups.is_empty() {
+        return Ok(Vec::new());
+    }
+
+    let ids = source_ids.to_vec();
+    let mut builder = QueryBuilder::new("");
+    for (index, lookup) in lookups.iter().enumerate() {
+        if index > 0 {
+            builder.push(" UNION ALL ");
+        }
+        builder.push(
+            "SELECT source_category, source_id, relation_name, target_category, target_id, ordinal, source_updated_at FROM ",
+        );
+        builder.push(ident(&lookup.table.name));
+        builder.push(" WHERE ");
+        builder.push(ident(lookup.category_column));
+        builder.push(" = ");
+        builder.push_bind(category);
+        builder.push(" AND ");
+        builder.push(ident(lookup.id_column));
+        builder.push(" = ANY(");
+        builder.push_bind(ids.clone());
+        builder.push(")");
     }
 
     Ok(builder

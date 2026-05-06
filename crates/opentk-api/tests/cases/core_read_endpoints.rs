@@ -4,15 +4,15 @@ use sqlx::PgPool;
 
 use crate::support::{
     activity_id, category, document_id, insert_activity, insert_document, insert_person,
-    insert_sync_entity, migrated_pool, person_id, router_json, second_document_id,
-    third_document_id,
+    insert_sync_entity, migrated_pool, person_id, router_json, router_json_with_public_limit,
+    second_document_id, third_document_id,
 };
 
 #[tokio::test]
 async fn categories_returns_schema_metadata() -> Result<(), Box<dyn std::error::Error>> {
     let pool = migrated_pool("api_categories").await?;
 
-    let body = router_json(pool, "/categories", StatusCode::OK).await?;
+    let body = router_json(pool.clone(), "/categories", StatusCode::OK).await?;
     let categories = body["categories"]
         .as_array()
         .expect("categories is an array");
@@ -29,6 +29,18 @@ async fn categories_returns_schema_metadata() -> Result<(), Box<dyn std::error::
     assert!(categories
         .iter()
         .any(|category| category["category"] == "Persoon" && category["table"] == "persoon"));
+    for category in categories {
+        let category = category["category"].as_str().expect("category name");
+        let list = router_json(
+            pool.clone(),
+            &format!("/entities/{category}?limit=1"),
+            StatusCode::OK,
+        )
+        .await?;
+        assert_eq!(list["category"], category);
+        assert_eq!(list["effective_limit"], 1);
+        assert_eq!(list["items"].as_array().expect("items").len(), 0);
+    }
 
     Ok(())
 }
@@ -138,6 +150,124 @@ async fn entity_and_typed_details_return_database_rows() -> Result<(), Box<dyn s
     assert_eq!(person["fields"]["nummer"], "P-1");
     assert_eq!(person["fields"]["achternaam"], "Jansen");
     assert_eq!(person["fields"]["roepnaam"], "Jan");
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn entity_lists_support_limits_sorts_and_typed_aliases(
+) -> Result<(), Box<dyn std::error::Error>> {
+    let pool = migrated_pool("api_entity_lists").await?;
+    crate::support::seed_deep_fixture(&pool).await?;
+
+    let capped = router_json_with_public_limit(
+        pool.clone(),
+        "/entities/Document?limit=1000000&sort=latest_desc",
+        StatusCode::OK,
+        2,
+    )
+    .await?;
+    assert_eq!(capped["category"], "Document");
+    assert_eq!(capped["effective_limit"], 2);
+    assert_eq!(capped["items"].as_array().expect("items").len(), 2);
+    assert_eq!(capped["has_more"], true);
+    assert_eq!(capped["items"][0]["metadata"]["latest_skiptoken"], 43);
+    assert_eq!(capped["items"][1]["metadata"]["latest_skiptoken"], 41);
+
+    let lower = router_json_with_public_limit(
+        pool.clone(),
+        "/entities/Document?limit=1&sort=latest_asc",
+        StatusCode::OK,
+        3,
+    )
+    .await?;
+    assert_eq!(lower["effective_limit"], 1);
+    assert_eq!(lower["items"].as_array().expect("items").len(), 1);
+    assert_eq!(lower["items"][0]["metadata"]["latest_skiptoken"], 40);
+
+    let default_limit =
+        router_json_with_public_limit(pool.clone(), "/entities/Document", StatusCode::OK, 2)
+            .await?;
+    assert_eq!(default_limit["effective_limit"], 2);
+
+    let name_asc = router_json(
+        pool.clone(),
+        "/entities/Document?limit=2&sort=name_asc",
+        StatusCode::OK,
+    )
+    .await?;
+    assert_eq!(name_asc["items"][0]["fields"]["titel"], "Fixture document");
+    assert_eq!(
+        name_asc["items"][1]["fields"]["titel"],
+        "Second fixture document"
+    );
+
+    let name_desc = router_json(
+        pool.clone(),
+        "/entities/Document?limit=2&sort=name_desc",
+        StatusCode::OK,
+    )
+    .await?;
+    assert_eq!(
+        name_desc["items"][0]["fields"]["titel"],
+        "Third fixture document"
+    );
+
+    let document_alias = router_json(pool.clone(), "/documents?limit=2", StatusCode::OK).await?;
+    assert_eq!(document_alias["category"], "Document");
+    assert_eq!(document_alias["items"].as_array().expect("items").len(), 2);
+
+    let activity_alias = router_json(
+        pool.clone(),
+        "/activities?limit=1&sort=date_desc",
+        StatusCode::OK,
+    )
+    .await?;
+    assert_eq!(activity_alias["category"], "Activiteit");
+    assert_eq!(activity_alias["items"].as_array().expect("items").len(), 1);
+
+    let person_alias = router_json(
+        pool.clone(),
+        "/persons?limit=1&sort=name_asc",
+        StatusCode::OK,
+    )
+    .await?;
+    assert_eq!(person_alias["category"], "Persoon");
+    assert_eq!(person_alias["items"].as_array().expect("items").len(), 1);
+
+    let invalid_limit = router_json(
+        pool.clone(),
+        "/entities/Document?limit=0",
+        StatusCode::BAD_REQUEST,
+    )
+    .await?;
+    assert_eq!(invalid_limit["code"], "invalid_request");
+    let invalid_sort = router_json(
+        pool,
+        "/entities/Document?sort=sideways",
+        StatusCode::BAD_REQUEST,
+    )
+    .await?;
+    assert_eq!(invalid_sort["code"], "invalid_request");
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn entity_list_relation_expansion_is_set_based() -> Result<(), Box<dyn std::error::Error>> {
+    let pool = migrated_pool("api_entity_list_relations").await?;
+    crate::support::seed_deep_fixture(&pool).await?;
+
+    let body = router_json(
+        pool,
+        "/entities/Document?limit=3&relations=both&sort=latest_asc",
+        StatusCode::OK,
+    )
+    .await?;
+    assert_eq!(body["items"].as_array().expect("items").len(), 3);
+    let first = &body["items"][0];
+    assert_eq!(first["metadata"]["source_id"], document_id().to_string());
+    assert_eq!(first["relations"].as_array().expect("relations").len(), 2);
 
     Ok(())
 }
@@ -486,10 +616,14 @@ async fn openapi_includes_core_read_endpoints() -> Result<(), Box<dyn std::error
     for path in [
         "/paths/~1categories",
         "/paths/~1changes~1{category}",
+        "/paths/~1entities~1{category}",
         "/paths/~1entities~1{category}~1{source_id}",
+        "/paths/~1documents",
         "/paths/~1documents~1{source_id}",
         "/paths/~1documents~1{source_id}~1content",
+        "/paths/~1activities",
         "/paths/~1activities~1{source_id}",
+        "/paths/~1persons",
         "/paths/~1persons~1{source_id}",
         "/paths/~1relations~1{category}~1{source_id}",
     ] {
@@ -507,6 +641,7 @@ async fn openapi_includes_core_read_endpoints() -> Result<(), Box<dyn std::error
     for schema in [
         "CategoryMetadataResponse",
         "ChangePageResponse",
+        "EntityListResponse",
         "EntityDetailResponse",
         "DocumentContentResponse",
         "DocumentAssetResponse",

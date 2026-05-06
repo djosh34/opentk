@@ -65,6 +65,7 @@ fn api_config(config: Config) -> ApiConfig {
             max_payload_bytes: config.search.max_payload_bytes,
             retry_limit: config.search.retry_limit,
         },
+        max_public_query_limit: config.api.max_public_query_limit,
     }
 }
 

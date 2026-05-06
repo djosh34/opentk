@@ -64,9 +64,13 @@ async fn openapi_documents_every_http_route_parameter_and_response_schema(
         "/paths/~1openapi.json",
         "/paths/~1categories",
         "/paths/~1changes~1{category}",
+        "/paths/~1entities~1{category}",
         "/paths/~1entities~1{category}~1{source_id}",
+        "/paths/~1documents",
         "/paths/~1documents~1{source_id}",
+        "/paths/~1activities",
         "/paths/~1activities~1{source_id}",
+        "/paths/~1persons",
         "/paths/~1persons~1{source_id}",
         "/paths/~1relations~1{category}~1{source_id}",
     ] {
@@ -89,9 +93,21 @@ async fn openapi_documents_every_http_route_parameter_and_response_schema(
     );
     assert_parameters(
         &body,
+        "/paths/~1entities~1{category}/get",
+        &["category", "limit", "sort", "relations"],
+    );
+    assert_parameters(
+        &body,
         "/paths/~1entities~1{category}~1{source_id}/get",
         &["category", "source_id", "relations"],
     );
+    for path in [
+        "/paths/~1documents/get",
+        "/paths/~1activities/get",
+        "/paths/~1persons/get",
+    ] {
+        assert_parameters(&body, path, &["limit", "sort", "relations"]);
+    }
     for path in [
         "/paths/~1documents~1{source_id}/get",
         "/paths/~1activities~1{source_id}/get",
@@ -110,6 +126,7 @@ async fn openapi_documents_every_http_route_parameter_and_response_schema(
         "ErrorResponse",
         "CategoryMetadataResponse",
         "ChangePageResponse",
+        "EntityListResponse",
         "EntityDetailResponse",
         "RelationLookupResponse",
     ] {
