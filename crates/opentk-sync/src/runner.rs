@@ -329,8 +329,18 @@ impl<S: SyncStore> CompleteSyncRunner<S> {
             shutdown_task_token.request();
         });
         loop {
-            self.run_once_with_shutdown(Some(shutdown_token.clone()))
+            let report = self
+                .run_once_with_shutdown(Some(shutdown_token.clone()))
                 .await?;
+            tracing::info!(
+                category_count = report.categories.len(),
+                caught_up_count = report
+                    .categories
+                    .iter()
+                    .filter(|category| category.caught_up)
+                    .count(),
+                "sync poll cycle completed"
+            );
             if shutdown_token.is_requested() {
                 return Ok(());
             }
