@@ -29,6 +29,11 @@ pub enum SearchIndexError {
     InvalidResponse(String),
     #[error("search mapping failed")]
     Mapping(#[from] SearchMappingError),
+    #[error("search payload item is larger than configured payload limit: item_bytes={item_bytes} max_payload_bytes={max_payload_bytes}")]
+    PayloadTooLarge {
+        item_bytes: usize,
+        max_payload_bytes: usize,
+    },
 }
 
 #[allow(async_fn_in_trait)]
@@ -51,6 +56,26 @@ pub trait SearchIndexClient {
         &self,
         operations: &[SearchIndexOperation],
     ) -> Result<(), SearchIndexError>;
+
+    /// Apply a batch while respecting a maximum JSON request payload size.
+    ///
+    /// Implementations that cannot inspect payload sizes may fall back to
+    /// [`SearchIndexClient::apply_batch`]. The concrete Meilisearch client
+    /// chunks by exact UTF-8 request-body bytes.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`SearchIndexError`] when the backing search engine rejects the
+    /// batch, reports an asynchronous task failure, or one item cannot fit
+    /// within `max_payload_bytes`.
+    async fn apply_batch_with_payload_limit(
+        &self,
+        operations: &[SearchIndexOperation],
+        max_payload_bytes: usize,
+    ) -> Result<(), SearchIndexError> {
+        let _ = max_payload_bytes;
+        self.apply_batch(operations).await
+    }
 }
 
 pub trait SearchQueryClient {
@@ -421,6 +446,15 @@ impl SearchIndexClient for MeilisearchClient {
         &self,
         operations: &[SearchIndexOperation],
     ) -> Result<(), SearchIndexError> {
+        self.apply_batch_with_payload_limit(operations, usize::MAX)
+            .await
+    }
+
+    async fn apply_batch_with_payload_limit(
+        &self,
+        operations: &[SearchIndexOperation],
+        max_payload_bytes: usize,
+    ) -> Result<(), SearchIndexError> {
         let upserts = operations
             .iter()
             .filter_map(|operation| match operation {
@@ -428,18 +462,32 @@ impl SearchIndexClient for MeilisearchClient {
                 SearchIndexOperation::Delete(_) => None,
             })
             .collect::<Vec<_>>();
-        if !upserts.is_empty() {
+        for chunk in json_array_chunks(&upserts, max_payload_bytes)? {
+            tracing::info!(
+                payload_bytes = chunk.body.len(),
+                upsert_count = chunk.item_count,
+                delete_count = 0_usize,
+                "Meilisearch payload POST started"
+            );
+            let upload_started = std::time::Instant::now();
             let response = self
                 .request(
                     reqwest::Method::POST,
                     &format!("/indexes/{}/documents", self.index_name),
                 )
                 .header(reqwest::header::CONTENT_TYPE, "application/json")
-                .body(serde_json::to_string(&upserts).map_err(json_error)?)
+                .body(chunk.body)
                 .send()
                 .await
                 .map_err(request_error)?;
+            let upload_ms = upload_started.elapsed().as_millis();
+            let wait_started = std::time::Instant::now();
             self.wait_for_response_task(response).await?;
+            tracing::info!(
+                upload_ms,
+                meilisearch_wait_ms = wait_started.elapsed().as_millis(),
+                "Meilisearch payload POST finished"
+            );
         }
 
         let delete_keys = operations
@@ -449,21 +497,79 @@ impl SearchIndexClient for MeilisearchClient {
                 SearchIndexOperation::Upsert(_) => None,
             })
             .collect::<Vec<_>>();
-        if !delete_keys.is_empty() {
+        for chunk in json_array_chunks(&delete_keys, max_payload_bytes)? {
+            tracing::info!(
+                payload_bytes = chunk.body.len(),
+                upsert_count = 0_usize,
+                delete_count = chunk.item_count,
+                "Meilisearch delete payload POST started"
+            );
+            let upload_started = std::time::Instant::now();
             let response = self
                 .request(
                     reqwest::Method::POST,
                     &format!("/indexes/{}/documents/delete-batch", self.index_name),
                 )
                 .header(reqwest::header::CONTENT_TYPE, "application/json")
-                .body(serde_json::to_string(&delete_keys).map_err(json_error)?)
+                .body(chunk.body)
                 .send()
                 .await
                 .map_err(request_error)?;
+            let upload_ms = upload_started.elapsed().as_millis();
+            let wait_started = std::time::Instant::now();
             self.wait_for_response_task(response).await?;
+            tracing::info!(
+                upload_ms,
+                meilisearch_wait_ms = wait_started.elapsed().as_millis(),
+                "Meilisearch delete payload POST finished"
+            );
         }
         Ok(())
     }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct JsonArrayChunk {
+    body: String,
+    item_count: usize,
+}
+
+fn json_array_chunks<T: Serialize>(
+    items: &[T],
+    max_payload_bytes: usize,
+) -> Result<Vec<JsonArrayChunk>, SearchIndexError> {
+    if items.is_empty() {
+        return Ok(Vec::new());
+    }
+
+    let mut chunks = Vec::new();
+    let mut body = String::from("[");
+    let mut item_count = 0_usize;
+    for item in items {
+        let item_json = serde_json::to_string(item).map_err(json_error)?;
+        let separator_bytes = usize::from(item_count > 0);
+        let projected_bytes = body.len() + separator_bytes + item_json.len() + 1;
+        if item_json.len() + 2 > max_payload_bytes {
+            return Err(SearchIndexError::PayloadTooLarge {
+                item_bytes: item_json.len() + 2,
+                max_payload_bytes,
+            });
+        }
+        if item_count > 0 && projected_bytes > max_payload_bytes {
+            body.push(']');
+            chunks.push(JsonArrayChunk { body, item_count });
+            body = String::from("[");
+            item_count = 0;
+        }
+        if item_count > 0 {
+            body.push(',');
+        }
+        body.push_str(&item_json);
+        item_count += 1;
+    }
+    body.push(']');
+    chunks.push(JsonArrayChunk { body, item_count });
+    Ok(chunks)
 }
 
 impl SearchQueryClient for MeilisearchClient {
@@ -1094,5 +1200,44 @@ fn append_metadata_value(
             }
             Ok(())
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn json_array_chunks_flush_before_payload_limit() {
+        let items = vec!["alpha", "beta", "gamma"];
+        let chunks = json_array_chunks(&items, 16).expect("chunks fit");
+
+        assert_eq!(
+            chunks,
+            vec![
+                JsonArrayChunk {
+                    body: "[\"alpha\",\"beta\"]".to_owned(),
+                    item_count: 2,
+                },
+                JsonArrayChunk {
+                    body: "[\"gamma\"]".to_owned(),
+                    item_count: 1,
+                },
+            ]
+        );
+        assert!(chunks.iter().all(|chunk| chunk.body.len() <= 16));
+    }
+
+    #[test]
+    fn json_array_chunks_rejects_single_item_over_limit() {
+        let error = json_array_chunks(&["too-large"], 4).expect_err("single item is too large");
+
+        assert!(matches!(
+            error,
+            SearchIndexError::PayloadTooLarge {
+                item_bytes: 13,
+                max_payload_bytes: 4
+            }
+        ));
     }
 }

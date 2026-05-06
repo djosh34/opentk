@@ -438,6 +438,7 @@ fn search_sync_config(config: &Config) -> SearchSyncConfig {
         index_name: config.search.index_name.clone(),
         categories: config.sync.categories.clone(),
         batch_size: config.search.batch_size,
+        max_payload_bytes: config.search.max_payload_bytes,
         retry_limit: config.search.retry_limit,
     }
 }

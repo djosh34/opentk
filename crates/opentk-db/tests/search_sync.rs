@@ -80,6 +80,7 @@ async fn full_reindex_builds_document_index_from_postgres() -> Result<(), sqlx::
             index_name: "opentk_entities".to_owned(),
             categories: vec!["Document".to_owned()],
             batch_size: 501,
+            max_payload_bytes: 80_000_000,
             retry_limit: 3,
         },
     )
@@ -135,6 +136,7 @@ async fn incremental_index_reflects_postgres_document_update() -> Result<(), sql
         index_name: "opentk_entities".to_owned(),
         categories: vec!["Document".to_owned()],
         batch_size: 10,
+        max_payload_bytes: 80_000_000,
         retry_limit: 3,
     };
     full_reindex(&pool, &client, &config)
@@ -187,6 +189,7 @@ async fn incremental_index_applies_created_and_deleted_records() -> Result<(), s
         index_name: "opentk_entities".to_owned(),
         categories: vec!["Document".to_owned()],
         batch_size: 10,
+        max_payload_bytes: 80_000_000,
         retry_limit: 3,
     };
     full_reindex(&pool, &client, &config)
@@ -256,6 +259,7 @@ async fn index_records_applies_only_targeted_records_without_advancing_cursor(
         index_name: "opentk_entities".to_owned(),
         categories: vec!["Document".to_owned()],
         batch_size: 10,
+        max_payload_bytes: 80_000_000,
         retry_limit: 3,
     };
 
@@ -302,6 +306,7 @@ async fn index_records_reuses_search_sync_validation_errors() -> Result<(), sqlx
         index_name: "opentk_entities".to_owned(),
         categories: vec!["Document".to_owned()],
         batch_size: 0,
+        max_payload_bytes: 80_000_000,
         retry_limit: 3,
     };
 
@@ -314,6 +319,7 @@ async fn index_records_reuses_search_sync_validation_errors() -> Result<(), sqlx
         index_name: "opentk_entities".to_owned(),
         categories: vec!["Document".to_owned()],
         batch_size: 10,
+        max_payload_bytes: 80_000_000,
         retry_limit: 3,
     };
     let error = index_records(
@@ -359,6 +365,7 @@ async fn index_records_skips_relation_target_placeholders_until_detail_exists(
         index_name: "opentk_entities".to_owned(),
         categories: vec!["Activiteit".to_owned(), "Commissie".to_owned()],
         batch_size: 10,
+        max_payload_bytes: 80_000_000,
         retry_limit: 3,
     };
 
@@ -391,6 +398,7 @@ async fn index_records_allows_documents_without_extracted_content() -> Result<()
         index_name: "opentk_entities".to_owned(),
         categories: vec!["Document".to_owned()],
         batch_size: 10,
+        max_payload_bytes: 80_000_000,
         retry_limit: 3,
     };
     write_parsed_entity(
@@ -454,6 +462,7 @@ async fn full_reindex_indexes_person_activity_metadata_and_relation_labels(
             index_name: "opentk_entities".to_owned(),
             categories: vec!["Persoon".to_owned(), "Activiteit".to_owned()],
             batch_size: 10,
+            max_payload_bytes: 80_000_000,
             retry_limit: 3,
         },
     )
@@ -534,6 +543,7 @@ async fn incoming_relation_labels_are_not_indexed_as_person_backreferences(
             index_name: "opentk_entities".to_owned(),
             categories: vec!["Persoon".to_owned()],
             batch_size: 10,
+            max_payload_bytes: 80_000_000,
             retry_limit: 3,
         },
     )
@@ -568,6 +578,7 @@ async fn transient_index_failure_retries_and_advances_cursor_after_recovery(
         index_name: "opentk_entities".to_owned(),
         categories: vec!["Document".to_owned()],
         batch_size: 10,
+        max_payload_bytes: 80_000_000,
         retry_limit: 3,
     };
 
@@ -634,6 +645,7 @@ async fn index_completeness_marks_materially_missing_category_degraded() -> Resu
             index_name: "opentk_entities".to_owned(),
             categories: vec!["Document".to_owned()],
             batch_size: 10,
+            max_payload_bytes: 80_000_000,
             retry_limit: 3,
         },
         &SearchCompletenessConfig {
@@ -678,6 +690,7 @@ async fn index_failure_is_persisted_retryable_and_does_not_advance_cursor(
         index_name: "opentk_entities".to_owned(),
         categories: vec!["Document".to_owned()],
         batch_size: 10,
+        max_payload_bytes: 80_000_000,
         retry_limit: 3,
     };
 

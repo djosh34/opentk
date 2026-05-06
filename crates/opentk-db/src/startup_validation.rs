@@ -393,6 +393,15 @@ fn map_search_error(target: String, source: SearchIndexError) -> DependencyValid
             target,
             message: error.to_string(),
         },
+        SearchIndexError::PayloadTooLarge {
+            item_bytes,
+            max_payload_bytes,
+        } => DependencyValidationError::MeilisearchUnreachable {
+            target,
+            message: format!(
+                "search payload item is larger than configured payload limit: item_bytes={item_bytes} max_payload_bytes={max_payload_bytes}"
+            ),
+        },
     }
 }
 

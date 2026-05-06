@@ -37,6 +37,7 @@ fn required_database_url_loads_with_compiled_defaults() {
     assert_eq!(config.search.api_key, None);
     assert_eq!(config.search.index_name, "opentk_entities");
     assert_eq!(config.search.batch_size, 100);
+    assert_eq!(config.search.max_payload_bytes, 80_000_000);
     assert_eq!(config.search.retry_limit, 3);
     assert_eq!(config.api.bind_address.to_string(), "0.0.0.0:3000");
     assert!(config.api.cors_origins.is_empty());
@@ -99,6 +100,10 @@ fn invalid_config_reports_field_context() {
             "search.batch_size",
         ),
         (
+            "[database]\nurl = 'postgres://example.test/db'\n[search]\nmax_payload_bytes = 0",
+            "search.max_payload_bytes",
+        ),
+        (
             "[database]\nurl = 'postgres://example.test/db'\n[search]\nretry_limit = 0",
             "search.retry_limit",
         ),
@@ -145,6 +150,7 @@ fn explicit_values_override_defaults() {
         api_key = "secret"
         index_name = "custom_index"
         batch_size = 16
+        max_payload_bytes = 12345
         retry_limit = 17
 
         [api]
@@ -170,6 +176,7 @@ fn explicit_values_override_defaults() {
     assert_eq!(config.search.api_key.as_deref(), Some("secret"));
     assert_eq!(config.search.index_name, "custom_index");
     assert_eq!(config.search.batch_size, 16);
+    assert_eq!(config.search.max_payload_bytes, 12345);
     assert_eq!(config.search.retry_limit, 17);
     assert_eq!(config.api.bind_address.to_string(), "127.0.0.1:3001");
     assert_eq!(config.api.cors_origins, ["https://app.example.test"]);
@@ -199,6 +206,7 @@ fn redacted_config_masks_secrets_and_keeps_operational_settings() {
         api_key = "search-secret"
         index_name = "custom_index"
         batch_size = 16
+        max_payload_bytes = 12345
         retry_limit = 17
 
         [api]
@@ -225,6 +233,7 @@ fn redacted_config_masks_secrets_and_keeps_operational_settings() {
     assert_eq!(redacted["search"]["url"], "http://search.example.test:7700");
     assert_eq!(redacted["search"]["index_name"], "custom_index");
     assert_eq!(redacted["search"]["batch_size"], 16);
+    assert_eq!(redacted["search"]["max_payload_bytes"], 12345);
     assert_eq!(redacted["search"]["retry_limit"], 17);
     assert_eq!(redacted["sync"]["base_url"], "https://sync.example.test/");
     assert_eq!(redacted["api"]["bind_address"], "127.0.0.1:3001");

@@ -52,6 +52,7 @@ pub struct SearchConfig {
     pub api_key: Option<String>,
     pub index_name: String,
     pub batch_size: i64,
+    pub max_payload_bytes: usize,
     pub retry_limit: i32,
 }
 
@@ -131,6 +132,7 @@ pub struct RedactedSearchConfig {
     pub api_key: Option<&'static str>,
     pub index_name: String,
     pub batch_size: i64,
+    pub max_payload_bytes: usize,
     pub retry_limit: i32,
 }
 
@@ -263,6 +265,7 @@ impl Config {
                 api_key: self.search.api_key.as_ref().map(|_| "***"),
                 index_name: self.search.index_name.clone(),
                 batch_size: self.search.batch_size,
+                max_payload_bytes: self.search.max_payload_bytes,
                 retry_limit: self.search.retry_limit,
             },
             api: RedactedApiConfig {
@@ -384,6 +387,7 @@ struct RawSearchConfig {
     api_key: Option<String>,
     index_name: Option<String>,
     batch_size: Option<i64>,
+    max_payload_bytes: Option<usize>,
     retry_limit: Option<i32>,
 }
 
@@ -472,6 +476,13 @@ impl TryFrom<RawSearchConfig> for SearchConfig {
         if retry_limit <= 0 {
             return Err(invalid("search.retry_limit", "must be greater than zero"));
         }
+        let max_payload_bytes = raw.max_payload_bytes.unwrap_or(80_000_000);
+        if max_payload_bytes == 0 {
+            return Err(invalid(
+                "search.max_payload_bytes",
+                "must be greater than zero",
+            ));
+        }
         Ok(Self {
             url: non_empty_or_default(raw.url, "http://meilisearch:7700", "search.url")?,
             api_key: raw.api_key,
@@ -481,6 +492,7 @@ impl TryFrom<RawSearchConfig> for SearchConfig {
                 "search.index_name",
             )?,
             batch_size,
+            max_payload_bytes,
             retry_limit,
         })
     }
@@ -550,6 +562,7 @@ impl OptionalConfig<RawSearchConfig> for Option<RawSearchConfig> {
             api_key: None,
             index_name: None,
             batch_size: None,
+            max_payload_bytes: None,
             retry_limit: None,
         })
     }

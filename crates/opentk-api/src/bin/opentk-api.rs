@@ -62,6 +62,7 @@ fn api_config(config: Config) -> ApiConfig {
             index_name,
             categories: config.sync.categories,
             batch_size: config.search.batch_size,
+            max_payload_bytes: config.search.max_payload_bytes,
             retry_limit: config.search.retry_limit,
         },
     }

@@ -1,20 +1,17 @@
-use std::collections::{BTreeMap, BTreeSet};
-
 use chrono::{DateTime, Duration, Utc};
 use opentk_core::official_schema;
 use opentk_search::{
-    map_record_to_operation, meilisearch_schema, SearchCountClient, SearchDocumentContent,
-    SearchEntityMetadata, SearchFilter, SearchIndexClient, SearchIndexError, SearchIndexOperation,
-    SearchIndexSchema, SearchMappingError, SearchRelationLabel, SearchSourceRecord,
+    meilisearch_schema, SearchCountClient, SearchFilter, SearchIndexClient, SearchIndexError,
+    SearchIndexOperation, SearchIndexSchema, SearchMappingError,
 };
-use serde_json::{Map, Value};
-use sqlx::{PgPool, Row};
+use sqlx::{PgPool, Postgres, QueryBuilder, Row};
 use thiserror::Error;
 use tokio::time::{sleep, Duration as TokioDuration};
 use tracing::{info, warn};
 use uuid::Uuid;
 
-use crate::read_model::{self, EntityChange, ReadModelError, RelationDirection};
+use crate::read_model::{EntityChange, ReadModelError};
+use crate::search_projection::{project_category_page, project_record_keys};
 
 const DEFAULT_INDEX_NAME: &str = "opentk_entities";
 
@@ -23,6 +20,7 @@ pub struct SearchSyncConfig {
     pub index_name: String,
     pub categories: Vec<String>,
     pub batch_size: i64,
+    pub max_payload_bytes: usize,
     pub retry_limit: i32,
 }
 
@@ -35,6 +33,7 @@ impl Default for SearchSyncConfig {
                 .map(|entity| entity.category.to_owned())
                 .collect(),
             batch_size: 100,
+            max_payload_bytes: 80_000_000,
             retry_limit: 3,
         }
     }
@@ -118,9 +117,9 @@ pub enum SearchIndexCompletenessState {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct SearchSyncRecordKey {
-    source_category: String,
-    source_id: Uuid,
-    latest_skiptoken: i64,
+    pub(crate) source_category: String,
+    pub(crate) source_id: Uuid,
+    pub(crate) latest_skiptoken: i64,
 }
 
 impl SearchSyncRecordKey {
@@ -140,6 +139,8 @@ pub enum SearchSyncError {
     InvalidBatchSize,
     #[error("search sync retry_limit must be greater than zero")]
     InvalidRetryLimit,
+    #[error("search sync max_payload_bytes must be greater than zero")]
+    InvalidMaxPayloadBytes,
     #[error("unknown category {0}")]
     UnknownCategory(String),
     #[error("database read/write failed")]
@@ -217,13 +218,13 @@ where
         record_count = records.len(),
         "search CDC targeted changes materialization started"
     );
-    let changes = targeted_changes(pool, records).await?;
+    let projection = project_record_keys(pool, records).await?;
     info!(
         record_count = records.len(),
-        change_count = changes.len(),
+        change_count = projection.changes.len(),
         "search CDC targeted changes materialized"
     );
-    if changes.is_empty() {
+    if projection.changes.is_empty() {
         return Ok(SearchSyncReport {
             mode: SearchSyncMode::Incremental,
             indexed: 0,
@@ -233,14 +234,7 @@ where
         });
     }
 
-    let operations = operations_for_changes(pool, &changes).await;
-    let operations = match operations {
-        Ok(operations) => operations,
-        Err(error) => {
-            record_batch_failure(pool, config, &changes, &error.to_string()).await?;
-            return Err(error);
-        }
-    };
+    let operations = projection.operations;
 
     let upsert_count = operations
         .iter()
@@ -254,8 +248,11 @@ where
         operation_count = operations.len(),
         upsert_count, delete_count, "Meilisearch batch apply started"
     );
-    if let Err(error) = client.apply_batch(&operations).await {
-        record_batch_failure(pool, config, &changes, &error.to_string()).await?;
+    if let Err(error) = client
+        .apply_batch_with_payload_limit(&operations, config.max_payload_bytes)
+        .await
+    {
+        record_batch_failure(pool, config, &projection.changes, &error.to_string()).await?;
         return Err(error.into());
     }
     info!(
@@ -386,62 +383,6 @@ where
     Ok(results)
 }
 
-async fn targeted_changes(
-    pool: &PgPool,
-    records: &[SearchSyncRecordKey],
-) -> Result<Vec<EntityChange>, SearchSyncError> {
-    let mut deduped = BTreeMap::new();
-    for record in records {
-        ensure_category(&record.source_category)?;
-        deduped
-            .entry((record.source_category.clone(), record.source_id))
-            .and_modify(|latest_skiptoken| {
-                if record.latest_skiptoken > *latest_skiptoken {
-                    *latest_skiptoken = record.latest_skiptoken;
-                }
-            })
-            .or_insert(record.latest_skiptoken);
-    }
-
-    let mut changes = Vec::with_capacity(deduped.len());
-    for ((source_category, source_id), _latest_skiptoken) in deduped {
-        changes.push(targeted_change(pool, &source_category, source_id).await?);
-    }
-    Ok(changes)
-}
-
-async fn targeted_change(
-    pool: &PgPool,
-    source_category: &str,
-    source_id: Uuid,
-) -> Result<EntityChange, SearchSyncError> {
-    let row = sqlx::query(
-        "SELECT source_category, source_id, latest_skiptoken, deleted, source_updated_at, atom_updated_at
-         FROM sync_entity
-         WHERE source_category = $1 AND source_id = $2",
-    )
-    .bind(source_category)
-    .bind(source_id)
-    .fetch_optional(pool)
-    .await?
-    .ok_or(ReadModelError::NotFound)?;
-
-    Ok(EntityChange {
-        category: row.get("source_category"),
-        source_id: row.get("source_id"),
-        latest_skiptoken: row.get("latest_skiptoken"),
-        deleted: row.get("deleted"),
-        source_updated_at: row
-            .get::<Option<DateTime<Utc>>, _>("source_updated_at")
-            .expect("sync_entity.source_updated_at is non-null")
-            .to_rfc3339(),
-        atom_updated_at: row
-            .get::<Option<DateTime<Utc>>, _>("atom_updated_at")
-            .expect("sync_entity.atom_updated_at is non-null")
-            .to_rfc3339(),
-    })
-}
-
 async fn run_indexing<C>(
     pool: &PgPool,
     client: &C,
@@ -466,44 +407,26 @@ where
         };
 
         loop {
-            let page =
-                read_model::list_changes(pool, category, Some(after), config.batch_size).await?;
-            if page.items.is_empty() {
+            let page = project_category_page(pool, category, after, config.batch_size).await?;
+            if page.changes.is_empty() {
                 mark_cursor_caught_up(pool, &config.index_name, category, after).await?;
                 break;
             }
 
-            let operations = operations_for_changes(pool, &page.items).await;
-            match operations {
-                Ok(operations) => {
-                    apply_batch_with_retry(
-                        pool,
-                        client,
-                        config,
-                        category,
-                        &page.items,
-                        &operations,
-                    )
-                    .await?;
-                    for operation in &operations {
-                        match operation {
-                            SearchIndexOperation::Upsert(_) => indexed += 1,
-                            SearchIndexOperation::Delete(_) => deleted += 1,
-                        }
-                    }
-                    after = page
-                        .items
-                        .last()
-                        .map_or(after, |item| item.latest_skiptoken);
-                    advance_cursor(pool, &config.index_name, category, after).await?;
-                }
-                Err(error) => {
-                    record_batch_failure(pool, config, &page.items, &error.to_string()).await?;
-                    mark_cursor_error(pool, &config.index_name, category, &error.to_string())
-                        .await?;
-                    return Err(error);
+            let operations = page.operations;
+            apply_batch_with_retry(pool, client, config, category, &page.changes, &operations)
+                .await?;
+            for operation in &operations {
+                match operation {
+                    SearchIndexOperation::Upsert(_) => indexed += 1,
+                    SearchIndexOperation::Delete(_) => deleted += 1,
                 }
             }
+            after = page
+                .changes
+                .last()
+                .map_or(after, |item| item.latest_skiptoken);
+            advance_cursor(pool, &config.index_name, category, after).await?;
 
             if !page.has_more {
                 mark_cursor_caught_up(pool, &config.index_name, category, after).await?;
@@ -521,20 +444,6 @@ where
     })
 }
 
-async fn operations_for_changes(
-    pool: &PgPool,
-    changes: &[EntityChange],
-) -> Result<Vec<SearchIndexOperation>, SearchSyncError> {
-    let mut operations = Vec::with_capacity(changes.len());
-    for change in changes {
-        let Some(record) = source_record(pool, change).await? else {
-            continue;
-        };
-        operations.push(map_record_to_operation(&record)?);
-    }
-    Ok(operations)
-}
-
 async fn apply_batch_with_retry<C>(
     pool: &PgPool,
     client: &C,
@@ -549,7 +458,10 @@ where
     let mut attempt = 0_u32;
     loop {
         attempt += 1;
-        match client.apply_batch(operations).await {
+        match client
+            .apply_batch_with_payload_limit(operations, config.max_payload_bytes)
+            .await
+        {
             Ok(()) => return Ok(()),
             Err(error) if is_transient_index_error(&error) => {
                 let error_text =
@@ -588,7 +500,7 @@ fn is_transient_index_error(error: &SearchIndexError) -> bool {
                 || message.contains("timed out")
                 || message.contains("temporarily unavailable")
         }
-        SearchIndexError::Mapping(_) => false,
+        SearchIndexError::Mapping(_) | SearchIndexError::PayloadTooLarge { .. } => false,
     }
 }
 
@@ -597,201 +509,6 @@ fn retry_delay(attempt: u32) -> TokioDuration {
         .saturating_pow(attempt.saturating_sub(1).min(6))
         .min(60);
     TokioDuration::from_secs(seconds)
-}
-
-async fn source_record(
-    pool: &PgPool,
-    change: &EntityChange,
-) -> Result<Option<SearchSourceRecord>, SearchSyncError> {
-    let source_updated_at = parse_timestamp(&change.source_updated_at)?;
-    let atom_updated_at = parse_timestamp(&change.atom_updated_at)?;
-    if change.deleted {
-        return Ok(Some(SearchSourceRecord {
-            metadata: SearchEntityMetadata {
-                category: change.category.clone(),
-                source_id: change.source_id,
-                latest_skiptoken: change.latest_skiptoken,
-                deleted: true,
-                source_updated_at,
-                atom_updated_at,
-            },
-            fields: Map::new(),
-            document_content: None,
-            relations: Vec::new(),
-        }));
-    }
-
-    let detail = match read_model::get_entity_detail(pool, &change.category, change.source_id).await
-    {
-        Ok(detail) => detail,
-        Err(ReadModelError::NotFound) => {
-            warn!(
-                source_category = %change.category,
-                source_id = %change.source_id,
-                latest_skiptoken = change.latest_skiptoken,
-                "skipping search sync record until entity detail materializes"
-            );
-            return Ok(None);
-        }
-        Err(error) => return Err(error.into()),
-    };
-    let document_content = if change.category == "Document" {
-        search_document_content(pool, change).await?
-    } else {
-        None
-    };
-    let relations = relation_labels(pool, &change.category, change.source_id).await?;
-
-    Ok(Some(SearchSourceRecord {
-        metadata: SearchEntityMetadata {
-            category: change.category.clone(),
-            source_id: change.source_id,
-            latest_skiptoken: change.latest_skiptoken,
-            deleted: false,
-            source_updated_at,
-            atom_updated_at,
-        },
-        fields: detail.fields,
-        document_content,
-        relations,
-    }))
-}
-
-async fn search_document_content(
-    pool: &PgPool,
-    change: &EntityChange,
-) -> Result<Option<SearchDocumentContent>, SearchSyncError> {
-    let detail = match read_model::get_document_content(pool, change.source_id).await {
-        Ok(detail) => detail,
-        Err(ReadModelError::DocumentContentNotFound) => {
-            warn!(
-                source_category = %change.category,
-                source_id = %change.source_id,
-                latest_skiptoken = change.latest_skiptoken,
-                "indexing document without extracted content"
-            );
-            return Ok(None);
-        }
-        Err(error) => return Err(error.into()),
-    };
-    Ok(Some(SearchDocumentContent {
-        selected_source_url: detail.content.selected_source_url,
-        selected_source_content_type: detail.content.selected_source_content_type,
-        official_source: detail.content.official_source,
-        extraction_status: detail.content.extraction_status,
-        validation_status: detail.content.validation_status,
-        output_hash: detail.content.output_hash,
-        extracted_text: detail.content.extracted_text,
-        extracted_html: detail.content.extracted_html,
-    }))
-}
-
-async fn relation_labels(
-    pool: &PgPool,
-    category: &str,
-    source_id: Uuid,
-) -> Result<Vec<SearchRelationLabel>, SearchSyncError> {
-    let relations =
-        read_model::list_relations(pool, category, source_id, RelationDirection::Outgoing).await?;
-    let mut dedupe = BTreeSet::new();
-    let mut labels = Vec::with_capacity(relations.len());
-    for relation in relations {
-        let Some((related_category, related_id)) = related_endpoint(&relation, category, source_id)
-        else {
-            continue;
-        };
-        let label = match read_model::get_entity_detail(pool, &related_category, related_id).await {
-            Ok(detail) => title_from_fields(&related_category, &detail.fields)
-                .unwrap_or_else(|| fallback_label(&related_category, related_id)),
-            Err(ReadModelError::NotFound | ReadModelError::UnknownCategory(_)) => {
-                fallback_label(&related_category, related_id)
-            }
-            Err(error) => return Err(error.into()),
-        };
-        if !dedupe.insert((
-            relation.relation_name.clone(),
-            related_category.clone(),
-            related_id,
-            label.clone(),
-        )) {
-            continue;
-        }
-        labels.push(SearchRelationLabel {
-            relation_name: relation.relation_name,
-            target_category: related_category,
-            target_id: related_id,
-            label,
-        });
-    }
-    Ok(labels)
-}
-
-fn related_endpoint(
-    relation: &read_model::RelationRow,
-    category: &str,
-    source_id: Uuid,
-) -> Option<(String, Uuid)> {
-    if relation.source_category == category && relation.source_id == source_id {
-        if relation.target_category == category && relation.target_id == source_id {
-            return None;
-        }
-        return Some((relation.target_category.clone(), relation.target_id));
-    }
-    if relation.target_category == category && relation.target_id == source_id {
-        if relation.source_category == category && relation.source_id == source_id {
-            return None;
-        }
-        return Some((relation.source_category.clone(), relation.source_id));
-    }
-    None
-}
-
-fn title_from_fields(category: &str, fields: &Map<String, Value>) -> Option<String> {
-    for field in ["titel", "onderwerp", "nummer", "document_nummer", "naam_nl"] {
-        if let Some(value) = fields
-            .get(field)
-            .and_then(Value::as_str)
-            .map(str::trim)
-            .filter(|value| !value.is_empty())
-        {
-            return Some(value.to_owned());
-        }
-    }
-    if category == "Persoon" {
-        let first = string_field(fields, "roepnaam").or_else(|| string_field(fields, "initialen"));
-        let display = [
-            first,
-            string_field(fields, "tussenvoegsel"),
-            string_field(fields, "achternaam"),
-        ]
-        .into_iter()
-        .flatten()
-        .collect::<Vec<_>>()
-        .join(" ");
-        if !display.is_empty() {
-            return Some(display);
-        }
-    }
-    None
-}
-
-fn string_field(fields: &Map<String, Value>, field: &str) -> Option<String> {
-    fields
-        .get(field)
-        .and_then(Value::as_str)
-        .map(str::trim)
-        .filter(|value| !value.is_empty())
-        .map(ToOwned::to_owned)
-}
-
-fn fallback_label(category: &str, source_id: Uuid) -> String {
-    format!("{category} {source_id}")
-}
-
-fn parse_timestamp(timestamp: &str) -> Result<DateTime<Utc>, sqlx::Error> {
-    timestamp
-        .parse()
-        .map_err(|error| sqlx::Error::Decode(Box::new(error)))
 }
 
 async fn reset_cursors(pool: &PgPool, config: &SearchSyncConfig) -> Result<(), sqlx::Error> {
@@ -989,12 +706,13 @@ async fn record_batch_failure(
     changes: &[EntityChange],
     error: &str,
 ) -> Result<(), sqlx::Error> {
-    for change in changes {
-        let operation = if change.deleted { "delete" } else { "upsert" };
-        let now = Utc::now();
-        let next_retry_at = now + Duration::minutes(i64::from(config.retry_limit));
-        sqlx::query(
-            "INSERT INTO search_index_failure (
+    if changes.is_empty() {
+        return Ok(());
+    }
+    let now = Utc::now();
+    let next_retry_at = now + Duration::minutes(i64::from(config.retry_limit));
+    let mut builder: QueryBuilder<Postgres> = QueryBuilder::new(
+        "INSERT INTO search_index_failure (
                 index_name,
                 source_category,
                 source_id,
@@ -1006,25 +724,30 @@ async fn record_batch_failure(
                 created_at,
                 updated_at
              )
-             VALUES ($1, $2, $3, $4, $5, 1, $6, $7, $8, $8)
-             ON CONFLICT (index_name, source_category, source_id, latest_skiptoken, operation)
-             DO UPDATE
-             SET attempt_count = search_index_failure.attempt_count + 1,
-                 next_retry_at = EXCLUDED.next_retry_at,
-                 error = EXCLUDED.error,
-                 updated_at = EXCLUDED.updated_at",
-        )
-        .bind(&config.index_name)
-        .bind(&change.category)
-        .bind(change.source_id)
-        .bind(change.latest_skiptoken)
-        .bind(operation)
-        .bind(next_retry_at)
-        .bind(error)
-        .bind(now)
-        .execute(pool)
-        .await?;
-    }
+             ",
+    );
+    builder.push_values(changes, |mut row, change| {
+        let operation = if change.deleted { "delete" } else { "upsert" };
+        row.push_bind(&config.index_name)
+            .push_bind(&change.category)
+            .push_bind(change.source_id)
+            .push_bind(change.latest_skiptoken)
+            .push_bind(operation)
+            .push_bind(1_i32)
+            .push_bind(next_retry_at)
+            .push_bind(error)
+            .push_bind(now)
+            .push_bind(now);
+    });
+    builder.push(
+        " ON CONFLICT (index_name, source_category, source_id, latest_skiptoken, operation)
+          DO UPDATE
+          SET attempt_count = search_index_failure.attempt_count + 1,
+              next_retry_at = EXCLUDED.next_retry_at,
+              error = EXCLUDED.error,
+              updated_at = EXCLUDED.updated_at",
+    );
+    builder.build().execute(pool).await?;
     Ok(())
 }
 
@@ -1040,6 +763,9 @@ fn validate_config(config: &SearchSyncConfig) -> Result<(), SearchSyncError> {
     }
     if config.retry_limit <= 0 {
         return Err(SearchSyncError::InvalidRetryLimit);
+    }
+    if config.max_payload_bytes == 0 {
+        return Err(SearchSyncError::InvalidMaxPayloadBytes);
     }
     for category in &config.categories {
         ensure_category(category)?;

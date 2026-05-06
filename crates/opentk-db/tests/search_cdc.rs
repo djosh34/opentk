@@ -207,6 +207,7 @@ async fn listener_receives_postgres_notification_and_flushes(
             index_name: "opentk_entities".to_owned(),
             categories: vec!["Document".to_owned()],
             batch_size: 10,
+            max_payload_bytes: 80_000_000,
             retry_limit: 3,
         },
         SearchCdcBatchConfig {
@@ -263,6 +264,7 @@ async fn listener_flushes_after_elapsed_wall_time_between_notifications(
             index_name: "opentk_entities".to_owned(),
             categories: vec!["Document".to_owned()],
             batch_size: 10,
+            max_payload_bytes: 80_000_000,
             retry_limit: 3,
         },
         SearchCdcBatchConfig {
@@ -498,6 +500,7 @@ fn search_sync_config() -> SearchSyncConfig {
         index_name: "opentk_entities".to_owned(),
         categories: vec!["Document".to_owned()],
         batch_size: 10,
+        max_payload_bytes: 80_000_000,
         retry_limit: 3,
     }
 }
