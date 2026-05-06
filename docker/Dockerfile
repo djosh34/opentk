@@ -24,8 +24,12 @@ RUN case "$(uname -m)" in \
       aarch64) zig_arch="aarch64" ;; \
       *) echo "unsupported build architecture: $(uname -m)" >&2; exit 1 ;; \
     esac && \
-    curl -fsSL "https://ziglang.org/download/${ZIG_VERSION}/zig-linux-${zig_arch}-${ZIG_VERSION}.tar.xz" \
-      | tar -xJ -C /usr/local --strip-components=1 && \
+    curl --fail --show-error --location \
+      --retry 5 --retry-delay 2 --retry-all-errors \
+      --output /tmp/zig.tar.xz \
+      "https://ziglang.org/download/${ZIG_VERSION}/zig-linux-${zig_arch}-${ZIG_VERSION}.tar.xz" && \
+    tar -xJ -C /usr/local --strip-components=1 -f /tmp/zig.tar.xz && \
+    rm /tmp/zig.tar.xz && \
     ln -s /usr/local/zig /usr/local/bin/zig
 
 RUN --mount=type=cache,target=/usr/local/cargo/registry,sharing=locked \
