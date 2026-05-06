@@ -85,12 +85,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             run_once(&config).await?;
         }
         Command::Poll => {
+            let poll_interval_secs = config.sync.poll_interval_secs;
             let runner = build_runner(
                 &config,
                 SyncRunMode::Continuous,
-                Duration::from_secs(config.sync.poll_interval_secs),
+                Duration::from_secs(poll_interval_secs),
             )
             .await?;
+            spawn_polling_log(poll_interval_secs, config.sync.categories.len());
             runner.run_until_shutdown(shutdown_signal()).await?;
         }
         Command::Status => {
@@ -104,6 +106,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     }
     Ok(())
+}
+
+fn spawn_polling_log(poll_interval_secs: u64, category_count: usize) {
+    tokio::spawn(async move {
+        tokio::time::sleep(Duration::from_secs(15)).await;
+        tracing::info!(poll_interval_secs, category_count, "sync poller running");
+    });
 }
 
 async fn check_database_health(config: &Config) -> Result<(), Box<dyn std::error::Error>> {
