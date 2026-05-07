@@ -921,9 +921,14 @@ impl MeilisearchClient {
         setting: &str,
         value: &T,
     ) -> Result<(), SearchIndexError> {
+        let method = if setting == "pagination" {
+            reqwest::Method::PATCH
+        } else {
+            reqwest::Method::PUT
+        };
         let response = self
             .request(
-                reqwest::Method::PUT,
+                method,
                 &format!("/indexes/{}/settings/{setting}", self.index_name),
             )
             .header(reqwest::header::CONTENT_TYPE, "application/json")
