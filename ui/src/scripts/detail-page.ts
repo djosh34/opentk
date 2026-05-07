@@ -14,9 +14,8 @@ pdfjs.GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
 const status = requireElement("#status", HTMLParagraphElement);
 const detail = requireElement("#detail", HTMLElement);
 const params = new URL(location.href).searchParams;
-const itemKey = params.get("item");
+const apiPath = validApiPath(params.get("api"));
 const query = params.get("q")?.trim() ?? "";
-const apiPath = itemKey ? detailTarget(itemKey, query) : null;
 
 if (!apiPath) {
   status.textContent = "Open dit item opnieuw vanuit de zoekresultaten.";
@@ -114,14 +113,6 @@ function documentSection(entity: EntityDetail, document: DocumentContent | null,
 }
 
 function mediaPreview(sourceUrl: string, sourceType: string | null): HTMLElement {
-  if (sourceType?.includes("pdf") || sourceUrl.toLowerCase().includes(".pdf") || sourceUrl.includes("/Resources/")) {
-    const preview = el("div", "grid gap-5", [
-      el("div", "rounded-lg border border-stone-200 bg-white p-5 text-sm text-stone-600 shadow-sm shadow-stone-950/5", ["Document laden..."]),
-    ]);
-    renderPdfPreview(previewUrl(sourceUrl), preview);
-    return preview;
-  }
-
   if (sourceType?.startsWith("image/")) {
     return el("div", "rounded-lg border border-stone-200 bg-white p-3 shadow-sm shadow-stone-950/5", [
       el("img", "max-h-[72dvh] w-full rounded-md object-contain", [], {
@@ -129,6 +120,14 @@ function mediaPreview(sourceUrl: string, sourceType: string | null): HTMLElement
         alt: "Documentvoorbeeld",
       }),
     ]);
+  }
+
+  if (sourceType?.includes("pdf") || sourceUrl.toLowerCase().includes(".pdf") || sourceUrl.includes("/Resources/")) {
+    const preview = el("div", "grid gap-5", [
+      el("div", "rounded-lg border border-stone-200 bg-white p-5 text-sm text-stone-600 shadow-sm shadow-stone-950/5", ["Document laden..."]),
+    ]);
+    renderPdfPreview(previewUrl(sourceUrl), preview);
+    return preview;
   }
 
   return el("div", "rounded-lg border border-stone-200 bg-white p-5 text-sm leading-6 text-stone-700 shadow-sm shadow-stone-950/5", [
@@ -190,6 +189,11 @@ function shell(message: string): HTMLElement {
 }
 
 function detailTitle(entity: EntityDetail): string {
+  const personName = fullPersonName(entity.fields);
+  if (personName) {
+    return personName;
+  }
+
   for (const key of ["titel", "onderwerp", "naam", "achternaam", "nummer", "document_nummer"]) {
     const value = entity.fields[key];
     if (typeof value === "string" && value.trim()) {
@@ -197,6 +201,25 @@ function detailTitle(entity: EntityDetail): string {
     }
   }
   return readableCategory(entity.metadata.category);
+}
+
+function fullPersonName(fields: Record<string, unknown>): string | null {
+  const firstName = stringField(fields, "roepnaam") ?? stringField(fields, "voornamen");
+  const surnameParts = [
+    stringField(fields, "tussenvoegsel"),
+    stringField(fields, "achternaam"),
+  ].filter(Boolean);
+
+  if (!firstName || surnameParts.length === 0) {
+    return null;
+  }
+
+  return cleanValue([firstName, ...surnameParts].join(" "));
+}
+
+function stringField(fields: Record<string, unknown>, key: string): string | null {
+  const value = fields[key];
+  return typeof value === "string" && value.trim() ? value : null;
 }
 
 function detailMeta(entity: EntityDetail): Array<Node | string | null> {
@@ -297,12 +320,9 @@ function readableCategory(category: string): string {
   return category;
 }
 
-function detailTarget(item: string, searchQuery: string): string | null {
-  const stored = sessionStorage.getItem(`opentk-detail-targets:${searchQuery}`);
-  if (!stored) {
+function validApiPath(value: string | null): string | null {
+  if (!value || !value.startsWith("/") || value.startsWith("//") || /^\/?https?:/i.test(value)) {
     return null;
   }
-  const targets = JSON.parse(stored) as Record<string, unknown>;
-  const path = targets[item];
-  return typeof path === "string" && path.startsWith("/") ? path : null;
+  return value;
 }

@@ -44,13 +44,12 @@ function renderResults(data: SearchResponse): void {
 
   const count = data.estimated_total_hits ?? data.items.length;
   status.textContent = `${formatCount(count)} ${count === 1 ? "resultaat" : "resultaten"} voor "${data.query}".`;
-  rememberDetailTargets(data.items);
-  results.replaceChildren(...data.items.map((item, index) => resultItem(item, index)));
+  results.replaceChildren(...data.items.map(resultItem));
   restoreCurrentScroll();
 }
 
-function resultItem(item: SearchResult, index: number): HTMLLIElement {
-  const href = detailHref(item, index);
+function resultItem(item: SearchResult): HTMLLIElement {
+  const href = detailHref(item);
   const summary = searchSummary(item);
   const meta = el("div", "flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-stone-600", [
     readableKind(item),
@@ -73,50 +72,13 @@ function resultItem(item: SearchResult, index: number): HTMLLIElement {
   return el("li", "", [link]);
 }
 
-function detailHref(item: SearchResult, index: number): string {
+function detailHref(item: SearchResult): string {
   const url = new URL("/detail", location.origin);
-  url.searchParams.set("item", cleanItemKey(item, index));
+  url.searchParams.set("api", item.api_url);
   if (query) {
     url.searchParams.set("q", query);
   }
   return `${url.pathname}${url.search}`;
-}
-
-function rememberDetailTargets(items: SearchResult[]): void {
-  const targets = Object.fromEntries(items.map((item, index) => [cleanItemKey(item, index), item.api_url]));
-  sessionStorage.setItem(detailTargetStorageKey(query), JSON.stringify(targets));
-}
-
-function detailTargetStorageKey(searchQuery: string): string {
-  return `opentk-detail-targets:${searchQuery}`;
-}
-
-function cleanItemKey(item: SearchResult, index: number): string {
-  const base = item.title
-    .toLowerCase()
-    .normalize("NFKD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-|-$/g, "")
-    .slice(0, 54) || readableKind(item).toLowerCase();
-  return `${base}-${index + 1}`;
-}
-
-function readableKind(item: SearchResult): string {
-  const category = item.source_category.toLowerCase();
-  if (category.includes("document")) {
-    return "Document";
-  }
-  if (category.includes("activiteit")) {
-    return "Vergadering";
-  }
-  if (category.includes("persoon")) {
-    return "Persoon";
-  }
-  if (category.includes("agendapunt")) {
-    return "Agendapunt";
-  }
-  return item.entity_kind === "Other" ? "Kamerstuk" : item.entity_kind;
 }
 
 function searchSummary(item: SearchResult): string | null {
@@ -168,4 +130,39 @@ function decodeHtml(text: string): string {
 
 function formatCount(count: number): string {
   return new Intl.NumberFormat("nl-NL").format(count);
+}
+
+function readableKind(item: SearchResult): string {
+  const category = item.source_category.toLowerCase();
+  if (category.includes("document")) {
+    if (category.includes("actor")) {
+      return "Documentbetrokkene";
+    }
+    if (category.includes("versie")) {
+      return "Documentversie";
+    }
+    return "Document";
+  }
+  if (category === "zaak") {
+    return "Dossier";
+  }
+  if (category.includes("zaakactor")) {
+    return "Dossierbetrokkene";
+  }
+  if (category.includes("activiteit")) {
+    return "Vergadering";
+  }
+  if (category.includes("persoon")) {
+    return "Persoon";
+  }
+  if (category.includes("agendapunt")) {
+    return "Agendapunt";
+  }
+  return item.entity_kind === "Other" ? humanizeSourceCategory(item.source_category) : item.entity_kind;
+}
+
+function humanizeSourceCategory(category: string): string {
+  return category
+    .replace(/([a-z])([A-Z])/g, "$1 $2")
+    .replaceAll("_", " ");
 }
