@@ -57,13 +57,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 async fn run_loop(config: &Config) -> Result<(), Box<dyn std::error::Error>> {
-    let pool = connect(&database_config(config)).await?;
-    ensure_schema(&pool).await?;
-    let client = search_client(config);
     let reconciler_config = reconciler_config(config);
     loop {
-        let report = reconcile_once(&pool, &client, &reconciler_config).await?;
-        print!("{}", format_report(&report));
+        match run_once(config).await {
+            Ok(report) => print!("{}", format_report(&report)),
+            Err(error) => {
+                tracing::error!(
+                    error = %error,
+                    retry_after_secs = reconciler_config.loop_interval.as_secs(),
+                    "search reconciler pass failed; retrying"
+                );
+            }
+        }
         tokio::time::sleep(reconciler_config.loop_interval).await;
     }
 }
