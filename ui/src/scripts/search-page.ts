@@ -1,6 +1,7 @@
 import { el, requireElement } from "../lib/dom";
 import { API_BASE_URL, search, type SearchResponse, type SearchResult } from "../lib/opentk";
 import { formatDate } from "../lib/format";
+import { rememberCurrentScroll, restoreCurrentScroll } from "./history-scroll";
 
 const form = requireElement("#search-form", HTMLFormElement);
 const input = requireElement("#search-input", HTMLInputElement);
@@ -8,10 +9,15 @@ const status = requireElement("#status", HTMLParagraphElement);
 const results = requireElement("#results", HTMLOListElement);
 const query = new URL(location.href).searchParams.get("q")?.trim() ?? "";
 
+if ("scrollRestoration" in history) {
+  history.scrollRestoration = "manual";
+}
+
 input.value = query;
 form.addEventListener("submit", () => {
   input.value = input.value.trim();
 });
+window.addEventListener("pagehide", rememberCurrentScroll);
 
 if (query) {
   void loadResults(query);
@@ -39,6 +45,7 @@ function renderResults(data: SearchResponse): void {
   const count = data.estimated_total_hits ?? data.items.length;
   status.textContent = `${count} resultaat${count === 1 ? "" : "en"} voor "${data.query}".`;
   results.replaceChildren(...data.items.map(resultItem));
+  restoreCurrentScroll();
 }
 
 function resultItem(item: SearchResult): HTMLLIElement {
