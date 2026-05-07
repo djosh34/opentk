@@ -37,7 +37,7 @@ fn meilisearch_schema_declares_search_result_and_filter_contract() {
     );
     assert_eq!(
         schema.sortable_attributes,
-        vec!["date", "source_updated_at", "latest_skiptoken"]
+        vec!["date", "latest_skiptoken", "source_updated_at"]
     );
     assert_eq!(
         schema.ranking_rules,

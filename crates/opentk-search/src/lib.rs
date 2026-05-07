@@ -372,7 +372,7 @@ pub fn meilisearch_schema() -> SearchIndexSchema {
             "filter_categories",
             "latest_skiptoken",
         ],
-        sortable_attributes: vec!["date", "source_updated_at", "latest_skiptoken"],
+        sortable_attributes: vec!["date", "latest_skiptoken", "source_updated_at"],
         ranking_rules: vec![
             "words",
             "typo",
