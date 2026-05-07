@@ -11,13 +11,13 @@ const { initialQuery = "", sticky = true } = Astro.props;
   id="search-form"
   action="/"
   class:list={[
-    "z-10 bg-slate-50/95 py-3 backdrop-blur sm:bg-transparent sm:py-0",
+    "z-10 bg-[#f6f7f3]/95 py-3 backdrop-blur sm:bg-transparent sm:py-0",
     sticky && "sticky top-0 -mx-4 px-4 sm:static sm:mx-0 sm:px-0",
   ]}
 >
   <label for="search-input" class="sr-only">Zoeken</label>
-  <div class="flex min-h-14 items-center gap-2 rounded-lg border border-slate-300 bg-white px-3 shadow-sm focus-within:border-slate-950 focus-within:ring-2 focus-within:ring-slate-950/10">
-    <svg class="h-5 w-5 flex-none text-slate-500" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+  <div class="flex min-h-16 items-center gap-2 rounded-lg border border-stone-300 bg-white px-3 shadow-sm shadow-stone-950/5 focus-within:border-stone-950 focus-within:ring-3 focus-within:ring-lime-700/15">
+    <svg class="h-5 w-5 flex-none text-stone-500" viewBox="0 0 24 24" fill="none" aria-hidden="true">
       <path d="m21 21-4.3-4.3m1.8-5.2a7 7 0 1 1-14 0 7 7 0 0 1 14 0Z" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path>
     </svg>
     <input
@@ -28,11 +28,11 @@ const { initialQuery = "", sticky = true } = Astro.props;
       autocomplete="off"
       value={initialQuery}
       placeholder="Zoek op onderwerp, persoon of document"
-      class="min-w-0 flex-1 bg-transparent py-4 text-base text-slate-950 outline-none placeholder:text-slate-400"
+      class="min-w-0 flex-1 bg-transparent py-4 text-base text-stone-950 outline-none placeholder:text-stone-400"
     />
     <button
       type="submit"
-      class="flex-none rounded-md bg-slate-950 px-4 py-2.5 text-sm font-semibold text-white transition active:scale-[0.98] disabled:cursor-not-allowed disabled:bg-slate-300"
+      class="flex-none rounded-md bg-stone-950 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-lime-800 active:scale-[0.98] disabled:cursor-not-allowed disabled:bg-stone-300"
     >
       Zoek
     </button>

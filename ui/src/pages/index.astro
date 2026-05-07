@@ -11,7 +11,7 @@ const initialQuery = Astro.url.searchParams.get("q") ?? "";
   <AppShell title="Zoek in de Tweede Kamer">
     <SearchForm initialQuery={initialQuery} />
     <StatusLine />
-    <ol id="results" class="grid gap-3 pb-8"></ol>
+    <ol id="results" class="grid gap-3 pb-10"></ol>
   </AppShell>
 </BaseLayout>
 

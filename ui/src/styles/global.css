@@ -8,7 +8,7 @@
 
 html {
   min-height: 100%;
-  background: #f8fafc;
+  background: #f6f7f3;
 }
 
 body {
@@ -17,8 +17,12 @@ body {
 }
 
 mark {
-  background: #fef08a;
+  background: #d9f99d;
   color: inherit;
   border-radius: 0.25rem;
   padding: 0 0.125rem;
+}
+
+::selection {
+  background: #d9f99d;
 }

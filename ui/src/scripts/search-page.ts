@@ -1,5 +1,5 @@
 import { el, requireElement } from "../lib/dom";
-import { API_BASE_URL, search, type SearchResponse, type SearchResult } from "../lib/opentk";
+import { search, type SearchResponse, type SearchResult } from "../lib/opentk";
 import { formatDate } from "../lib/format";
 import { rememberCurrentScroll, restoreCurrentScroll } from "./history-scroll";
 
@@ -43,50 +43,129 @@ function renderResults(data: SearchResponse): void {
   }
 
   const count = data.estimated_total_hits ?? data.items.length;
-  status.textContent = `${count} resultaat${count === 1 ? "" : "en"} voor "${data.query}".`;
-  results.replaceChildren(...data.items.map(resultItem));
+  status.textContent = `${formatCount(count)} ${count === 1 ? "resultaat" : "resultaten"} voor "${data.query}".`;
+  rememberDetailTargets(data.items);
+  results.replaceChildren(...data.items.map((item, index) => resultItem(item, index)));
   restoreCurrentScroll();
 }
 
-function resultItem(item: SearchResult): HTMLLIElement {
-  const link = el("a", "outline-none hover:underline focus:underline", [item.title], {
-    href: detailHref(item.api_url),
-  });
-  const meta = el("div", "mb-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs font-medium text-slate-500", [
-    pill(item.entity_kind),
-    item.source_category,
-    item.document_number ? `Nr. ${item.document_number}` : null,
-  ]);
-  const footer = el("div", "mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-500", [
+function resultItem(item: SearchResult, index: number): HTMLLIElement {
+  const href = detailHref(item, index);
+  const summary = searchSummary(item);
+  const meta = el("div", "flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-stone-600", [
+    readableKind(item),
     item.date ? el("time", "", [formatDate(item.date)], { datetime: item.date }) : null,
-    el("a", "font-medium text-slate-700 underline underline-offset-2", ["API"], {
-      href: `${API_BASE_URL}${item.api_url}`,
-    }),
   ]);
-
-  return el("li", "rounded-lg border border-slate-200 bg-white p-4 shadow-sm", [
-    meta,
-    el("h2", "text-lg font-semibold leading-snug text-slate-950", [link]),
-    el("p", "mt-2 text-sm leading-6 text-slate-700", [
-      item.summary ?? bestSnippetText(item) ?? "Geen samenvatting beschikbaar.",
+  const arrow = el("span", "grid h-9 w-9 flex-none place-items-center rounded-full border border-stone-200 text-stone-500 transition group-hover:border-lime-700 group-hover:text-lime-800", [
+    "→",
+  ]);
+  const link = el("a", "group block rounded-lg border border-stone-200 bg-white p-4 text-left shadow-sm shadow-stone-950/5 outline-none transition hover:-translate-y-0.5 hover:border-lime-700 hover:shadow-md focus-visible:border-stone-950 focus-visible:ring-3 focus-visible:ring-lime-700/20 sm:p-5", [
+    el("div", "flex items-start justify-between gap-4", [
+      el("div", "min-w-0", [
+        meta,
+        el("h2", "mt-2 text-lg font-semibold leading-snug text-stone-950 sm:text-xl", [item.title]),
+      ]),
+      arrow,
     ]),
-    footer,
-  ]);
+    summary ? el("p", "mt-3 max-w-3xl text-sm leading-6 text-stone-700", [summary]) : null,
+  ], { href });
+
+  return el("li", "", [link]);
 }
 
-function detailHref(apiPath: string): string {
+function detailHref(item: SearchResult, index: number): string {
   const url = new URL("/detail", location.origin);
-  url.searchParams.set("api_url", apiPath);
+  url.searchParams.set("item", cleanItemKey(item, index));
   if (query) {
     url.searchParams.set("q", query);
   }
   return `${url.pathname}${url.search}`;
 }
 
-function pill(text: string): HTMLSpanElement {
-  return el("span", "rounded bg-slate-100 px-2 py-1 text-slate-700", [text]);
+function rememberDetailTargets(items: SearchResult[]): void {
+  const targets = Object.fromEntries(items.map((item, index) => [cleanItemKey(item, index), item.api_url]));
+  sessionStorage.setItem(detailTargetStorageKey(query), JSON.stringify(targets));
 }
 
-function bestSnippetText(item: SearchResult): string | null {
-  return item.snippets.find((snippet) => snippet.text.trim().length > 0)?.text ?? null;
+function detailTargetStorageKey(searchQuery: string): string {
+  return `opentk-detail-targets:${searchQuery}`;
+}
+
+function cleanItemKey(item: SearchResult, index: number): string {
+  const base = item.title
+    .toLowerCase()
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "")
+    .slice(0, 54) || readableKind(item).toLowerCase();
+  return `${base}-${index + 1}`;
+}
+
+function readableKind(item: SearchResult): string {
+  const category = item.source_category.toLowerCase();
+  if (category.includes("document")) {
+    return "Document";
+  }
+  if (category.includes("activiteit")) {
+    return "Vergadering";
+  }
+  if (category.includes("persoon")) {
+    return "Persoon";
+  }
+  if (category.includes("agendapunt")) {
+    return "Agendapunt";
+  }
+  return item.entity_kind === "Other" ? "Kamerstuk" : item.entity_kind;
+}
+
+function searchSummary(item: SearchResult): string | null {
+  if (item.summary?.trim()) {
+    return cleanText(item.summary);
+  }
+  const readableSnippet = item.snippets
+    .map((snippet) => snippet.text)
+    .map(cleanMetadataSnippet)
+    .find((text) => text.length > 0 && text.toLowerCase() !== item.title.toLowerCase());
+  return readableSnippet ?? null;
+}
+
+function cleanMetadataSnippet(text: string): string {
+  const decoded = decodeHtml(text).replace(/\s+/g, " ").trim();
+  if (!decoded.includes(":")) {
+    return cleanText(decoded);
+  }
+  const fields = Object.fromEntries([...decoded.matchAll(/([\p{L}_]+):\s*([^:]+?)(?=\s+[\p{L}_]+:\s|$)/gu)]
+    .map((match) => [match[1], cleanText(match[2])]));
+  const preferred = [
+    fields.soort,
+    fields.status,
+    fields.voortouwnaam,
+    fields.actor_naam,
+    fields.functie,
+    fields.actor_fractie,
+    fields.vergaderjaar ? `Vergaderjaar ${fields.vergaderjaar}` : null,
+  ].filter(Boolean);
+  if (preferred.length > 0) {
+    return preferred.join(" · ");
+  }
+  return "";
+}
+
+function cleanText(text: string): string {
+  return text
+    .replace(/S-\d(?:-\d+)+/g, "")
+    .replace(/\b[0-9a-f]{8}-[0-9a-f-]{27,}\b/gi, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function decodeHtml(text: string): string {
+  const textarea = document.createElement("textarea");
+  textarea.innerHTML = text;
+  return textarea.value;
+}
+
+function formatCount(count: number): string {
+  return new Intl.NumberFormat("nl-NL").format(count);
 }
