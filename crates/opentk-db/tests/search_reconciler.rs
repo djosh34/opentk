@@ -85,6 +85,48 @@ async fn reconciler_stops_when_total_counts_match() -> Result<(), sqlx::Error> {
 }
 
 #[tokio::test]
+async fn reconciler_repairs_missing_bounded_window_without_deleting_suffix(
+) -> Result<(), sqlx::Error> {
+    let pool = migrated_pool("search_reconciler_missing_window").await?;
+    seed_document(&pool, first_document_id(), 1, "2026D00001").await;
+    seed_document(&pool, second_document_id(), 2, "2026D00002").await;
+    seed_document(
+        &pool,
+        Uuid::parse_str("33333333-3333-4333-8333-333333333333").unwrap(),
+        3,
+        "2026D00003",
+    )
+    .await;
+    let client = MemoryReconcilerClient::default();
+    client.seed(stale_document(first_document_id(), 1));
+    client.seed(stale_document(
+        Uuid::parse_str("33333333-3333-4333-8333-333333333333").unwrap(),
+        3,
+    ));
+
+    let report = reconcile_once(&pool, &client, &config(1))
+        .await
+        .expect("reconcile succeeds");
+
+    let documents = client.documents();
+    assert_eq!(documents.len(), 3);
+    assert!(documents.contains_key(&format!("Document_{}", first_document_id())));
+    assert!(documents.contains_key(&format!("Document_{}", second_document_id())));
+    assert!(documents.contains_key("Document_33333333-3333-4333-8333-333333333333"));
+    assert_eq!(report.categories[0].postgres_count, 3);
+    assert_eq!(report.categories[0].meilisearch_count, 3);
+    assert_eq!(report.categories[0].verified_prefix_boundary, 1);
+    assert_eq!(report.categories[0].deleted_rows, 0);
+    assert!(report.categories[0].completed);
+    println!(
+        "missing_window_repair_report={:?} final_document_ids={:?}",
+        report.categories[0],
+        documents.keys().cloned().collect::<Vec<_>>()
+    );
+    Ok(())
+}
+
+#[tokio::test]
 async fn reconciler_deletes_only_exact_extra_documents_then_rebuilds() -> Result<(), sqlx::Error> {
     let pool = migrated_pool("search_reconciler_mismatch").await?;
     seed_document(&pool, first_document_id(), 1, "2026D00001").await;
