@@ -616,8 +616,10 @@ impl SearchReconcilerClient for MeilisearchClient {
     ) -> Result<Option<i64>, SearchIndexError> {
         let body = MeiliReconcileSearchRequest {
             q: "",
-            limit: 1,
-            offset: 0,
+            limit: Some(1),
+            offset: Some(0),
+            page: None,
+            hits_per_page: None,
             filter: Some(category_filter(source_category)?),
             sort: vec!["latest_skiptoken:desc"],
             attributes_to_retrieve: vec!["latest_skiptoken"],
@@ -670,11 +672,13 @@ impl SearchReconcilerClient for MeilisearchClient {
         };
         let body = MeiliReconcileSearchRequest {
             q: "",
-            limit: 0,
-            offset: 0,
+            limit: None,
+            offset: None,
+            page: Some(1),
+            hits_per_page: Some(1),
             filter: Some(filter),
             sort: Vec::new(),
-            attributes_to_retrieve: vec!["latest_skiptoken"],
+            attributes_to_retrieve: Vec::new(),
         };
         let response = self
             .request(
@@ -695,8 +699,8 @@ impl SearchReconcilerClient for MeilisearchClient {
             });
         }
         let response: MeiliRawSearchResponse = serde_json::from_str(&body).map_err(json_error)?;
-        response.estimated_total_hits.map(u64::from).ok_or_else(|| {
-            SearchIndexError::InvalidResponse("prefix count missing estimatedTotalHits".to_owned())
+        response.total_hits.ok_or_else(|| {
+            SearchIndexError::InvalidResponse("prefix count missing totalHits".to_owned())
         })
     }
 
@@ -1023,8 +1027,14 @@ struct MeiliSearchRequest {
 #[serde(rename_all = "camelCase")]
 struct MeiliReconcileSearchRequest<'a> {
     q: &'a str,
-    limit: u32,
-    offset: u32,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    limit: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    offset: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    page: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    hits_per_page: Option<u32>,
     #[serde(skip_serializing_if = "Option::is_none")]
     filter: Option<String>,
     #[serde(skip_serializing_if = "Vec::is_empty")]
@@ -1036,7 +1046,7 @@ struct MeiliReconcileSearchRequest<'a> {
 #[serde(rename_all = "camelCase")]
 struct MeiliRawSearchResponse {
     hits: Vec<Map<String, Value>>,
-    estimated_total_hits: Option<u32>,
+    total_hits: Option<u64>,
 }
 
 impl MeiliSearchRequest {
