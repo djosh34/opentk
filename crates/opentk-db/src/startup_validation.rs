@@ -198,13 +198,13 @@ async fn validate_api_database(
     })
 }
 
-/// Validate dependencies needed by search synchronization.
+/// Validate dependencies needed by search reconciliation.
 ///
 /// # Errors
 ///
 /// Returns [`DependencyValidationError`] when `PostgreSQL` or Meilisearch cannot
 /// be reached within the startup validation timeout.
-pub async fn validate_search_sync_dependencies(
+pub async fn validate_search_reconciler_dependencies(
     config: &Config,
 ) -> Result<DependencyValidationReport, DependencyValidationError> {
     Ok(DependencyValidationReport {

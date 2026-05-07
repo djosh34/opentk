@@ -11,7 +11,7 @@ use opentk_config::Config;
 use opentk_db::{
     schema_lifecycle::ensure_schema,
     startup_validation::{
-        redact_database_url, validate_api_dependencies, validate_search_sync_dependencies,
+        redact_database_url, validate_api_dependencies, validate_search_reconciler_dependencies,
         validate_sync_dependencies, DependencyCheckStatus, DependencyKind, SearchRequirement,
     },
 };
@@ -124,12 +124,12 @@ async fn database_validation_returns_human_readable_unreachable_error(
 }
 
 #[tokio::test]
-async fn search_sync_validation_requires_meilisearch_stats(
+async fn search_reconciler_validation_requires_meilisearch_stats(
 ) -> Result<(), Box<dyn std::error::Error>> {
     let meili = HttpFixture::start(vec![ResponseSpec::ok(r#"{"databaseSize":1}"#)]).await?;
     let config = config_with_database(test_database_url()?, &meili.base_url, Some("secret"))?;
 
-    let report = validate_search_sync_dependencies(&config).await?;
+    let report = validate_search_reconciler_dependencies(&config).await?;
 
     assert_eq!(
         report.search,

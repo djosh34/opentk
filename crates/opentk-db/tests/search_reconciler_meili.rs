@@ -36,9 +36,15 @@ async fn real_meilisearch_reconciler_converges_empty_stale_and_mismatch(
     assert!(empty_report.categories[0].completed);
     assert_eq!(empty_report.categories[0].postgres_count, 2);
     assert_eq!(empty_report.categories[0].meilisearch_count, 2);
-    assert_eq!(client.highest_skiptoken("Document").await?, Some(2));
-    assert_eq!(client.count_category_prefix("Document", None).await?, 2);
-    assert_sortable_latest_skiptoken(&http, &meili_url, &index_name).await?;
+    let empty_highest = client.highest_skiptoken("Document").await?;
+    let empty_count = client.count_category_prefix("Document", None).await?;
+    assert_eq!(empty_highest, Some(2));
+    assert_eq!(empty_count, 2);
+    let sorted_highest = assert_sortable_latest_skiptoken(&http, &meili_url, &index_name).await?;
+    println!(
+        "empty_convergence_report={:?} highest_skiptoken={empty_highest:?} meili_count={empty_count} sorted_highest={sorted_highest}",
+        empty_report.categories[0]
+    );
 
     client.reset_index(&schema(index_name.clone())).await?;
     client
@@ -53,6 +59,10 @@ async fn real_meilisearch_reconciler_converges_empty_stale_and_mismatch(
     assert_eq!(stale_report.categories[0].inserted_rows, 2);
     let refreshed = document(&http, &meili_url, &index_name, first_document_id()).await?;
     assert_ne!(refreshed["title"], "stale title");
+    println!(
+        "stale_refresh_report={:?} refreshed_title={}",
+        stale_report.categories[0], refreshed["title"]
+    );
 
     client.reset_index(&schema(index_name.clone())).await?;
     client
@@ -72,6 +82,11 @@ async fn real_meilisearch_reconciler_converges_empty_stale_and_mismatch(
         .send()
         .await?;
     assert_eq!(extra.status(), StatusCode::NOT_FOUND);
+    println!(
+        "mismatch_repair_report={:?} extra_document_status={}",
+        mismatch_report.categories[0],
+        extra.status()
+    );
 
     delete_index_if_exists(&http, &meili_url, &index_name).await?;
     Ok(())
@@ -98,7 +113,7 @@ async fn assert_sortable_latest_skiptoken(
     http: &reqwest::Client,
     meili_url: &str,
     index_name: &str,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> Result<i64, Box<dyn std::error::Error>> {
     let sortable = http
         .get(format!(
             "{meili_url}/indexes/{index_name}/settings/sortable-attributes"
@@ -112,16 +127,17 @@ async fn assert_sortable_latest_skiptoken(
     assert!(sortable
         .as_array()
         .is_some_and(|items| items.iter().any(|item| item == "latest_skiptoken")));
+    println!("sortable_attributes={sortable}");
 
     let highest = http
-        .post(format!("{meili_url}/indexes/{index_name}/search"))
+        .post(format!("{meili_url}/indexes/{index_name}/documents/fetch"))
         .header(reqwest::header::CONTENT_TYPE, "application/json")
         .body(
             serde_json::json!({
                 "filter": "source_category = Document",
                 "sort": ["latest_skiptoken:desc"],
                 "limit": 1,
-                "attributesToRetrieve": ["latest_skiptoken"]
+                "fields": ["latest_skiptoken"]
             })
             .to_string(),
         )
@@ -131,8 +147,9 @@ async fn assert_sortable_latest_skiptoken(
         .text()
         .await?;
     let highest: Value = serde_json::from_str(&highest)?;
-    assert_eq!(highest["hits"][0]["latest_skiptoken"], 2);
-    Ok(())
+    assert_eq!(highest["results"][0]["latest_skiptoken"], 2);
+    println!("documents_fetch_highest_response={highest}");
+    Ok(2)
 }
 
 async fn document(

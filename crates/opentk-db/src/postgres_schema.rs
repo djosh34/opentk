@@ -334,7 +334,7 @@ pub fn render_ensure_schema(schema: &SchemaSpec) -> String {
         sql.push('\n');
     }
 
-    render_search_cdc_trigger_replacement(&mut sql);
+    render_retired_search_notify_cleanup(&mut sql);
     sql.push('\n');
 
     for index_spec in &schema.indexes {
@@ -344,25 +344,10 @@ pub fn render_ensure_schema(schema: &SchemaSpec) -> String {
     sql
 }
 
-fn render_search_cdc_trigger_replacement(sql: &mut String) {
+fn render_retired_search_notify_cleanup(sql: &mut String) {
     sql.push_str(concat!(
-        "CREATE OR REPLACE FUNCTION notify_sync_entity_change()\n",
-        "RETURNS TRIGGER AS $$\n",
-        "BEGIN\n",
-        "  PERFORM pg_notify('sync_entity_change', json_build_object(\n",
-        "    'schema', current_schema(),\n",
-        "    'source_category', NEW.source_category,\n",
-        "    'source_id', NEW.source_id,\n",
-        "    'latest_skiptoken', NEW.latest_skiptoken,\n",
-        "    'deleted', NEW.deleted\n",
-        "  )::text);\n",
-        "  RETURN NEW;\n",
-        "END;\n",
-        "$$ LANGUAGE plpgsql;\n\n",
         "DROP TRIGGER IF EXISTS sync_entity_change_trigger ON sync_entity;\n",
-        "CREATE TRIGGER sync_entity_change_trigger\n",
-        "AFTER INSERT OR UPDATE ON sync_entity\n",
-        "FOR EACH ROW EXECUTE FUNCTION notify_sync_entity_change();\n",
+        "DROP FUNCTION IF EXISTS notify_sync_entity_change();\n",
     ));
 }
 

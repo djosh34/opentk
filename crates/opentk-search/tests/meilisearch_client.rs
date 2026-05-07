@@ -176,7 +176,7 @@ async fn meilisearch_client_counts_filtered_documents() {
 }
 
 #[tokio::test]
-async fn meilisearch_reconciler_count_uses_exact_total_hits() {
+async fn meilisearch_reconciler_count_uses_documents_fetch_total() {
     let observed = Arc::new(Mutex::new(Vec::new()));
     let listener = TcpListener::bind("127.0.0.1:0").await.expect("bind server");
     let address = listener.local_addr().expect("server address");
@@ -200,14 +200,51 @@ async fn meilisearch_reconciler_count_uses_exact_total_hits() {
     let observed = observed.lock().expect("observed mutex");
     let request = observed
         .iter()
-        .find(|request| request.starts_with("POST /indexes/opentk_entities/search "))
-        .expect("count search request observed");
-    assert!(request.contains("\"hitsPerPage\":1"));
-    assert!(request.contains("\"page\":1"));
-    assert!(!request.contains("\"limit\":0"));
+        .find(|request| request.starts_with("POST /indexes/opentk_entities/documents/fetch "))
+        .expect("count documents fetch request observed");
+    assert!(request.contains("\"limit\":1"));
+    assert!(request.contains("\"offset\":0"));
+    assert!(!request.contains("hitsPerPage"));
+    assert!(!request.contains("\"q\""));
     assert!(request.contains("source_category = \\\"Document\\\""));
     assert!(request.contains("latest_skiptoken <= 123"));
     assert_eq!(count, 313_563);
+}
+
+#[tokio::test]
+async fn meilisearch_reconciler_highest_skiptoken_uses_sorted_documents_fetch() {
+    let observed = Arc::new(Mutex::new(Vec::new()));
+    let listener = TcpListener::bind("127.0.0.1:0").await.expect("bind server");
+    let address = listener.local_addr().expect("server address");
+    let server_observed = Arc::clone(&observed);
+    let server = tokio::spawn(async move {
+        serve_meili_highest_skiptoken_fixture(listener, server_observed).await;
+    });
+
+    let client = MeilisearchClient::new(
+        format!("http://{address}"),
+        Some("secret".to_owned()),
+        "opentk_entities".to_owned(),
+    );
+    let highest = client
+        .highest_skiptoken("Document")
+        .await
+        .expect("highest skiptoken succeeds");
+
+    server.abort();
+    let _ = server.await;
+    let observed = observed.lock().expect("observed mutex");
+    let request = observed
+        .iter()
+        .find(|request| request.starts_with("POST /indexes/opentk_entities/documents/fetch "))
+        .expect("highest skiptoken documents fetch request observed");
+    assert!(request.contains("\"limit\":1"));
+    assert!(request.contains("\"offset\":0"));
+    assert!(request.contains("\"sort\":[\"latest_skiptoken:desc\"]"));
+    assert!(request.contains("\"fields\":[\"latest_skiptoken\"]"));
+    assert!(request.contains("source_category = \\\"Document\\\""));
+    assert!(!request.contains("\"q\""));
+    assert_eq!(highest, Some(456));
 }
 
 #[tokio::test]
@@ -336,8 +373,37 @@ async fn serve_meili_exact_count_fixture(listener: TcpListener, observed: Arc<Mu
             };
             let request = String::from_utf8_lossy(&buffer[..read]).to_string();
             observed.lock().expect("observed mutex").push(request);
-            let body =
-                r#"{"hits":[],"totalHits":313563,"totalPages":313563,"page":1,"hitsPerPage":1}"#;
+            let body = r#"{"results":[],"offset":0,"limit":1,"total":313563}"#;
+            let response = format!(
+                "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+                body.len()
+            );
+            if let Err(error) = stream.write_all(response.as_bytes()).await {
+                assert_eq!(error.kind(), ErrorKind::BrokenPipe);
+            }
+        });
+    }
+}
+
+async fn serve_meili_highest_skiptoken_fixture(
+    listener: TcpListener,
+    observed: Arc<Mutex<Vec<String>>>,
+) {
+    loop {
+        let stream = listener.accept().await;
+        let Ok((mut stream, _)) = stream else {
+            return;
+        };
+        let observed = Arc::clone(&observed);
+        tokio::spawn(async move {
+            let mut buffer = vec![0_u8; 16 * 1024];
+            let read = match stream.read(&mut buffer).await {
+                Ok(0) | Err(_) => return,
+                Ok(read) => read,
+            };
+            let request = String::from_utf8_lossy(&buffer[..read]).to_string();
+            observed.lock().expect("observed mutex").push(request);
+            let body = r#"{"results":[{"latest_skiptoken":456}],"offset":0,"limit":1,"total":19}"#;
             let response = format!(
                 "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
                 body.len()

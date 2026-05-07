@@ -11,7 +11,7 @@ use thiserror::Error;
 use tracing::{info, warn};
 use uuid::Uuid;
 
-use crate::search_projection::project_category_page;
+use crate::search_projection::{project_category_page, SearchProjectionError};
 
 const DEFAULT_INDEX_NAME: &str = "opentk_entities";
 
@@ -71,7 +71,7 @@ pub enum SearchReconcilerError {
     #[error("search index failed")]
     Index(#[from] SearchIndexError),
     #[error("search projection failed")]
-    Projection(#[from] crate::search_sync::SearchSyncError),
+    Projection(#[from] SearchProjectionError),
 }
 
 /// Run one reconciliation pass over every configured category.

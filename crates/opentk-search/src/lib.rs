@@ -123,8 +123,9 @@ pub trait SearchReconcilerClient {
     /// deleting existing documents.
     async fn ensure_index(&self, schema: &SearchIndexSchema) -> Result<(), SearchIndexError>;
 
-    /// Return the highest indexed skiptoken for one source category using a
-    /// sorted Meilisearch `limit = 1` search.
+    /// Return the highest indexed skiptoken for one source category using the
+    /// filtered documents endpoint with `sort = latest_skiptoken:desc` and
+    /// `limit = 1`.
     async fn highest_skiptoken(
         &self,
         source_category: &str,
@@ -614,20 +615,17 @@ impl SearchReconcilerClient for MeilisearchClient {
         &self,
         source_category: &str,
     ) -> Result<Option<i64>, SearchIndexError> {
-        let body = MeiliReconcileSearchRequest {
-            q: "",
+        let body = MeiliDocumentsFetchRequest {
             limit: Some(1),
             offset: Some(0),
-            page: None,
-            hits_per_page: None,
             filter: Some(category_filter(source_category)?),
             sort: vec!["latest_skiptoken:desc"],
-            attributes_to_retrieve: vec!["latest_skiptoken"],
+            fields: vec!["latest_skiptoken"],
         };
         let response = self
             .request(
                 reqwest::Method::POST,
-                &format!("/indexes/{}/search", self.index_name),
+                &format!("/indexes/{}/documents/fetch", self.index_name),
             )
             .header(reqwest::header::CONTENT_TYPE, "application/json")
             .body(serde_json::to_string(&body).map_err(json_error)?)
@@ -642,9 +640,10 @@ impl SearchReconcilerClient for MeilisearchClient {
                 message: body,
             });
         }
-        let response: MeiliRawSearchResponse = serde_json::from_str(&body).map_err(json_error)?;
+        let response: MeiliDocumentsFetchResponse =
+            serde_json::from_str(&body).map_err(json_error)?;
         response
-            .hits
+            .results
             .first()
             .map(|hit| {
                 hit.get("latest_skiptoken")
@@ -670,20 +669,17 @@ impl SearchReconcilerClient for MeilisearchClient {
             ),
             None => category_filter(source_category)?,
         };
-        let body = MeiliReconcileSearchRequest {
-            q: "",
-            limit: None,
-            offset: None,
-            page: Some(1),
-            hits_per_page: Some(1),
+        let body = MeiliDocumentsFetchRequest {
+            limit: Some(1),
+            offset: Some(0),
             filter: Some(filter),
             sort: Vec::new(),
-            attributes_to_retrieve: Vec::new(),
+            fields: vec!["id"],
         };
         let response = self
             .request(
                 reqwest::Method::POST,
-                &format!("/indexes/{}/search", self.index_name),
+                &format!("/indexes/{}/documents/fetch", self.index_name),
             )
             .header(reqwest::header::CONTENT_TYPE, "application/json")
             .body(serde_json::to_string(&body).map_err(json_error)?)
@@ -698,10 +694,9 @@ impl SearchReconcilerClient for MeilisearchClient {
                 message: body,
             });
         }
-        let response: MeiliRawSearchResponse = serde_json::from_str(&body).map_err(json_error)?;
-        response.total_hits.ok_or_else(|| {
-            SearchIndexError::InvalidResponse("prefix count missing totalHits".to_owned())
-        })
+        let response: MeiliDocumentsFetchResponse =
+            serde_json::from_str(&body).map_err(json_error)?;
+        Ok(response.total)
     }
 
     async fn delete_category_after(
@@ -1025,28 +1020,23 @@ struct MeiliSearchRequest {
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
-struct MeiliReconcileSearchRequest<'a> {
-    q: &'a str,
+struct MeiliDocumentsFetchRequest<'a> {
     #[serde(skip_serializing_if = "Option::is_none")]
     limit: Option<u32>,
     #[serde(skip_serializing_if = "Option::is_none")]
     offset: Option<u32>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    page: Option<u32>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    hits_per_page: Option<u32>,
-    #[serde(skip_serializing_if = "Option::is_none")]
     filter: Option<String>,
     #[serde(skip_serializing_if = "Vec::is_empty")]
     sort: Vec<&'a str>,
-    attributes_to_retrieve: Vec<&'a str>,
+    fields: Vec<&'a str>,
 }
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
-struct MeiliRawSearchResponse {
-    hits: Vec<Map<String, Value>>,
-    total_hits: Option<u64>,
+struct MeiliDocumentsFetchResponse {
+    results: Vec<Map<String, Value>>,
+    total: u64,
 }
 
 impl MeiliSearchRequest {

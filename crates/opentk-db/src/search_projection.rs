@@ -7,17 +7,17 @@ use chrono::{DateTime, NaiveDate, Utc};
 use opentk_core::official_schema;
 use opentk_search::{
     map_record_to_operation, SearchDocumentContent, SearchEntityMetadata, SearchIndexOperation,
-    SearchRelationLabel, SearchSourceRecord,
+    SearchMappingError, SearchRelationLabel, SearchSourceRecord,
 };
 use serde_json::{Map, Number, Value};
 use sqlx::{postgres::PgRow, PgPool, Row};
+use thiserror::Error;
 use tracing::{info, warn};
 use uuid::Uuid;
 
 use crate::{
     postgres_schema::{self, ColumnSpec, SchemaSpec, SqlType, TableKind, TableSpec},
     read_model::{EntityChange, ReadModelError},
-    search_sync::{SearchSyncError, SearchSyncRecordKey},
 };
 
 pub struct SearchProjectionPage {
@@ -32,19 +32,31 @@ pub struct SearchProjectionPage {
     pub sql_duration: StdDuration,
 }
 
+#[derive(Debug, Error)]
+pub enum SearchProjectionError {
+    #[error("unknown search source category {0}")]
+    UnknownCategory(String),
+    #[error("database read failed")]
+    Sql(#[from] sqlx::Error),
+    #[error("read model lookup failed")]
+    ReadModel(#[from] ReadModelError),
+    #[error("search mapping failed")]
+    Mapping(#[from] SearchMappingError),
+}
+
 /// Project one cursor page for a source category into search index operations.
 ///
 /// # Errors
 ///
-/// Returns [`SearchSyncError`] when the category is unknown, `PostgreSQL` cannot
-/// be queried, source timestamps cannot be decoded, or search document mapping
-/// rejects a projected row.
+/// Returns [`SearchProjectionError`] when the category is unknown, `PostgreSQL`
+/// cannot be queried, source timestamps cannot be decoded, or search document
+/// mapping rejects a projected row.
 pub async fn project_category_page(
     pool: &PgPool,
     category: &str,
     after: i64,
     batch_size: i64,
-) -> Result<SearchProjectionPage, SearchSyncError> {
+) -> Result<SearchProjectionPage, SearchProjectionError> {
     ensure_category(category)?;
     let started = Instant::now();
     let limit = batch_size.saturating_add(1);
@@ -69,71 +81,12 @@ pub async fn project_category_page(
     project_changes(pool, changes, has_more, started).await
 }
 
-/// Project explicit CDC source records into search index operations.
-///
-/// # Errors
-///
-/// Returns [`SearchSyncError`] when any requested category is unknown, a
-/// requested source row is missing, `PostgreSQL` cannot be queried, source
-/// timestamps cannot be decoded, or search document mapping rejects a projected
-/// row.
-pub async fn project_record_keys(
-    pool: &PgPool,
-    records: &[SearchSyncRecordKey],
-) -> Result<SearchProjectionPage, SearchSyncError> {
-    let started = Instant::now();
-    let mut deduped = BTreeMap::new();
-    for record in records {
-        ensure_category(&record.source_category)?;
-        deduped
-            .entry((record.source_category.clone(), record.source_id))
-            .and_modify(|latest_skiptoken| {
-                if record.latest_skiptoken > *latest_skiptoken {
-                    *latest_skiptoken = record.latest_skiptoken;
-                }
-            })
-            .or_insert(record.latest_skiptoken);
-    }
-    if deduped.is_empty() {
-        return project_changes(pool, Vec::new(), false, started).await;
-    }
-
-    let mut categories = Vec::with_capacity(deduped.len());
-    let mut source_ids = Vec::with_capacity(deduped.len());
-    for ((category, source_id), _) in deduped {
-        categories.push(category);
-        source_ids.push(source_id);
-    }
-
-    let rows = sqlx::query(
-        "WITH requested AS (
-             SELECT *
-             FROM unnest($1::text[], $2::uuid[]) AS item(source_category, source_id)
-         )
-         SELECT e.source_category, e.source_id, e.latest_skiptoken, e.deleted, e.source_updated_at, e.atom_updated_at
-         FROM requested r
-         JOIN sync_entity e
-           ON e.source_category = r.source_category
-          AND e.source_id = r.source_id
-         ORDER BY e.source_category, e.latest_skiptoken, e.source_id",
-    )
-    .bind(&categories)
-    .bind(&source_ids)
-    .fetch_all(pool)
-    .await?;
-    if rows.len() != source_ids.len() {
-        return Err(ReadModelError::NotFound.into());
-    }
-    let changes = rows.iter().map(entity_change).collect::<Vec<_>>();
-    project_changes(pool, changes, false, started).await
-}
-
 async fn project_changes(
     pool: &PgPool,
     changes: Vec<EntityChange>,
     has_more: bool,
     started: Instant,
-) -> Result<SearchProjectionPage, SearchSyncError> {
+) -> Result<SearchProjectionPage, SearchProjectionError> {
     let mut grouped = BTreeMap::<String, Vec<EntityChange>>::new();
     for change in changes {
         grouped
@@ -205,7 +158,7 @@ async fn source_records_for_category(
     pool: &PgPool,
     category: &str,
     changes: &[EntityChange],
-) -> Result<BTreeMap<Uuid, SearchSourceRecord>, SearchSyncError> {
+) -> Result<BTreeMap<Uuid, SearchSourceRecord>, SearchProjectionError> {
     let source_ids = changes
         .iter()
         .filter(|change| !change.deleted)
@@ -272,7 +225,7 @@ async fn entity_fields(
     pool: &PgPool,
     category: &str,
     source_ids: &[Uuid],
-) -> Result<BTreeMap<Uuid, Map<String, Value>>, SearchSyncError> {
+) -> Result<BTreeMap<Uuid, Map<String, Value>>, SearchProjectionError> {
     if source_ids.is_empty() {
         return Ok(BTreeMap::new());
     }
@@ -294,7 +247,7 @@ async fn entity_fields(
 async fn document_content(
     pool: &PgPool,
     source_ids: &[Uuid],
-) -> Result<BTreeMap<Uuid, SearchDocumentContent>, SearchSyncError> {
+) -> Result<BTreeMap<Uuid, SearchDocumentContent>, SearchProjectionError> {
     if source_ids.is_empty() {
         return Ok(BTreeMap::new());
     }
@@ -345,7 +298,7 @@ async fn bulk_rel_labels(
     pool: &PgPool,
     category: &str,
     source_ids: &[Uuid],
-) -> Result<BTreeMap<Uuid, Vec<SearchRelationLabel>>, SearchSyncError> {
+) -> Result<BTreeMap<Uuid, Vec<SearchRelationLabel>>, SearchProjectionError> {
     if source_ids.is_empty() {
         return Ok(BTreeMap::new());
     }
@@ -395,7 +348,7 @@ async fn bulk_rel_labels(
                     labels_by_target.insert((target_category.clone(), target_id), label);
                 }
             }
-            Err(SearchSyncError::ReadModel(ReadModelError::UnknownCategory(_))) => {
+            Err(SearchProjectionError::ReadModel(ReadModelError::UnknownCategory(_))) => {
                 for target_id in target_ids {
                     labels_by_target.insert(
                         (target_category.clone(), target_id),
@@ -457,7 +410,10 @@ fn entity_change(row: &PgRow) -> EntityChange {
     }
 }
 
-fn scalar_fields(row: &PgRow, table: &TableSpec) -> Result<Map<String, Value>, SearchSyncError> {
+fn scalar_fields(
+    row: &PgRow,
+    table: &TableSpec,
+) -> Result<Map<String, Value>, SearchProjectionError> {
     let mut fields = Map::new();
     for column in &table.columns {
         if matches!(
@@ -550,7 +506,7 @@ fn parse_timestamp(timestamp: &str) -> Result<DateTime<Utc>, sqlx::Error> {
         .map_err(|error| sqlx::Error::Decode(Box::new(error)))
 }
 
-fn entity_table(category: &str) -> Result<&'static TableSpec, SearchSyncError> {
+fn entity_table(category: &str) -> Result<&'static TableSpec, SearchProjectionError> {
     read_schema()
         .tables
         .iter()
@@ -581,11 +537,11 @@ fn relation_tables_for_source(category: &str) -> Vec<&'static TableSpec> {
         .collect()
 }
 
-fn ensure_category(category: &str) -> Result<(), SearchSyncError> {
+fn ensure_category(category: &str) -> Result<(), SearchProjectionError> {
     if official_schema::entity_named(category).is_some() {
         Ok(())
     } else {
-        Err(SearchSyncError::UnknownCategory(category.to_owned()))
+        Err(SearchProjectionError::UnknownCategory(category.to_owned()))
     }
 }
 

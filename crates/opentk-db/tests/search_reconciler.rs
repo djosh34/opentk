@@ -42,6 +42,11 @@ async fn reconciler_converges_empty_index_and_clears_scratch() -> Result<(), sql
         sqlx::query_scalar("SELECT count(*)::bigint FROM search_reconciler_scratch")
             .fetch_one(&pool)
             .await?;
+    println!(
+        "empty_index_report={:?} final_document_count={} scratch_rows={scratch_rows}",
+        report.categories[0],
+        client.documents().len()
+    );
     assert_eq!(scratch_rows, 0);
     Ok(())
 }
@@ -67,6 +72,14 @@ async fn reconciler_refreshes_same_count_stale_documents() -> Result<(), sqlx::E
     assert_eq!(report.categories[0].verified_prefix_boundary, 2);
     assert_eq!(report.categories[0].inserted_rows, 2);
     assert!(report.categories[0].completed);
+    println!(
+        "stale_refresh_report={:?} refreshed_titles={:?}",
+        report.categories[0],
+        documents
+            .values()
+            .map(|document| document.title.clone())
+            .collect::<Vec<_>>()
+    );
     Ok(())
 }
 
@@ -94,6 +107,12 @@ async fn reconciler_deletes_mismatched_suffix_then_rebuilds() -> Result<(), sqlx
         vec![("Document".to_owned(), 0)]
     );
     assert!(report.categories[0].completed);
+    println!(
+        "mismatch_repair_report={:?} delete_after_calls={:?} final_document_ids={:?}",
+        report.categories[0],
+        client.delete_after_calls(),
+        documents.keys().cloned().collect::<Vec<_>>()
+    );
     Ok(())
 }
 

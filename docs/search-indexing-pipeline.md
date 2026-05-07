@@ -22,7 +22,7 @@ Searchable attributes are ordered by domain value: `title`, `summary`, `document
 
 Displayed attributes are `id`, `key`, `source_category`, `source_id`, `entity_kind`, `title`, `summary`, `source_url`, `date`, `document_number`, `metadata_text`, `relation_labels`, `latest_skiptoken`, `source_updated_at`, `atom_updated_at`, and `_formatted`.
 
-Filterable attributes are `source_category`, `entity_kind`, `date`, `filter_categories`, and `latest_skiptoken`. Sortable attributes are `date`, `source_updated_at`, and `latest_skiptoken`. The reconciler relies on `latest_skiptoken` being sortable so it can fetch the highest indexed skiptoken with a sorted `limit = 1` query.
+Filterable attributes are `source_category`, `entity_kind`, `date`, `filter_categories`, and `latest_skiptoken`. Sortable attributes are `date`, `source_updated_at`, and `latest_skiptoken`. The reconciler relies on `latest_skiptoken` being sortable so it can fetch the highest indexed skiptoken from `POST /indexes/{index}/documents/fetch` with `sort = ["latest_skiptoken:desc"]`, `limit = 1`, and a category filter.
 
 ## Source Mapping
 
@@ -41,8 +41,8 @@ The reconciler intentionally reuses this Rust mapper when populating the scratch
 For each category, `opentk-search-reconciler`:
 
 1. Ensures the Meilisearch index exists and has the configured schema settings without deleting existing documents.
-2. Fetches the highest Meilisearch `latest_skiptoken` for the category using `sort=["latest_skiptoken:desc"]` and `limit=1`.
-3. Compares PostgreSQL and Meilisearch prefix counts for `latest_skiptoken <= A`.
+2. Fetches the highest Meilisearch `latest_skiptoken` for the category using the filtered documents fetch endpoint with `sort=["latest_skiptoken:desc"]` and `limit=1`.
+3. Compares PostgreSQL and Meilisearch prefix counts for `latest_skiptoken <= A`; Meilisearch reconciliation counts use filtered `POST /indexes/{index}/documents/fetch` responses and their `total` field, never the search endpoint.
 4. If prefix counts mismatch, binary-searches for the highest count-matching prefix boundary and deletes Meilisearch category documents above that verified boundary.
 5. Selects PostgreSQL batch windows ordered by `latest_skiptoken, source_id`.
 6. Replaces rows in `search_reconciler_scratch` for the current `(index_name, source_category)` window.
