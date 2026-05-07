@@ -85,7 +85,7 @@ async fn reconciler_stops_when_total_counts_match() -> Result<(), sqlx::Error> {
 }
 
 #[tokio::test]
-async fn reconciler_deletes_mismatched_suffix_then_rebuilds() -> Result<(), sqlx::Error> {
+async fn reconciler_deletes_only_exact_extra_documents_then_rebuilds() -> Result<(), sqlx::Error> {
     let pool = migrated_pool("search_reconciler_mismatch").await?;
     seed_document(&pool, first_document_id(), 1, "2026D00001").await;
     seed_document(&pool, second_document_id(), 2, "2026D00002").await;
@@ -103,15 +103,11 @@ async fn reconciler_deletes_mismatched_suffix_then_rebuilds() -> Result<(), sqlx
     assert_eq!(documents.len(), 2);
     assert!(!documents.contains_key("Document_33333333-3333-4333-8333-333333333333"));
     assert_eq!(report.categories[0].verified_prefix_boundary, 0);
-    assert_eq!(
-        client.delete_after_calls(),
-        vec![("Document".to_owned(), 0)]
-    );
+    assert_eq!(report.categories[0].deleted_rows, 1);
     assert!(report.categories[0].completed);
     println!(
-        "mismatch_repair_report={:?} delete_after_calls={:?} final_document_ids={:?}",
+        "mismatch_repair_report={:?} final_document_ids={:?}",
         report.categories[0],
-        client.delete_after_calls(),
         documents.keys().cloned().collect::<Vec<_>>()
     );
     Ok(())
@@ -337,7 +333,6 @@ fn second_document_id() -> Uuid {
 #[derive(Default)]
 struct MemoryReconcilerClient {
     documents: Mutex<BTreeMap<String, SearchIndexDocument>>,
-    delete_after_calls: Mutex<Vec<(String, i64)>>,
     total_undercounts: AtomicUsize,
 }
 
@@ -351,13 +346,6 @@ impl MemoryReconcilerClient {
 
     fn documents(&self) -> BTreeMap<String, SearchIndexDocument> {
         self.documents.lock().expect("documents mutex").clone()
-    }
-
-    fn delete_after_calls(&self) -> Vec<(String, i64)> {
-        self.delete_after_calls
-            .lock()
-            .expect("delete calls mutex")
-            .clone()
     }
 
     fn undercount_total_once(&self) {
@@ -443,22 +431,20 @@ impl SearchReconcilerClient for MemoryReconcilerClient {
         Ok(count)
     }
 
-    async fn delete_category_after(
+    async fn document_ids_category_after(
         &self,
         source_category: &str,
         boundary: i64,
-    ) -> Result<(), SearchIndexError> {
-        self.delete_after_calls
-            .lock()
-            .expect("delete calls mutex")
-            .push((source_category.to_owned(), boundary));
-        self.documents
+    ) -> Result<Vec<String>, SearchIndexError> {
+        Ok(self
+            .documents
             .lock()
             .expect("documents mutex")
-            .retain(|_, document| {
-                document.source_category != source_category || document.latest_skiptoken <= boundary
-            });
-        Ok(())
+            .values()
+            .filter(|document| document.source_category == source_category)
+            .filter(|document| document.latest_skiptoken > boundary)
+            .map(|document| document.id.clone())
+            .collect())
     }
 }
 

@@ -139,13 +139,13 @@ pub trait SearchReconcilerClient {
         boundary: Option<i64>,
     ) -> Result<u64, SearchIndexError>;
 
-    /// Delete indexed documents for `source_category` above an inclusive
-    /// verified prefix boundary before idempotently rebuilding that suffix.
-    async fn delete_category_after(
+    /// Return indexed document ids for `source_category` above an inclusive
+    /// verified prefix boundary so repair can delete only proven extras.
+    async fn document_ids_category_after(
         &self,
         source_category: &str,
         boundary: i64,
-    ) -> Result<(), SearchIndexError>;
+    ) -> Result<Vec<String>, SearchIndexError>;
 }
 
 pub trait SearchRuntimeClient: SearchQueryClient + SearchHealthClient + SearchCountClient {}
@@ -699,28 +699,64 @@ impl SearchReconcilerClient for MeilisearchClient {
         Ok(response.total)
     }
 
-    async fn delete_category_after(
+    async fn document_ids_category_after(
         &self,
         source_category: &str,
         boundary: i64,
-    ) -> Result<(), SearchIndexError> {
-        let body = serde_json::json!({
-            "filter": format!(
-                "{} AND latest_skiptoken > {boundary}",
-                category_filter(source_category)?
-            ),
-        });
-        let response = self
-            .request(
-                reqwest::Method::POST,
-                &format!("/indexes/{}/documents/delete", self.index_name),
-            )
-            .header(reqwest::header::CONTENT_TYPE, "application/json")
-            .body(body.to_string())
-            .send()
-            .await
-            .map_err(request_error)?;
-        self.wait_for_response_task(response).await
+    ) -> Result<Vec<String>, SearchIndexError> {
+        let filter = format!(
+            "{} AND latest_skiptoken > {boundary}",
+            category_filter(source_category)?
+        );
+        let mut offset = 0_u32;
+        let limit = 1000_u32;
+        let mut ids = Vec::new();
+        loop {
+            let body = MeiliDocumentsFetchRequest {
+                limit: Some(limit),
+                offset: Some(offset),
+                filter: Some(filter.clone()),
+                sort: Vec::new(),
+                fields: vec!["id"],
+            };
+            let response = self
+                .request(
+                    reqwest::Method::POST,
+                    &format!("/indexes/{}/documents/fetch", self.index_name),
+                )
+                .header(reqwest::header::CONTENT_TYPE, "application/json")
+                .body(serde_json::to_string(&body).map_err(json_error)?)
+                .send()
+                .await
+                .map_err(request_error)?;
+            let status = response.status();
+            let body = response.text().await.map_err(request_error)?;
+            if !status.is_success() {
+                return Err(SearchIndexError::Http {
+                    status: Some(status.as_u16()),
+                    message: body,
+                });
+            }
+            let response: MeiliDocumentsFetchResponse =
+                serde_json::from_str(&body).map_err(json_error)?;
+            for hit in response.results {
+                let id = hit
+                    .get("id")
+                    .and_then(Value::as_str)
+                    .ok_or_else(|| {
+                        SearchIndexError::InvalidResponse(
+                            "documents fetch hit missing id".to_owned(),
+                        )
+                    })?
+                    .to_owned();
+                ids.push(id);
+            }
+            if u64::from(offset) + u64::from(limit) >= response.total {
+                break;
+            }
+            offset = offset.saturating_add(limit);
+        }
+        Ok(ids)
     }
 }
 

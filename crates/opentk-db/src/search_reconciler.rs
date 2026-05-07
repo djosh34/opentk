@@ -1,4 +1,7 @@
-use std::time::{Duration, Instant};
+use std::{
+    collections::BTreeSet,
+    time::{Duration, Instant},
+};
 
 use opentk_core::official_schema;
 use opentk_search::{
@@ -131,7 +134,7 @@ where
                 "search prefix mismatch detected; binary-search repair starts"
             );
             let boundary = find_verified_prefix(pool, client, category, highest_boundary).await?;
-            client.delete_category_after(category, boundary).await?;
+            totals.add(delete_extra_index_documents(pool, client, category, boundary).await?);
             boundary
         };
 
@@ -274,6 +277,70 @@ async fn postgres_count(
         .fetch_one(pool)
         .await
     }
+}
+
+async fn postgres_document_ids_after(
+    pool: &PgPool,
+    category: &str,
+    boundary: i64,
+) -> Result<BTreeSet<String>, sqlx::Error> {
+    let table_name = quote_identifier(&postgres_schema::sql_name(category));
+    let rows = sqlx::query_scalar::<_, String>(&format!(
+        "SELECT s.source_id::text
+         FROM sync_entity AS s
+         JOIN {table_name} AS entity
+           ON entity.source_category = s.source_category
+          AND entity.source_id = s.source_id
+         WHERE s.source_category = $1
+           AND s.deleted = false
+           AND s.latest_skiptoken > $2"
+    ))
+    .bind(category)
+    .bind(boundary)
+    .fetch_all(pool)
+    .await?;
+    Ok(rows
+        .into_iter()
+        .map(|source_id| format!("{category}_{source_id}"))
+        .collect())
+}
+
+async fn delete_extra_index_documents<C>(
+    pool: &PgPool,
+    client: &C,
+    category: &str,
+    boundary: i64,
+) -> Result<ScratchStats, SearchReconcilerError>
+where
+    C: SearchIndexClient + SearchReconcilerClient + Sync,
+{
+    let expected_ids = postgres_document_ids_after(pool, category, boundary).await?;
+    let indexed_ids = client
+        .document_ids_category_after(category, boundary)
+        .await?;
+    let deletes = indexed_ids
+        .into_iter()
+        .filter(|id| !expected_ids.contains(id))
+        .map(SearchIndexOperation::Delete)
+        .collect::<Vec<_>>();
+    if deletes.is_empty() {
+        return Ok(ScratchStats::default());
+    }
+
+    let delete_count = u64::try_from(deletes.len()).unwrap_or(u64::MAX);
+    info!(
+        source_category = category,
+        verified_prefix_boundary = boundary,
+        deleted_rows = delete_count,
+        "search reconciler deleting exact extra indexed documents"
+    );
+    client.apply_batch(&deletes).await?;
+    Ok(ScratchStats {
+        row_count: i64::try_from(delete_count).unwrap_or(i64::MAX),
+        payload_bytes: 0,
+        upsert_count: 0,
+        delete_count,
+    })
 }
 
 async fn next_boundary(
