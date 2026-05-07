@@ -89,7 +89,7 @@ async fn check_health(config: &Config) -> Result<(), Box<dyn std::error::Error>>
 fn database_config(config: &Config) -> DatabaseConfig {
     DatabaseConfig {
         url: config.database.url.clone(),
-        max_connections: config.database.max_connections,
+        max_connections: 1,
     }
 }
 
