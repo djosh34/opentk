@@ -459,15 +459,15 @@ impl SearchIndexClient for MeilisearchClient {
             .map_err(request_error)?;
         self.wait_for_response_task(create).await?;
 
-        self.apply_settings("searchable-attributes", &schema.searchable_attributes)
+        self.ensure_settings("searchable-attributes", &schema.searchable_attributes)
             .await?;
-        self.apply_settings("displayed-attributes", &schema.displayed_attributes)
+        self.ensure_settings("displayed-attributes", &schema.displayed_attributes)
             .await?;
-        self.apply_settings("filterable-attributes", &schema.filterable_attributes)
+        self.ensure_settings("filterable-attributes", &schema.filterable_attributes)
             .await?;
-        self.apply_settings("sortable-attributes", &schema.sortable_attributes)
+        self.ensure_settings("sortable-attributes", &schema.sortable_attributes)
             .await?;
-        self.apply_settings("ranking-rules", &schema.ranking_rules)
+        self.ensure_settings("ranking-rules", &schema.ranking_rules)
             .await?;
         Ok(())
     }
@@ -874,6 +874,36 @@ impl MeilisearchClient {
         request
     }
 
+    async fn ensure_settings<T: Serialize + ?Sized>(
+        &self,
+        setting: &str,
+        value: &T,
+    ) -> Result<(), SearchIndexError> {
+        let desired = serde_json::to_value(value).map_err(json_error)?;
+        let response = self
+            .request(
+                reqwest::Method::GET,
+                &format!("/indexes/{}/settings/{setting}", self.index_name),
+            )
+            .send()
+            .await
+            .map_err(request_error)?;
+        let status = response.status();
+        let body = response.text().await.map_err(request_error)?;
+        if !status.is_success() {
+            return Err(SearchIndexError::Http {
+                status: Some(status.as_u16()),
+                message: body,
+            });
+        }
+        let current: Value = serde_json::from_str(&body).map_err(json_error)?;
+        if current == desired {
+            tracing::debug!(setting, "Meilisearch setting already matches desired value");
+            return Ok(());
+        }
+        self.apply_settings(setting, &desired).await
+    }
+
     async fn apply_settings<T: Serialize + ?Sized>(
         &self,
         setting: &str,
@@ -909,7 +939,7 @@ impl MeilisearchClient {
     }
 
     async fn wait_for_task(&self, task_uid: u64) -> Result<(), SearchIndexError> {
-        for _ in 0..1200 {
+        for _ in 0..7200 {
             let response = self
                 .request(reqwest::Method::GET, &format!("/tasks/{task_uid}"))
                 .send()
@@ -933,7 +963,7 @@ impl MeilisearchClient {
                             .unwrap_or_else(|| format!("Meilisearch task {task_uid} failed")),
                     ));
                 }
-                _ => tokio::time::sleep(Duration::from_millis(250)).await,
+                _ => tokio::time::sleep(Duration::from_millis(500)).await,
             }
         }
         Err(SearchIndexError::InvalidResponse(format!(
