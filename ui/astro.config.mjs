@@ -6,5 +6,21 @@ export default defineConfig({
   site: "https://watdoenzedaar.nl",
   vite: {
     plugins: [tailwindcss()],
+    server: {
+      proxy: {
+        "/tweedekamer-resource": {
+          target: "https://gegevensmagazijn.tweedekamer.nl",
+          changeOrigin: true,
+          rewrite: (path) => path.replace(/^\/tweedekamer-resource/, ""),
+          configure: (proxy) => {
+            proxy.on("proxyRes", (proxyRes) => {
+              delete proxyRes.headers["content-disposition"];
+              delete proxyRes.headers["content-security-policy"];
+              delete proxyRes.headers["set-cookie"];
+            });
+          },
+        },
+      },
+    },
   },
 });

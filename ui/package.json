@@ -14,8 +14,8 @@
     "@astrojs/check": "latest",
     "@tailwindcss/vite": "latest",
     "astro": "latest",
+    "pdfjs-dist": "^5.7.284",
     "tailwindcss": "latest",
     "typescript": "latest"
-  },
-  "devDependencies": {}
+  }
 }

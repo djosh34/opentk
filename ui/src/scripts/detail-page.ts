@@ -1,11 +1,15 @@
 import { el, requireElement } from "../lib/dom";
 import { formatDate, formatValue, humanizeKey, presentValue } from "../lib/format";
+import * as pdfjs from "pdfjs-dist";
+import pdfWorkerUrl from "pdfjs-dist/build/pdf.worker.mjs?url";
 import {
   documentContent,
   entityDetail,
   type DocumentContent,
   type EntityDetail,
 } from "../lib/opentk";
+
+pdfjs.GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
 
 const status = requireElement("#status", HTMLParagraphElement);
 const detail = requireElement("#detail", HTMLElement);
@@ -111,16 +115,11 @@ function documentSection(entity: EntityDetail, document: DocumentContent | null,
 
 function mediaPreview(sourceUrl: string, sourceType: string | null): HTMLElement {
   if (sourceType?.includes("pdf") || sourceUrl.toLowerCase().includes(".pdf") || sourceUrl.includes("/Resources/")) {
-    return el("div", "grid min-h-[28rem] place-items-center rounded-lg border border-stone-200 bg-white p-6 text-center shadow-sm shadow-stone-950/5", [
-      el("div", "max-w-md", [
-        el("div", "mx-auto mb-5 grid h-20 w-16 place-items-center rounded-md border border-stone-300 bg-stone-50 text-sm font-semibold text-stone-600", ["PDF"]),
-        el("h3", "text-lg font-semibold text-stone-950", ["Voorbeeld niet beschikbaar"]),
-        el("p", "mt-2 text-sm leading-6 text-stone-600", [
-          "De Tweede Kamer-bron blokkeert insluiten op andere websites. Open de bron om het document zelf te bekijken.",
-        ]),
-        el("div", "mt-5", [actionLink(sourceUrl, "Bron openen")]),
-      ]),
+    const preview = el("div", "grid gap-5", [
+      el("div", "rounded-lg border border-stone-200 bg-white p-5 text-sm text-stone-600 shadow-sm shadow-stone-950/5", ["Document laden..."]),
     ]);
+    renderPdfPreview(previewUrl(sourceUrl), preview);
+    return preview;
   }
 
   if (sourceType?.startsWith("image/")) {
@@ -135,6 +134,55 @@ function mediaPreview(sourceUrl: string, sourceType: string | null): HTMLElement
   return el("div", "rounded-lg border border-stone-200 bg-white p-5 text-sm leading-6 text-stone-700 shadow-sm shadow-stone-950/5", [
     "Dit bestand kan niet direct worden weergegeven. Open de bron om het document te bekijken.",
   ]);
+}
+
+function previewUrl(sourceUrl: string): string {
+  const url = new URL(sourceUrl);
+  if (url.hostname === "gegevensmagazijn.tweedekamer.nl") {
+    return `/tweedekamer-resource${url.pathname}${url.search}`;
+  }
+  return sourceUrl;
+}
+
+function renderPdfPreview(sourceUrl: string, container: HTMLElement): void {
+  requestAnimationFrame(() => {
+    const render = async () => {
+      const pdfDocument = await pdfjs.getDocument(sourceUrl).promise;
+      container.replaceChildren();
+
+      for (let pageNumber = 1; pageNumber <= pdfDocument.numPages; pageNumber += 1) {
+        const page = await pdfDocument.getPage(pageNumber);
+        const pageShell = el("div", "rounded-lg border border-stone-200 bg-white p-3 shadow-sm shadow-stone-950/5", []);
+        const canvas = document.createElement("canvas");
+        canvas.className = "mx-auto block max-w-full";
+        pageShell.append(canvas);
+        container.append(pageShell);
+
+        const viewport = page.getViewport({ scale: 1 });
+        const availableWidth = Math.max(pageShell.clientWidth - 24, 320);
+        const cssScale = availableWidth / viewport.width;
+        const outputScale = Math.min(window.devicePixelRatio || 1, 2);
+        const scaledViewport = page.getViewport({ scale: cssScale * outputScale });
+        canvas.width = Math.floor(scaledViewport.width);
+        canvas.height = Math.floor(scaledViewport.height);
+        canvas.style.width = `${Math.floor(viewport.width * cssScale)}px`;
+        canvas.style.height = `${Math.floor(viewport.height * cssScale)}px`;
+
+        const context = canvas.getContext("2d");
+        if (!context) {
+          throw new Error("PDF preview canvas context is unavailable.");
+        }
+        await page.render({ canvas, canvasContext: context, viewport: scaledViewport }).promise;
+      }
+    };
+
+    render().catch((error: unknown) => {
+      console.error(error);
+      container.replaceChildren(el("div", "rounded-lg border border-stone-200 bg-white p-5 text-sm leading-6 text-stone-700 shadow-sm shadow-stone-950/5", [
+        "Het documentvoorbeeld kan nu niet worden geladen. Open de bron om het document te bekijken.",
+      ]));
+    });
+  });
 }
 
 function shell(message: string): HTMLElement {
