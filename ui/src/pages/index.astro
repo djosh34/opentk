@@ -71,7 +71,24 @@ import BaseLayout from "../layouts/BaseLayout.astro";
     items: SearchResult[];
   };
 
+  type SearchRestoreState = {
+    query: string;
+    scrollY: number;
+  };
+
+  type HistoryState = Record<string, unknown> & {
+    searchRestore?: SearchRestoreState;
+  };
+
   let activeRequest: AbortController | null = null;
+  let restoreAfterNextRender = false;
+
+  const initialQuery = new URL(window.location.href).searchParams.get("q") ?? "";
+  if (input && initialQuery) {
+    input.value = initialQuery;
+    restoreAfterNextRender = hasMatchingRestoreState(initialQuery);
+    void runSearch(initialQuery, { updateUrl: false });
+  }
 
   form?.addEventListener("submit", (event) => {
     event.preventDefault();
@@ -86,14 +103,27 @@ import BaseLayout from "../layouts/BaseLayout.astro";
     }, 250).toString();
   });
 
-  async function runSearch(rawQuery: string) {
+  results?.addEventListener("click", (event) => {
+    const target = event.target;
+    if (!(target instanceof Element) || !target.closest("a")) {
+      return;
+    }
+
+    saveSearchScrollState();
+  });
+
+  document.addEventListener("astro:before-preparation", saveSearchScrollState);
+  window.addEventListener("pagehide", saveSearchScrollState);
+
+  async function runSearch(rawQuery: string, options: { updateUrl?: boolean } = {}) {
     const query = rawQuery.trim();
     if (!status || !results) {
-      return;
+      throw new Error("Search UI is missing required status or results elements.");
     }
 
     activeRequest?.abort();
     results.replaceChildren();
+    updateQueryUrl(query, options.updateUrl ?? true);
 
     if (!query) {
       status.textContent = "Typ een zoekterm om resultaten te zien.";
@@ -146,6 +176,7 @@ import BaseLayout from "../layouts/BaseLayout.astro";
     const count = data.estimated_total_hits ?? data.items.length;
     status.textContent = `${count} resultaat${count === 1 ? "" : "en"} voor "${data.query}".`;
     results.replaceChildren(...data.items.map(renderResult));
+    restoreScrollIfNeeded(data.query);
   }
 
   function renderResult(item: SearchResult) {
@@ -214,5 +245,74 @@ import BaseLayout from "../layouts/BaseLayout.astro";
       month: "short",
       year: "numeric",
     }).format(date);
+  }
+
+  function updateQueryUrl(query: string, shouldUpdate: boolean) {
+    if (!shouldUpdate) {
+      return;
+    }
+
+    const url = new URL(window.location.href);
+    if (query) {
+      url.searchParams.set("q", query);
+    } else {
+      url.searchParams.delete("q");
+    }
+
+    const currentState = getHistoryState();
+    const restoreState = currentState.searchRestore?.query === query ? currentState.searchRestore : undefined;
+    const nextState = {
+      ...currentState,
+      searchRestore: restoreState,
+    };
+
+    history.replaceState(nextState, "", `${url.pathname}${url.search}${url.hash}`);
+  }
+
+  function saveSearchScrollState() {
+    const query = input?.value.trim() ?? "";
+    if (!query) {
+      return;
+    }
+
+    history.replaceState(
+      {
+        ...getHistoryState(),
+        searchRestore: {
+          query,
+          scrollY: window.scrollY,
+        },
+      },
+      "",
+      window.location.href,
+    );
+  }
+
+  function restoreScrollIfNeeded(query: string) {
+    if (!restoreAfterNextRender) {
+      return;
+    }
+
+    restoreAfterNextRender = false;
+    const restoreState = getHistoryState().searchRestore;
+    if (restoreState?.query !== query) {
+      return;
+    }
+
+    requestAnimationFrame(() => {
+      window.scrollTo({ top: restoreState.scrollY, left: 0, behavior: "instant" });
+    });
+  }
+
+  function hasMatchingRestoreState(query: string) {
+    return getHistoryState().searchRestore?.query === query;
+  }
+
+  function getHistoryState(): HistoryState {
+    if (history.state && typeof history.state === "object") {
+      return history.state as HistoryState;
+    }
+
+    return {};
   }
 </script>
