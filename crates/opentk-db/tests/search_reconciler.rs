@@ -52,7 +52,7 @@ async fn reconciler_converges_empty_index_and_clears_scratch() -> Result<(), sql
 }
 
 #[tokio::test]
-async fn reconciler_refreshes_same_count_stale_documents() -> Result<(), sqlx::Error> {
+async fn reconciler_stops_when_total_counts_match() -> Result<(), sqlx::Error> {
     let pool = migrated_pool("search_reconciler_stale").await?;
     seed_document(&pool, first_document_id(), 1, "2026D00001").await;
     seed_document(&pool, second_document_id(), 2, "2026D00002").await;
@@ -68,12 +68,13 @@ async fn reconciler_refreshes_same_count_stale_documents() -> Result<(), sqlx::E
     assert_eq!(documents.len(), 2);
     assert!(documents
         .values()
-        .all(|document| document.title != "stale title"));
+        .all(|document| document.title == "stale title"));
     assert_eq!(report.categories[0].verified_prefix_boundary, 2);
-    assert_eq!(report.categories[0].inserted_rows, 2);
+    assert_eq!(report.categories[0].inserted_rows, 0);
+    assert_eq!(report.categories[0].target_boundary, None);
     assert!(report.categories[0].completed);
     println!(
-        "stale_refresh_report={:?} refreshed_titles={:?}",
+        "same_count_stop_report={:?} untouched_titles={:?}",
         report.categories[0],
         documents
             .values()

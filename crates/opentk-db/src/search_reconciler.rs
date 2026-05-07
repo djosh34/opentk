@@ -154,37 +154,9 @@ where
             last_target_boundary = Some(target_boundary);
         }
 
-        let mut postgres_total = postgres_count(pool, category, None).await?;
-        let mut meili_total = client.count_category_prefix(category, None).await?;
-        let mut completed = postgres_total == meili_prefix_i64(meili_total);
-        if completed && postgres_total > 0 && verified_prefix_boundary > 0 {
-            info!(
-                source_category = category,
-                verified_prefix_boundary,
-                "search counts match; refreshing full category to overwrite same-count stale documents"
-            );
-            let mut refresh_boundary = 0_i64;
-            while let Some(target_boundary) =
-                next_boundary(pool, category, refresh_boundary, config.batch_size).await?
-            {
-                totals.add(
-                    apply_window(
-                        pool,
-                        client,
-                        config,
-                        category,
-                        refresh_boundary,
-                        target_boundary,
-                    )
-                    .await?,
-                );
-                refresh_boundary = target_boundary;
-                last_target_boundary = Some(target_boundary);
-            }
-            postgres_total = postgres_count(pool, category, None).await?;
-            meili_total = client.count_category_prefix(category, None).await?;
-            completed = postgres_total == meili_prefix_i64(meili_total);
-        }
+        let postgres_total = postgres_count(pool, category, None).await?;
+        let meili_total = client.count_category_prefix(category, None).await?;
+        let completed = postgres_total == meili_prefix_i64(meili_total);
 
         if completed {
             info!(
