@@ -1,0 +1,23 @@
+---
+interface Props {
+  eyebrow?: string;
+  title: string;
+  maxWidth?: "normal" | "wide";
+}
+
+const { eyebrow = "Wat doen ze daar?", title, maxWidth = "normal" } = Astro.props;
+const widthClass = maxWidth === "wide" ? "max-w-5xl" : "max-w-3xl";
+---
+
+<main class="min-h-dvh bg-slate-50">
+  <section class:list={["mx-auto flex min-h-dvh w-full flex-col px-4 py-5 sm:px-6 sm:py-8", widthClass]}>
+    <header class="mb-5 sm:mb-7">
+      <a href="/" class="text-sm font-medium text-slate-500 hover:text-slate-950">{eyebrow}</a>
+      <h1 class="mt-2 text-3xl font-semibold tracking-normal text-slate-950 sm:text-5xl">
+        {title}
+      </h1>
+    </header>
+
+    <slot />
+  </section>
+</main>

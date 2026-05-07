@@ -1,5 +1,4 @@
 ---
-import { ClientRouter } from "astro:transitions";
 import "../styles/global.css";
 
 interface Props {
@@ -18,7 +17,6 @@ const { title, description = "Zoek in openbare Tweede Kamer informatie." } = Ast
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="generator" content={Astro.generator} />
     <title>{title}</title>
-    <ClientRouter />
   </head>
   <body class="font-sans text-slate-950 antialiased">
     <slot />

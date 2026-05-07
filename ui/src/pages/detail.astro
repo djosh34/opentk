@@ -1,0 +1,20 @@
+---
+import AppShell from "../components/AppShell.astro";
+import SearchForm from "../components/SearchForm.astro";
+import StatusLine from "../components/StatusLine.astro";
+import BaseLayout from "../layouts/BaseLayout.astro";
+
+const query = Astro.url.searchParams.get("q") ?? "";
+---
+
+<BaseLayout title="Tweede Kamer detail">
+  <AppShell title="Detail" maxWidth="wide">
+    <SearchForm initialQuery={query} sticky={false} />
+    <StatusLine message="Laden..." />
+    <section id="detail" class="pb-8" aria-live="polite"></section>
+  </AppShell>
+</BaseLayout>
+
+<script>
+  import "../scripts/detail-page";
+</script>
