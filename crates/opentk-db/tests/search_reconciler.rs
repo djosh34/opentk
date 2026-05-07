@@ -1,4 +1,11 @@
-use std::{collections::BTreeMap, sync::Mutex, time::Duration};
+use std::{
+    collections::BTreeMap,
+    sync::{
+        atomic::{AtomicUsize, Ordering},
+        Mutex,
+    },
+    time::Duration,
+};
 
 use chrono::{DateTime, Utc};
 use opentk_db::{
@@ -87,6 +94,27 @@ async fn reconciler_deletes_mismatched_suffix_then_rebuilds() -> Result<(), sqlx
         vec![("Document".to_owned(), 0)]
     );
     assert!(report.categories[0].completed);
+    Ok(())
+}
+
+#[tokio::test]
+async fn reconciler_retries_category_until_counts_match() -> Result<(), sqlx::Error> {
+    let pool = migrated_pool("search_reconciler_retry_category").await?;
+    seed_document(&pool, first_document_id(), 1, "2026D00001").await;
+    seed_document(&pool, second_document_id(), 2, "2026D00002").await;
+    let client = MemoryReconcilerClient::default();
+    client.undercount_total_once();
+
+    let report = reconcile_once(&pool, &client, &config(50))
+        .await
+        .expect("reconcile succeeds");
+
+    assert_eq!(client.documents().len(), 2);
+    assert_eq!(report.categories[0].postgres_count, 2);
+    assert_eq!(report.categories[0].meilisearch_count, 2);
+    assert_eq!(report.categories[0].verified_prefix_boundary, 2);
+    assert!(report.categories[0].completed);
+    assert_eq!(client.remaining_total_undercounts(), 0);
     Ok(())
 }
 
@@ -190,6 +218,7 @@ fn second_document_id() -> Uuid {
 struct MemoryReconcilerClient {
     documents: Mutex<BTreeMap<String, SearchIndexDocument>>,
     delete_after_calls: Mutex<Vec<(String, i64)>>,
+    total_undercounts: AtomicUsize,
 }
 
 impl MemoryReconcilerClient {
@@ -209,6 +238,14 @@ impl MemoryReconcilerClient {
             .lock()
             .expect("delete calls mutex")
             .clone()
+    }
+
+    fn undercount_total_once(&self) {
+        self.total_undercounts.store(1, Ordering::SeqCst);
+    }
+
+    fn remaining_total_undercounts(&self) -> usize {
+        self.total_undercounts.load(Ordering::SeqCst)
     }
 }
 
@@ -261,7 +298,7 @@ impl SearchReconcilerClient for MemoryReconcilerClient {
         source_category: &str,
         boundary: Option<i64>,
     ) -> Result<u64, SearchIndexError> {
-        Ok(self
+        let count = self
             .documents
             .lock()
             .expect("documents mutex")
@@ -272,7 +309,18 @@ impl SearchReconcilerClient for MemoryReconcilerClient {
             })
             .count()
             .try_into()
-            .unwrap_or(u64::MAX))
+            .unwrap_or(u64::MAX);
+        if boundary.is_none()
+            && self
+                .total_undercounts
+                .fetch_update(Ordering::SeqCst, Ordering::SeqCst, |remaining| {
+                    remaining.checked_sub(1)
+                })
+                .is_ok()
+        {
+            return Ok(count.saturating_sub(1));
+        }
+        Ok(count)
     }
 
     async fn delete_category_after(

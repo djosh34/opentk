@@ -99,6 +99,7 @@ where
     Ok(SearchReconcilerReport { categories })
 }
 
+#[allow(clippy::too_many_lines)]
 async fn reconcile_category<C>(
     pool: &PgPool,
     client: &C,
@@ -109,60 +110,33 @@ where
     C: SearchIndexClient + SearchReconcilerClient + Sync,
 {
     let started = Instant::now();
-    let highest = client.highest_skiptoken(category).await?;
-    let highest_boundary = highest.unwrap_or(0);
-    let postgres_prefix = postgres_count(pool, category, Some(highest_boundary)).await?;
-    let meili_prefix = client
-        .count_category_prefix(category, Some(highest_boundary))
-        .await?;
-    let verified_prefix_boundary = if postgres_prefix == meili_prefix_i64(meili_prefix) {
-        highest_boundary
-    } else {
-        warn!(
-            source_category = category,
-            highest_meilisearch_skiptoken = highest_boundary,
-            postgres_prefix_count = postgres_prefix,
-            meilisearch_prefix_count = meili_prefix,
-            "search prefix mismatch detected; binary-search repair starts"
-        );
-        let boundary = find_verified_prefix(pool, client, category, highest_boundary).await?;
-        client.delete_category_after(category, boundary).await?;
-        boundary
-    };
-
-    let mut current_boundary = verified_prefix_boundary;
-    let mut last_target_boundary = None;
     let mut totals = ScratchStats::default();
-    while let Some(target_boundary) =
-        next_boundary(pool, category, current_boundary, config.batch_size).await?
-    {
-        totals.add(
-            apply_window(
-                pool,
-                client,
-                config,
-                category,
-                current_boundary,
-                target_boundary,
-            )
-            .await?,
-        );
-        current_boundary = target_boundary;
-        last_target_boundary = Some(target_boundary);
-    }
+    let mut last_target_boundary = None;
+    loop {
+        let highest = client.highest_skiptoken(category).await?;
+        let highest_boundary = highest.unwrap_or(0);
+        let postgres_prefix = postgres_count(pool, category, Some(highest_boundary)).await?;
+        let meili_prefix = client
+            .count_category_prefix(category, Some(highest_boundary))
+            .await?;
+        let verified_prefix_boundary = if postgres_prefix == meili_prefix_i64(meili_prefix) {
+            highest_boundary
+        } else {
+            warn!(
+                source_category = category,
+                highest_meilisearch_skiptoken = highest_boundary,
+                postgres_prefix_count = postgres_prefix,
+                meilisearch_prefix_count = meili_prefix,
+                "search prefix mismatch detected; binary-search repair starts"
+            );
+            let boundary = find_verified_prefix(pool, client, category, highest_boundary).await?;
+            client.delete_category_after(category, boundary).await?;
+            boundary
+        };
 
-    let postgres_total = postgres_count(pool, category, None).await?;
-    let meili_total = client.count_category_prefix(category, None).await?;
-    let completed = postgres_total == meili_prefix_i64(meili_total);
-    if completed && postgres_total > 0 && verified_prefix_boundary > 0 {
-        info!(
-            source_category = category,
-            verified_prefix_boundary,
-            "search counts match; refreshing full category to overwrite same-count stale documents"
-        );
-        let mut refresh_boundary = 0_i64;
+        let mut current_boundary = verified_prefix_boundary;
         while let Some(target_boundary) =
-            next_boundary(pool, category, refresh_boundary, config.batch_size).await?
+            next_boundary(pool, category, current_boundary, config.batch_size).await?
         {
             totals.add(
                 apply_window(
@@ -170,46 +144,95 @@ where
                     client,
                     config,
                     category,
-                    refresh_boundary,
+                    current_boundary,
                     target_boundary,
                 )
                 .await?,
             );
-            refresh_boundary = target_boundary;
+            current_boundary = target_boundary;
             last_target_boundary = Some(target_boundary);
         }
+
+        let mut postgres_total = postgres_count(pool, category, None).await?;
+        let mut meili_total = client.count_category_prefix(category, None).await?;
+        let mut completed = postgres_total == meili_prefix_i64(meili_total);
+        if completed && postgres_total > 0 && verified_prefix_boundary > 0 {
+            info!(
+                source_category = category,
+                verified_prefix_boundary,
+                "search counts match; refreshing full category to overwrite same-count stale documents"
+            );
+            let mut refresh_boundary = 0_i64;
+            while let Some(target_boundary) =
+                next_boundary(pool, category, refresh_boundary, config.batch_size).await?
+            {
+                totals.add(
+                    apply_window(
+                        pool,
+                        client,
+                        config,
+                        category,
+                        refresh_boundary,
+                        target_boundary,
+                    )
+                    .await?,
+                );
+                refresh_boundary = target_boundary;
+                last_target_boundary = Some(target_boundary);
+            }
+            postgres_total = postgres_count(pool, category, None).await?;
+            meili_total = client.count_category_prefix(category, None).await?;
+            completed = postgres_total == meili_prefix_i64(meili_total);
+        }
+
+        if completed {
+            info!(
+                source_category = category,
+                postgres_count = postgres_total,
+                meilisearch_count = meili_total,
+                highest_meilisearch_skiptoken = highest,
+                verified_prefix_boundary,
+                target_boundary = last_target_boundary,
+                scratch_row_count = totals.row_count,
+                payload_bytes = totals.payload_bytes,
+                inserted_rows = totals.upsert_count,
+                deleted_rows = totals.delete_count,
+                completed,
+                loop_duration_ms = started.elapsed().as_millis(),
+                "search reconciler category pass completed"
+            );
+
+            return Ok(SearchReconcilerCategoryReport {
+                source_category: category.to_owned(),
+                postgres_count: postgres_total,
+                meilisearch_count: meili_total,
+                highest_meilisearch_skiptoken: highest,
+                verified_prefix_boundary,
+                target_boundary: last_target_boundary,
+                scratch_row_count: totals.row_count,
+                payload_bytes: totals.payload_bytes,
+                inserted_rows: totals.upsert_count,
+                deleted_rows: totals.delete_count,
+                completed,
+                loop_duration_ms: started.elapsed().as_millis(),
+            });
+        }
+
+        warn!(
+            source_category = category,
+            postgres_count = postgres_total,
+            meilisearch_count = meili_total,
+            highest_meilisearch_skiptoken = highest,
+            verified_prefix_boundary,
+            target_boundary = last_target_boundary,
+            scratch_row_count = totals.row_count,
+            payload_bytes = totals.payload_bytes,
+            inserted_rows = totals.upsert_count,
+            deleted_rows = totals.delete_count,
+            loop_duration_ms = started.elapsed().as_millis(),
+            "search reconciler category still mismatched after pass; retrying category"
+        );
     }
-
-    info!(
-        source_category = category,
-        postgres_count = postgres_total,
-        meilisearch_count = meili_total,
-        highest_meilisearch_skiptoken = highest,
-        verified_prefix_boundary,
-        target_boundary = last_target_boundary,
-        scratch_row_count = totals.row_count,
-        payload_bytes = totals.payload_bytes,
-        inserted_rows = totals.upsert_count,
-        deleted_rows = totals.delete_count,
-        completed,
-        loop_duration_ms = started.elapsed().as_millis(),
-        "search reconciler category pass completed"
-    );
-
-    Ok(SearchReconcilerCategoryReport {
-        source_category: category.to_owned(),
-        postgres_count: postgres_total,
-        meilisearch_count: meili_total,
-        highest_meilisearch_skiptoken: highest,
-        verified_prefix_boundary,
-        target_boundary: last_target_boundary,
-        scratch_row_count: totals.row_count,
-        payload_bytes: totals.payload_bytes,
-        inserted_rows: totals.upsert_count,
-        deleted_rows: totals.delete_count,
-        completed,
-        loop_duration_ms: started.elapsed().as_millis(),
-    })
 }
 
 async fn find_verified_prefix<C>(
