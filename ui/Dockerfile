@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1.7
 
 ARG NODE_IMAGE=node:24-bookworm-slim
-ARG CADDY_IMAGE=caddy:2.10.2-alpine
+ARG CADDY_BUILDER_IMAGE=caddy:2.10.2-builder
 
 FROM ${NODE_IMAGE} AS build
 
@@ -26,7 +26,10 @@ RUN --mount=type=cache,id=opentk-ui-pnpm-store,target=/pnpm/store,sharing=locked
 
 RUN mkdir -p /tmp/caddy
 
-FROM ${CADDY_IMAGE} AS caddy
+FROM ${CADDY_BUILDER_IMAGE} AS caddy
+
+RUN xcaddy build v2.10.2 --output /tmp/caddy && \
+    setcap -r /tmp/caddy
 
 FROM scratch AS runtime
 
@@ -36,7 +39,7 @@ ENV XDG_DATA_HOME=/tmp
 
 USER 1003:1003
 
-COPY --from=caddy /usr/bin/caddy /usr/bin/caddy
+COPY --from=caddy /tmp/caddy /usr/bin/caddy
 COPY --from=build --chown=1003:1003 /tmp/caddy /tmp
 COPY --from=build /src/ui/dist /srv
 COPY ui/Caddyfile /etc/caddy/Caddyfile
