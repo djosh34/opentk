@@ -137,6 +137,46 @@ async fn reconciler_retries_category_until_counts_match() -> Result<(), sqlx::Er
     Ok(())
 }
 
+#[tokio::test]
+async fn reconciler_indexes_all_rows_tied_at_target_boundary() -> Result<(), sqlx::Error> {
+    let pool = migrated_pool("search_reconciler_boundary_ties").await?;
+    seed_document(&pool, first_document_id(), 10, "2026D00001").await;
+    seed_document(&pool, second_document_id(), 10, "2026D00002").await;
+    seed_document(
+        &pool,
+        Uuid::parse_str("33333333-3333-4333-8333-333333333333").unwrap(),
+        10,
+        "2026D00003",
+    )
+    .await;
+    seed_document(
+        &pool,
+        Uuid::parse_str("44444444-4444-4444-8444-444444444444").unwrap(),
+        10,
+        "2026D00004",
+    )
+    .await;
+    let client = MemoryReconcilerClient::default();
+
+    let report = reconcile_once(&pool, &client, &config(2))
+        .await
+        .expect("reconcile succeeds");
+
+    let documents = client.documents();
+    assert_eq!(documents.len(), 4);
+    assert_eq!(report.categories[0].postgres_count, 4);
+    assert_eq!(report.categories[0].meilisearch_count, 4);
+    assert_eq!(report.categories[0].inserted_rows, 4);
+    assert_eq!(report.categories[0].target_boundary, Some(10));
+    assert!(report.categories[0].completed);
+    println!(
+        "boundary_tie_report={:?} final_document_ids={:?}",
+        report.categories[0],
+        documents.keys().cloned().collect::<Vec<_>>()
+    );
+    Ok(())
+}
+
 fn config(batch_size: i64) -> SearchReconcilerConfig {
     SearchReconcilerConfig {
         index_name: "opentk_entities".to_owned(),

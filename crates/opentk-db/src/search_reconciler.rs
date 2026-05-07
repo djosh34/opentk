@@ -11,7 +11,7 @@ use thiserror::Error;
 use tracing::{info, warn};
 use uuid::Uuid;
 
-use crate::search_projection::{project_category_page, SearchProjectionError};
+use crate::search_projection::{project_category_window, SearchProjectionError};
 
 const DEFAULT_INDEX_NAME: &str = "opentk_entities";
 
@@ -383,16 +383,13 @@ async fn populate_scratch(
     after: i64,
     target_boundary: i64,
 ) -> Result<ScratchStats, SearchReconcilerError> {
-    let page = project_category_page(pool, category, after, config.batch_size).await?;
+    let page = project_category_window(pool, category, after, target_boundary).await?;
     let mut upsert_count = 0_u64;
     let mut delete_count = 0_u64;
     let mut payload_bytes = 0_i64;
     for operation in page.operations {
         match operation {
             SearchIndexOperation::Upsert(document) => {
-                if document.latest_skiptoken > target_boundary {
-                    continue;
-                }
                 let payload = serde_json::to_value(document.as_ref()).map_err(|error| {
                     SearchIndexError::InvalidResponse(format!(
                         "failed to serialize search document for scratch: {error}"
@@ -429,9 +426,6 @@ async fn populate_scratch(
                 };
                 let latest_skiptoken =
                     latest_skiptoken_for_source(pool, &source_category, source_id).await?;
-                if latest_skiptoken > target_boundary {
-                    continue;
-                }
                 insert_scratch_row(
                     pool,
                     &config.index_name,

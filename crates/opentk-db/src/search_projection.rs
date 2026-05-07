@@ -81,6 +81,43 @@ pub async fn project_category_page(
     project_changes(pool, changes, has_more, started).await
 }
 
+/// Project all rows in an inclusive skiptoken window.
+///
+/// The reconciler picks target boundaries by `latest_skiptoken`, not by a
+/// `(latest_skiptoken, source_id)` tuple. Loading the full window prevents rows
+/// tied at the target boundary from being skipped when the reconciler advances
+/// the verified prefix to that boundary.
+///
+/// # Errors
+///
+/// Returns [`SearchProjectionError`] when the category is unknown, `PostgreSQL`
+/// cannot be queried, source timestamps cannot be decoded, or search document
+/// mapping rejects a projected row.
+pub async fn project_category_window(
+    pool: &PgPool,
+    category: &str,
+    after: i64,
+    target_boundary: i64,
+) -> Result<SearchProjectionPage, SearchProjectionError> {
+    ensure_category(category)?;
+    let started = Instant::now();
+    let rows = sqlx::query(
+        "SELECT source_category, source_id, latest_skiptoken, deleted, source_updated_at, atom_updated_at
+         FROM sync_entity
+         WHERE source_category = $1
+           AND latest_skiptoken > $2
+           AND latest_skiptoken <= $3
+         ORDER BY latest_skiptoken, source_id",
+    )
+    .bind(category)
+    .bind(after)
+    .bind(target_boundary)
+    .fetch_all(pool)
+    .await?;
+    let changes = rows.iter().map(entity_change).collect::<Vec<_>>();
+    project_changes(pool, changes, false, started).await
+}
+
 async fn project_changes(
     pool: &PgPool,
     changes: Vec<EntityChange>,
