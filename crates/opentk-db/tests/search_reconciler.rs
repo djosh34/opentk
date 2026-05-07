@@ -177,6 +177,44 @@ async fn reconciler_indexes_all_rows_tied_at_target_boundary() -> Result<(), sql
     Ok(())
 }
 
+#[tokio::test]
+async fn reconciler_counts_only_live_rows_with_materialized_details() -> Result<(), sqlx::Error> {
+    let pool = migrated_pool("search_reconciler_missing_detail").await?;
+    seed_document(&pool, first_document_id(), 1, "2026D00001").await;
+    seed_document(&pool, second_document_id(), 2, "2026D00002").await;
+    seed_unmaterialized_sync_entity(
+        &pool,
+        "Document",
+        Uuid::parse_str("55555555-5555-4555-8555-555555555555").unwrap(),
+        3,
+    )
+    .await;
+    let client = MemoryReconcilerClient::default();
+
+    let report = reconcile_once(&pool, &client, &config(50))
+        .await
+        .expect("reconcile succeeds");
+
+    let raw_sync_rows: i64 = sqlx::query_scalar(
+        "SELECT count(*)::bigint
+         FROM sync_entity
+         WHERE source_category = 'Document' AND deleted = false",
+    )
+    .fetch_one(&pool)
+    .await?;
+    assert_eq!(raw_sync_rows, 3);
+    assert_eq!(client.documents().len(), 2);
+    assert_eq!(report.categories[0].postgres_count, 2);
+    assert_eq!(report.categories[0].meilisearch_count, 2);
+    assert!(report.categories[0].completed);
+    println!(
+        "missing_detail_report={:?} raw_sync_rows={raw_sync_rows} final_document_count={}",
+        report.categories[0],
+        client.documents().len()
+    );
+    Ok(())
+}
+
 fn config(batch_size: i64) -> SearchReconcilerConfig {
     SearchReconcilerConfig {
         index_name: "opentk_entities".to_owned(),
@@ -241,6 +279,28 @@ async fn seed_document(pool: &PgPool, source_id: Uuid, skiptoken: i64, document_
     )
     .await
     .expect("document writes");
+}
+
+async fn seed_unmaterialized_sync_entity(
+    pool: &PgPool,
+    category: &str,
+    source_id: Uuid,
+    skiptoken: i64,
+) {
+    sqlx::query(
+        "INSERT INTO sync_entity (
+             source_category, source_id, latest_skiptoken, deleted,
+             source_updated_at, atom_updated_at
+         )
+         VALUES ($1, $2, $3, false, $4, $4)",
+    )
+    .bind(category)
+    .bind(source_id)
+    .bind(skiptoken)
+    .bind(atom_updated_at())
+    .execute(pool)
+    .await
+    .expect("unmaterialized sync entity writes");
 }
 
 fn document_xml(source_id: Uuid, document_nummer: &str) -> String {

@@ -11,6 +11,7 @@ use thiserror::Error;
 use tracing::{info, warn};
 use uuid::Uuid;
 
+use crate::postgres_schema;
 use crate::search_projection::{project_category_window, SearchProjectionError};
 
 const DEFAULT_INDEX_NAME: &str = "opentk_entities";
@@ -271,25 +272,32 @@ async fn postgres_count(
     category: &str,
     boundary: Option<i64>,
 ) -> Result<i64, sqlx::Error> {
+    let table_name = quote_identifier(&postgres_schema::sql_name(category));
     if let Some(boundary) = boundary {
-        sqlx::query_scalar(
+        sqlx::query_scalar(&format!(
             "SELECT COUNT(*)
-             FROM sync_entity
-             WHERE source_category = $1
-               AND deleted = false
-               AND latest_skiptoken <= $2",
-        )
+             FROM sync_entity AS s
+             JOIN {table_name} AS entity
+               ON entity.source_category = s.source_category
+              AND entity.source_id = s.source_id
+             WHERE s.source_category = $1
+               AND s.deleted = false
+               AND s.latest_skiptoken <= $2"
+        ))
         .bind(category)
         .bind(boundary)
         .fetch_one(pool)
         .await
     } else {
-        sqlx::query_scalar(
+        sqlx::query_scalar(&format!(
             "SELECT COUNT(*)
-             FROM sync_entity
-             WHERE source_category = $1
-               AND deleted = false",
-        )
+             FROM sync_entity AS s
+             JOIN {table_name} AS entity
+               ON entity.source_category = s.source_category
+              AND entity.source_id = s.source_id
+             WHERE s.source_category = $1
+               AND s.deleted = false"
+        ))
         .bind(category)
         .fetch_one(pool)
         .await
@@ -544,6 +552,10 @@ async fn latest_skiptoken_for_source(
 fn parse_document_id(document_id: &str) -> Option<(String, Uuid)> {
     let (category, source_id) = document_id.split_once('_')?;
     Some((category.to_owned(), source_id.parse().ok()?))
+}
+
+fn quote_identifier(identifier: &str) -> String {
+    format!("\"{}\"", identifier.replace('"', "\"\""))
 }
 
 fn schema_for_config(config: &SearchReconcilerConfig) -> opentk_search::SearchIndexSchema {
