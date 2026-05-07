@@ -25,32 +25,50 @@ jobs:
             platform_tag: amd64
             runner: ubuntu-24.04
             image_name: opentk-api
+            dockerfile: docker/Dockerfile
             docker_target: api
           - platform: linux/arm64
             platform_tag: arm64
             runner: ubuntu-24.04-arm
             image_name: opentk-api
+            dockerfile: docker/Dockerfile
             docker_target: api
           - platform: linux/amd64
             platform_tag: amd64
             runner: ubuntu-24.04
             image_name: opentk-sync
+            dockerfile: docker/Dockerfile
             docker_target: sync
           - platform: linux/arm64
             platform_tag: arm64
             runner: ubuntu-24.04-arm
             image_name: opentk-sync
+            dockerfile: docker/Dockerfile
             docker_target: sync
           - platform: linux/amd64
             platform_tag: amd64
             runner: ubuntu-24.04
             image_name: opentk-search-reconciler
+            dockerfile: docker/Dockerfile
             docker_target: search-reconciler
           - platform: linux/arm64
             platform_tag: arm64
             runner: ubuntu-24.04-arm
             image_name: opentk-search-reconciler
+            dockerfile: docker/Dockerfile
             docker_target: search-reconciler
+          - platform: linux/amd64
+            platform_tag: amd64
+            runner: ubuntu-24.04
+            image_name: opentk-ui
+            dockerfile: ui/Dockerfile
+            docker_target: runtime
+          - platform: linux/arm64
+            platform_tag: arm64
+            runner: ubuntu-24.04-arm
+            image_name: opentk-ui
+            dockerfile: ui/Dockerfile
+            docker_target: runtime
     steps:
       - name: Checkout
         uses: actions/checkout@v6.0.2
@@ -78,7 +96,7 @@ jobs:
         id: cache-mount
         with:
           path: buildkit-cache-mounts/${{ matrix.image_name }}-${{ matrix.platform_tag }}
-          key: buildkit-cache-mounts-${{ matrix.image_name }}-${{ matrix.platform_tag }}-${{ hashFiles('docker/Dockerfile', 'Cargo.lock') }}
+          key: buildkit-cache-mounts-${{ matrix.image_name }}-${{ matrix.platform_tag }}-${{ hashFiles('docker/Dockerfile', 'Cargo.lock', 'ui/Dockerfile', 'ui/package.json', 'ui/pnpm-lock.yaml') }}
           restore-keys: |
             buildkit-cache-mounts-${{ matrix.image_name }}-${{ matrix.platform_tag }}-
 
@@ -94,7 +112,8 @@ jobs:
               "buildkit-cache-mounts/${{ matrix.image_name }}-${{ matrix.platform_tag }}/cargo-registry": "/usr/local/cargo/registry",
               "buildkit-cache-mounts/${{ matrix.image_name }}-${{ matrix.platform_tag }}/cargo-git": "/usr/local/cargo/git",
               "buildkit-cache-mounts/${{ matrix.image_name }}-${{ matrix.platform_tag }}/cargo-install-target": "/usr/local/cargo-install-target",
-              "buildkit-cache-mounts/${{ matrix.image_name }}-${{ matrix.platform_tag }}/src-target": "/src/target"
+              "buildkit-cache-mounts/${{ matrix.image_name }}-${{ matrix.platform_tag }}/src-target": "/src/target",
+              "buildkit-cache-mounts/${{ matrix.image_name }}-${{ matrix.platform_tag }}/pnpm-store": "/pnpm/store"
             }
 
       - name: Build ${{ matrix.image_name }} ${{ matrix.platform }} image
@@ -102,7 +121,7 @@ jobs:
         uses: docker/build-push-action@v7.1.0
         with:
           context: .
-          file: docker/Dockerfile
+          file: ${{ matrix.dockerfile }}
           target: ${{ matrix.docker_target }}
           platforms: ${{ matrix.platform }}
           outputs: type=image,name=${{ steps.image.outputs.name }},push-by-digest=true,name-canonical=true,push=true
@@ -114,7 +133,7 @@ jobs:
         uses: docker/build-push-action@v7.1.0
         with:
           context: .
-          file: docker/Dockerfile
+          file: ${{ matrix.dockerfile }}
           target: ${{ matrix.docker_target }}
           platforms: ${{ matrix.platform }}
           outputs: type=cacheonly
@@ -186,6 +205,18 @@ jobs:
           name: opentk-search-reconciler-arm64-digest
           path: /tmp/digests/opentk-search-reconciler-arm64
 
+      - name: Download opentk-ui amd64 digest
+        uses: actions/download-artifact@v8.0.1
+        with:
+          name: opentk-ui-amd64-digest
+          path: /tmp/digests/opentk-ui-amd64
+
+      - name: Download opentk-ui arm64 digest
+        uses: actions/download-artifact@v8.0.1
+        with:
+          name: opentk-ui-arm64-digest
+          path: /tmp/digests/opentk-ui-arm64
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4.0.0
 
@@ -203,7 +234,7 @@ jobs:
           owner="$(printf '%s' "${GITHUB_REPOSITORY_OWNER}" | tr '[:upper:]' '[:lower:]')"
           tag="${GITHUB_SHA}"
 
-          for image_name in opentk-api opentk-sync opentk-search-reconciler; do
+          for image_name in opentk-api opentk-sync opentk-search-reconciler opentk-ui; do
             image="ghcr.io/${owner}/${image_name}"
             refs=()
 
