@@ -50,4 +50,5 @@ fn meilisearch_schema_declares_search_result_and_filter_contract() {
             "exactness"
         ]
     );
+    assert_eq!(schema.max_total_hits, 10_000_000);
 }

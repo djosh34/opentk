@@ -275,6 +275,7 @@ pub struct SearchIndexSchema {
     pub filterable_attributes: Vec<&'static str>,
     pub sortable_attributes: Vec<&'static str>,
     pub ranking_rules: Vec<&'static str>,
+    pub max_total_hits: u32,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -380,6 +381,7 @@ pub fn meilisearch_schema() -> SearchIndexSchema {
             "sort",
             "exactness",
         ],
+        max_total_hits: 10_000_000,
     }
 }
 
@@ -469,6 +471,11 @@ impl SearchIndexClient for MeilisearchClient {
             .await?;
         self.ensure_settings("ranking-rules", &schema.ranking_rules)
             .await?;
+        self.ensure_settings(
+            "pagination",
+            &serde_json::json!({ "maxTotalHits": schema.max_total_hits }),
+        )
+        .await?;
         Ok(())
     }
 
@@ -585,16 +592,21 @@ impl SearchReconcilerClient for MeilisearchClient {
             return Err(response_error(get).await);
         }
 
-        self.apply_settings("searchable-attributes", &schema.searchable_attributes)
+        self.ensure_settings("searchable-attributes", &schema.searchable_attributes)
             .await?;
-        self.apply_settings("displayed-attributes", &schema.displayed_attributes)
+        self.ensure_settings("displayed-attributes", &schema.displayed_attributes)
             .await?;
-        self.apply_settings("filterable-attributes", &schema.filterable_attributes)
+        self.ensure_settings("filterable-attributes", &schema.filterable_attributes)
             .await?;
-        self.apply_settings("sortable-attributes", &schema.sortable_attributes)
+        self.ensure_settings("sortable-attributes", &schema.sortable_attributes)
             .await?;
-        self.apply_settings("ranking-rules", &schema.ranking_rules)
+        self.ensure_settings("ranking-rules", &schema.ranking_rules)
             .await?;
+        self.ensure_settings(
+            "pagination",
+            &serde_json::json!({ "maxTotalHits": schema.max_total_hits }),
+        )
+        .await?;
         Ok(())
     }
 

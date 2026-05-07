@@ -62,6 +62,9 @@ async fn meilisearch_client_resets_settings_upserts_deletes_and_polls_tasks() {
     assert!(observed.iter().any(|request| request
         .starts_with("PUT /indexes/opentk_entities/settings/searchable-attributes ")));
     assert!(observed.iter().any(|request| request
+        .starts_with("PUT /indexes/opentk_entities/settings/pagination ")
+        && request.contains("\"maxTotalHits\":10000000")));
+    assert!(observed.iter().any(|request| request
         .starts_with("POST /indexes/opentk_entities/documents ")
         && request.contains("\"id\":\"Document_indexed\"")
         && request.contains("\"key\":\"Document:indexed\"")
